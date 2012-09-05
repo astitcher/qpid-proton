@@ -37,6 +37,9 @@
 using std::string;
 using std::cout;
 
+using pn::Message;
+using pn::Messenger;
+
 int main(int argc, char* argv[])
 {
     if (argc < 2)
@@ -46,29 +49,28 @@ int main(int argc, char* argv[])
     auto subject = argv[2];
     auto replyto = "replies";
 
-    auto mng = pn_messenger("");
-    pn_messenger_start(mng);
+    auto mng = Messenger();
+    mng.start();
     
-    auto msg = pn_message();
-    pn_message_set_address(msg, address);
-    pn_message_set_subject(msg, subject);
-    pn_message_set_reply_to(msg, replyto);
+    auto msg = Message();
+    msg.address(address);
+    msg.subject(subject);
+    msg.replyTo(replyto);
     
-    if (pn_messenger_put(mng, msg))
-        cout << pn_messenger_error(mng) << "\n";
-    if (pn_messenger_send(mng))
-        cout << pn_messenger_error(mng) << "\n";
+    if (mng.put(msg))
+        cout << mng.error() << "\n";
+    if (mng.send())
+        cout << mng.error() << "\n";
 
     if (replyto[0] != '/' && replyto[1] != '/')
-        if (pn_messenger_recv(mng, 1))
-            cout << pn_messenger_error(mng) << "\n";
-        else if (pn_messenger_get(mng, msg))
-            cout << pn_messenger_error(mng) << "\n";
+        if (mng.recv(1))
+            cout << mng.error() << "\n";
+        else if (mng.get(msg))
+            cout << mng.error() << "\n";
         else
-            cout << pn_message_get_address(msg) << " " <<  pn_message_get_subject(msg) << "\n";
+            cout << msg.address() << " " <<  msg.subject() << "\n";
 
-    pn_messenger_stop(mng);
-    pn_messenger_free(mng);
+    mng.stop();
     return 0;
 }
 

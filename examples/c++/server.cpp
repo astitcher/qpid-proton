@@ -41,6 +41,7 @@
 
 
 #include <string>
+#include <cstring>
 #include <vector>
 #include <iostream>
 
@@ -48,11 +49,14 @@ using std::string;
 using std::vector;
 using std::cout;
 
-void dispatch(pn_message_t* request, pn_message_t* response) {
-  auto subject = pn_message_get_subject(request);
+using pn::Message;
+using pn::Messenger;
+
+void dispatch(const Message& request, Message& response) {
+  auto subject = request.subject();
   string rsubject{"Re: "};
   rsubject += subject;
-  pn_message_set_subject(response, rsubject.c_str());
+  response.subject(rsubject.c_str());
   cout << "Dispatched " << subject << "\n";
 }
 
@@ -60,50 +64,49 @@ int main(int argc, char* argv[])
 {
     vector<const char*> args(&argv[1], &argv[argc]);
 
-    auto mng = pn_messenger("");
-    pn_messenger_start(mng);
+    auto mng = Messenger();
+    mng.start();
 
     if (args.empty())
         args = {"//~0.0.0.0"};
 
     for (auto a : args) {
-        if (pn_messenger_subscribe(mng, a)) {
-            cout << pn_messenger_error(mng) << "\n";
+        if (mng.subscribe(a)) {
+            cout << mng.error() << "\n";
             break;
         }
     }
 
-    auto msg = pn_message();
-    auto reply = pn_message();
+    auto msg = Message();
+    auto reply = Message();
 
     while (true) {
-        if (pn_messenger_incoming(mng) < 10) {
-            if (pn_messenger_recv(mng, 10)) {
-                cout << pn_messenger_error(mng) << "\n";
+        if (mng.incoming() < 10) {
+            if (mng.recv(10)) {
+                cout << mng.error() << "\n";
                 break;
             }
         }
-        if (pn_messenger_incoming(mng) > 0) {
-            if (pn_messenger_get(mng, msg)) {
-                cout << pn_messenger_error(mng) << "\n";
+        if (mng.incoming() > 0) {
+            if (mng.get(msg)) {
+                cout << mng.error() << "\n";
             } else {
-                auto reply_to = pn_message_get_reply_to(msg);
-                auto cid = pn_message_get_correlation_id(msg);
+                auto reply_to = msg.replyTo();
+                auto cid = msg.correlationId();
                 if (reply_to)
-                    pn_message_set_address(reply, reply_to);
-                if (cid.type == PN_NULL)
-                    pn_message_set_correlation_id(reply, cid);
+                    reply.address(reply_to);
+                if (cid.type != PN_NULL)
+                    reply.correlationId(cid);
                 dispatch(msg, reply);
-                if (pn_messenger_put(mng, reply))
-                    cout << pn_messenger_error(mng) << "\n";
-                if (pn_messenger_send(mng))
-                    cout << pn_messenger_error(mng) << "\n";
+                if (mng.put(reply))
+                    cout << mng.error() << "\n";
+                if (mng.send())
+                    cout << mng.error() << "\n";
             }
         }
     }
 
-    pn_messenger_stop(mng);
-    pn_messenger_free(mng);
+    mng.stop();
     return 0;
 }
 
