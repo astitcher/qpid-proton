@@ -824,70 +824,71 @@ namespace pn {
     class Message {
         pn_message_t* msg;
 
+    public:
         Message(): msg(pn_message()) {}
         ~Message() {pn_message_free(msg);}
         operator pn_message_t*() {return msg;}
 
         void clear() {pn_message_clear(msg);}
-        int errno() {return pn_message_errno(msg);}
-        const char* error() {return pn_message_error(msg);}
+        int errno() const {return pn_message_errno(msg);}
+        const char* error() const {return pn_message_error(msg);}
 
         // Message headers and properties
-        bool durable() {return pn_message_is_durable(msg);}
+        bool durable() const {return pn_message_is_durable(msg);}
         int durable(bool b) {return pn_message_set_durable(msg, b);}
 
-        uint8_t priority() { return pn_message_get_priority(msg);}
+        uint8_t priority() const { return pn_message_get_priority(msg);}
         int priority(uint8_t priority) {return pn_message_set_priority(msg, priority);}
 
-        pn_millis_t ttl() {return pn_message_get_ttl(msg);}
+        pn_millis_t ttl() const {return pn_message_get_ttl(msg);}
         int ttl(pn_millis_t ttl) {return pn_message_set_ttl(msg, ttl);}
 
-        bool firstAcquirer() {return pn_message_is_first_acquirer(msg);}
+        bool firstAcquirer() const {return pn_message_is_first_acquirer(msg);}
         int firstAcquirer(bool first) {return pn_message_set_first_acquirer(msg, first);}
 
-        uint32_t deliveryCount() {return pn_message_get_delivery_count(msg);}
+        uint32_t deliveryCount() const {return pn_message_get_delivery_count(msg);}
         int deliveryCount(uint32_t count) {return pn_message_set_delivery_count(msg, count);}
 
-        pn_atom_t id() {return pn_message_get_id(msg);}
+        pn_atom_t id() const {return pn_message_get_id(msg);}
         int id(pn_atom_t id_) {return pn_message_set_id(msg, id_);}
 
-        pn_bytes_t userId() {return pn_message_get_user_id(msg);}
+        pn_bytes_t userId() const {return pn_message_get_user_id(msg);}
         int userId(pn_bytes_t user_id) {return pn_message_set_user_id(msg, user_id);}
 
-        const char * address() {return pn_message_get_address(msg);}
+        const char * address() const {return pn_message_get_address(msg);}
         int address(const char* address_) {return pn_message_set_address(msg, address_);}
 
-        const char * subject() {return pn_message_get_subject(msg);}
+        const char * subject() const {return pn_message_get_subject(msg);}
         int subject(const char *subject_) {return pn_message_set_subject(msg, subject_);}
 
-        const char * replyTo() {return pn_message_get_reply_to(msg);}
+        const char * replyTo() const {return pn_message_get_reply_to(msg);}
         int replyTo(const char *reply_to) {return pn_message_set_reply_to(msg, reply_to);}
 
-        pn_atom_t correlationId() {return pn_message_get_correlation_id(msg);}
+        pn_atom_t correlationId() const {return pn_message_get_correlation_id(msg);}
         int correlationId(pn_atom_t atom) {return pn_message_set_correlation_id(msg, atom);}
 
-        const char * contentType() {return pn_message_get_content_type(msg);}
+        const char * contentType() const {return pn_message_get_content_type(msg);}
         int contentType(const char *type) {return pn_message_set_content_type(msg, type);}
 
-        const char * contentEncoding() {return pn_message_get_content_encoding(msg);}
+        const char * contentEncoding() const {return pn_message_get_content_encoding(msg);}
         int contentEncoding(const char *encoding) {return pn_message_set_content_encoding(msg, encoding);}
 
-        pn_timestamp_t expiryTime() {return pn_message_get_expiry_time(msg);}
+        pn_timestamp_t expiryTime() const {return pn_message_get_expiry_time(msg);}
         int expiryTime(pn_timestamp_t time) {return pn_message_set_expiry_time(msg, time);}
 
-        pn_timestamp_t creationTime() {return pn_message_get_creation_time(msg);}
+        pn_timestamp_t creationTime() const {return pn_message_get_creation_time(msg);}
         int creationTime(pn_timestamp_t time) {return pn_message_set_creation_time(msg, time);}
 
-        const char * groupId() {return pn_message_get_group_id(msg);}
+        const char * groupId() const {return pn_message_get_group_id(msg);}
         int groupId(const char *group_id) {return pn_message_set_group_id(msg, group_id);}
 
-        pn_sequence_t groupSequence() {return pn_message_get_group_sequence(msg);}
+        pn_sequence_t groupSequence() const {return pn_message_get_group_sequence(msg);}
         int groupSequence(pn_sequence_t n) {return pn_message_set_group_sequence(msg, n);}
 
-        const char * replyToGroupId() {return pn_message_get_reply_to_group_id(msg);}
+        const char * replyToGroupId() const {return pn_message_get_reply_to_group_id(msg);}
         int replyToGroupId(const char *reply_to_group_id) {return pn_message_set_reply_to_group_id(msg, reply_to_group_id);}
 
-        pn_format_t format() {return pn_message_get_format(msg);}
+        pn_format_t format() const {return pn_message_get_format(msg);}
         int format(pn_format_t format) {return pn_message_set_format(msg, format);}
 
         int load(const char *data, size_t size) {return pn_message_load(msg, data, size);}
