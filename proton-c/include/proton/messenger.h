@@ -1050,10 +1050,10 @@ namespace pn {
         int start() {return pn_messenger_start(messenger);}
         int stop() {return pn_messenger_stop(messenger);}
         int subscribe(const char *source) {return pn_messenger_subscribe(messenger, source);}
-        int put(pn_message_t *msg) {return pn_messenger_put(messenger, msg);}
+        int put(pn_message_t * msg) {return pn_messenger_put(messenger, msg);}
         int send() {return pn_messenger_send(messenger);}
         int recv(int n) {return pn_messenger_recv(messenger, n);}
-        int get(pn_message_t *msg) {return pn_messenger_get(messenger, msg);}
+        int get(pn_message_t * msg) {return pn_messenger_get(messenger, msg);}
         int outgoing() {return pn_messenger_outgoing(messenger);}
         int incoming() {return pn_messenger_incoming(messenger);}
     };

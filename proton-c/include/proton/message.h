@@ -891,23 +891,23 @@ namespace pn {
         pn_format_t format() const {return pn_message_get_format(msg);}
         int format(pn_format_t format) {return pn_message_set_format(msg, format);}
 
-        int load(const char *data, size_t size) {return pn_message_load(msg, data, size);}
-        int loadData(const char *data, size_t size) {return pn_message_load_data(msg, data, size);}
-        int loadText(const char *data, size_t size) {return pn_message_load_text(msg, data, size);}
-        int loadAmqp(const char *data, size_t size) {return pn_message_load_amqp(msg, data, size);}
-        int loadJson(const char *data, size_t size) {return pn_message_load_json(msg, data, size);}
+        int load(const char * data, size_t size) {return pn_message_load(msg, data, size);}
+        int loadData(const char * data, size_t size) {return pn_message_load_data(msg, data, size);}
+        int loadText(const char * data, size_t size) {return pn_message_load_text(msg, data, size);}
+        int loadAmqp(const char * data, size_t size) {return pn_message_load_amqp(msg, data, size);}
+        int loadJson(const char * data, size_t size) {return pn_message_load_json(msg, data, size);}
 
-        int save(char *data, size_t *size) {return pn_message_save(msg, data, size);}
-        int saveData(char *data, size_t *size) {return pn_message_save_data(msg, data, size);}
-        int saveText(char *data, size_t *size) {return pn_message_save_text(msg, data, size);}
-        int saveAmqp(char *data, size_t *size) {return pn_message_save_amqp(msg, data, size);}
-        int saveJson(char *data, size_t *size) {return pn_message_save_json(msg, data, size);}
+        int save(char * data, size_t & size) {return pn_message_save(msg, data, &size);}
+        int saveData(char * data, size_t & size) {return pn_message_save_data(msg, data, &size);}
+        int saveText(char * data, size_t & size) {return pn_message_save_text(msg, data, &size);}
+        int saveAmqp(char * data, size_t & size) {return pn_message_save_amqp(msg, data, &size);}
+        int saveJson(char * data, size_t & size) {return pn_message_save_json(msg, data, &size);}
 
-        int decode(const char *bytes, size_t size) {return pn_message_decode(msg, bytes, size);}
-        int encode(char *bytes, size_t *size) {return pn_message_encode(msg, bytes, size);}
+        int decode(const char * bytes, size_t size) {return pn_message_decode(msg, bytes, size);}
+        int encode(char * bytes, size_t & size) {return pn_message_encode(msg, bytes, &size);}
 
         static
-        ssize_t data(char *dst, size_t available, const char *src, size_t size) {
+        ssize_t data(char * dst, size_t available, const char * src, size_t size) {
             return pn_message_data(dst, available, src, size);
         }
     };
