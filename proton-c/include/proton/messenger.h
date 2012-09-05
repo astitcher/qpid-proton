@@ -1030,6 +1030,33 @@ pn_messenger_set_ssl_peer_authentication_mode(pn_messenger_t *messenger,
 
 #ifdef __cplusplus
 }
+
+namespace pn {
+    class Messenger {
+        pn_messenger_t* messenger;
+
+        Messenger(const char * name = ""): messenger(pn_messenger(name)) {}
+        ~Messenger() {pn_messenger_free(messenger);}
+        operator pn_messenger_t*() {return messenger;}
+
+        int errno() {return pn_messenger_errno(messenger);}
+        const char * error() {return pn_messenger_error(messenger);}
+
+        const char * name() {return pn_messenger_name(messenger);}
+        int timeout() {return pn_messenger_get_timeout(messenger);}
+        int timeout(int timeout) {return pn_messenger_set_timeout(messenger, timeout);}
+
+        int start() {return pn_messenger_start(messenger);}
+        int stop() {return pn_messenger_stop(messenger);}
+        int subscribe(const char *source) {return pn_messenger_subscribe(messenger, source);}
+        int put(pn_message_t *msg) {return pn_messenger_put(messenger, msg);}
+        int send() {return pn_messenger_send(messenger);}
+        int recv(int n) {return pn_messenger_recv(messenger, n);}
+        int get(pn_message_t *msg) {return pn_messenger_get(messenger, msg);}
+        int outgoing() {return pn_messenger_outgoing(messenger);}
+        int incoming() {return pn_messenger_incoming(messenger);}
+    };
+}
 #endif
 
 #endif /* messenger.h */
