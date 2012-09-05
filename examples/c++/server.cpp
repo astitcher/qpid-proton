@@ -53,7 +53,7 @@ using pn::Message;
 using pn::Messenger;
 
 void dispatch(const Message& request, Message& response) {
-  auto subject = request.subject();
+  auto subject = request.subject() ? request.subject() : "(no subject)";
   string rsubject{"Re: "};
   rsubject += subject;
   response.subject(rsubject.c_str());
