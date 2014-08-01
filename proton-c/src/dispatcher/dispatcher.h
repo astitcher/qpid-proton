@@ -65,8 +65,6 @@ struct pn_dispatcher_t {
 
 pn_dispatcher_t *pn_dispatcher(uint8_t frame_type, pn_transport_t *transport);
 void pn_dispatcher_free(pn_dispatcher_t *disp);
-void pn_dispatcher_action(pn_dispatcher_t *disp, uint8_t code,
-                          pn_action_t *action);
 int pn_scan_args(pn_dispatcher_t *disp, const char *fmt, ...);
 void pn_set_payload(pn_dispatcher_t *disp, const char *data, size_t size);
 int pn_post_frame(pn_dispatcher_t *disp, uint16_t ch, const char *fmt, ...);
