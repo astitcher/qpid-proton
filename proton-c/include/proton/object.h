@@ -205,6 +205,7 @@ PN_EXTERN pn_context_t *pn_context(void);
 PN_EXTERN void pn_context_def(pn_context_t *context, pn_handle_t key, const pn_class_t *clazz);
 PN_EXTERN void *pn_context_get(pn_context_t *context, pn_handle_t key);
 PN_EXTERN void pn_context_set(pn_context_t *context, pn_handle_t key, void *value);
+PN_EXTERN void pn_context_clear(pn_context_t *context);
 
 #ifdef __cplusplus
 }

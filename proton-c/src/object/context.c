@@ -31,6 +31,7 @@ typedef struct {
 
 struct pn_context_t {
   size_t size;
+  size_t capacity;
   pni_entry_t *entries;
 };
 
@@ -38,6 +39,7 @@ static void pn_context_initialize(void *object)
 {
   pn_context_t *ctx = (pn_context_t *) object;
   ctx->size = 0;
+  ctx->capacity = 0;
   ctx->entries = NULL;
 }
 
@@ -75,7 +77,10 @@ static pni_entry_t *pni_context_find(pn_context_t *ctx, pn_handle_t key) {
 
 static pni_entry_t *pni_context_create(pn_context_t *ctx) {
   ctx->size++;
-  ctx->entries = (pni_entry_t *) realloc(ctx->entries, ctx->size * sizeof(pni_entry_t));
+  if (ctx->size > ctx->capacity) {
+    ctx->entries = (pni_entry_t *) realloc(ctx->entries, ctx->size * sizeof(pni_entry_t));
+    ctx->capacity = ctx->size;
+  }
   pni_entry_t *entry = &ctx->entries[ctx->size - 1];
   entry->key = 0;
   entry->clazz = NULL;
@@ -120,4 +125,18 @@ void pn_context_set(pn_context_t *context, pn_handle_t key, void *value)
     pn_class_incref(entry->clazz, value);
     pn_class_decref(entry->clazz, old);
   }
+}
+
+void pn_context_clear(pn_context_t *context)
+{
+  assert(context);
+  for (size_t i = 0; i < context->size; i++) {
+    pni_entry_t *entry = &context->entries[i];
+    pn_class_decref(entry->clazz, entry->value);
+    entry->key = 0;
+    entry->clazz = NULL;
+    entry->value = NULL;
+  }
+  context->size = 0;
+  pn_context_def(context, PN_LEGCTX, PN_VOID);
 }

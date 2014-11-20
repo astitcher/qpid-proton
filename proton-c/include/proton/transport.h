@@ -208,6 +208,15 @@ PN_EXTERN void *pn_transport_get_context(pn_transport_t *transport);
 PN_EXTERN void pn_transport_set_context(pn_transport_t *transport, void *context);
 
 /**
+ * Get the application context that is associated with a transport
+ * object.
+ *
+ * @param[in] transport the transport whose context is to be returned.
+ * @return the application context for the transport object
+ */
+PN_EXTERN pn_context_t *pn_transport_context(pn_transport_t *transport);
+
+/**
  * Log a message using a transport's logging mechanism.
  *
  * This can be useful in a debugging context as the log message will

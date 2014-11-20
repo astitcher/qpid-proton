@@ -160,7 +160,7 @@ struct pn_transport_t {
   size_t output_pending;
   char *output_buf;
 
-  void *context;
+  pn_context_t *context;
 
   /* input from peer */
   size_t input_size;
@@ -243,7 +243,7 @@ struct pn_link_t {
   pn_delivery_t *current;
   pn_delivery_t *settled_head;
   pn_delivery_t *settled_tail;
-  void *context;
+  pn_context_t *context;
   size_t unsettled_count;
   pn_sequence_t available;
   pn_sequence_t credit;
@@ -285,7 +285,7 @@ struct pn_delivery_t {
   pn_delivery_t *tpwork_prev;
   pn_delivery_state_t state;
   pn_buffer_t *bytes;
-  void *context;
+  pn_context_t *context;
   bool updated;
   bool settled; // tracks whether we're in the unsettled list or not
   bool work;

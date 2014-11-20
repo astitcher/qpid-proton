@@ -102,6 +102,15 @@ PN_EXTERN void *pn_link_get_context(pn_link_t *link);
 PN_EXTERN void pn_link_set_context(pn_link_t *link, void *context);
 
 /**
+ * Get the application context that is associated with a link
+ * object.
+ *
+ * @param[in] link the link whose context is to be returned.
+ * @return the application context for the link object
+ */
+PN_EXTERN pn_context_t *pn_link_context(pn_link_t *link);
+
+/**
  * Get the name of a link.
  *
  * @param[in] link a link object

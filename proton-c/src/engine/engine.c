@@ -317,13 +317,20 @@ void pn_link_free(pn_link_t *link)
 
 void *pn_link_get_context(pn_link_t *link)
 {
-    return link ? link->context : 0;
+  assert(link);
+  return pn_context_get(link->context, PN_LEGCTX);
 }
 
 void pn_link_set_context(pn_link_t *link, void *context)
 {
-    if (link)
-        link->context = context;
+  assert(link);
+  pn_context_set(link->context, PN_LEGCTX, context);
+}
+
+pn_context_t *pn_link_context(pn_link_t *link)
+{
+  assert(link);
+  return link->context;
 }
 
 void pn_endpoint_init(pn_endpoint_t *endpoint, int type, pn_connection_t *conn)
@@ -842,6 +849,7 @@ static void pn_link_finalize(void *object)
     return;
   }
 
+  pn_free(link->context);
   pn_terminus_free(&link->source);
   pn_terminus_free(&link->target);
   pn_terminus_free(&link->remote_source);
@@ -878,7 +886,7 @@ pn_link_t *pn_link_new(int type, pn_session_t *session, const char *name)
   link->drain = false;
   link->drain_flag_mode = true;
   link->drained = 0;
-  link->context = 0;
+  link->context = pn_context();
   link->snd_settle_mode = PN_SND_MIXED;
   link->rcv_settle_mode = PN_RCV_FIRST;
   link->remote_snd_settle_mode = PN_SND_MIXED;
@@ -1108,6 +1116,7 @@ static void pn_delivery_finalize(void *object)
   pn_delivery_t *delivery = (pn_delivery_t *) object;
   assert(delivery->settled);
   assert(!delivery->state.init);  // no longer in session delivery map
+  pn_free(delivery->context);
   pn_buffer_free(delivery->tag);
   pn_buffer_free(delivery->bytes);
   pn_disposition_finalize(&delivery->local);
@@ -1155,6 +1164,7 @@ pn_delivery_t *pn_delivery(pn_link_t *link, pn_delivery_tag_t tag)
     delivery->bytes = pn_buffer(64);
     pn_disposition_init(&delivery->local);
     pn_disposition_init(&delivery->remote);
+    delivery->context = pn_context();
   } else {
     assert(!delivery->tpwork);
   }
@@ -1173,7 +1183,7 @@ pn_delivery_t *pn_delivery(pn_link_t *link, pn_delivery_tag_t tag)
   delivery->tpwork = false;
   pn_buffer_clear(delivery->bytes);
   delivery->done = false;
-  delivery->context = NULL;
+  pn_context_clear(delivery->context);
 
   // begin delivery state
   delivery->state.init = false;
@@ -1251,13 +1261,19 @@ void pn_delivery_dump(pn_delivery_t *d)
 void *pn_delivery_get_context(pn_delivery_t *delivery)
 {
   assert(delivery);
-  return delivery->context;
+  return pn_context_get(delivery->context, PN_LEGCTX);
 }
 
 void pn_delivery_set_context(pn_delivery_t *delivery, void *context)
 {
   assert(delivery);
-  delivery->context = context;
+  pn_context_set(delivery->context, PN_LEGCTX, context);
+}
+
+pn_context_t *pn_delivery_context(pn_delivery_t *delivery)
+{
+  assert(delivery);
+  return delivery->context;
 }
 
 uint64_t pn_disposition_type(pn_disposition_t *disposition)
@@ -1464,6 +1480,7 @@ void pn_real_settle(pn_delivery_t *delivery)
                       delivery);
   pn_buffer_clear(delivery->tag);
   pn_buffer_clear(delivery->bytes);
+  pn_context_clear(delivery->context);
   delivery->settled = true;
   if (link->endpoint.freed) {
     pn_decref(delivery);

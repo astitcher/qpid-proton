@@ -87,3 +87,29 @@ class Session(Wrapper):
 
     def __init__(self, impl):
         Wrapper.__init__(self, impl, pn_session_context)
+
+    def sender(self, name):
+        return Sender(lambda: pn_sender(self._impl, name))
+
+    def receiver(self, name):
+        return Receiver(lambda: pn_receiver(self._impl, name))
+
+class Link(Wrapper):
+
+    def __init__(self, impl):
+        Wrapper.__init__(self, impl, pn_link_context)
+
+    @property
+    def session(self):
+        return Session(pn_link_session(self._impl))
+
+class Sender(Link):
+    pass
+
+class Receiver(Link):
+    pass
+
+class Transport(Wrapper):
+
+    def __init__(self, impl = pn_transport):
+        Wrapper.__init__(self, impl, pn_transport_context)
