@@ -198,15 +198,15 @@ struct pn_connection_t {
   pn_data_t *offered_capabilities;
   pn_data_t *desired_capabilities;
   pn_data_t *properties;
-  void *context;
   pn_collector_t *collector;
+  pn_context_t *context;
 };
 
 struct pn_session_t {
   pn_endpoint_t endpoint;
   pn_connection_t *connection;  // reference counted
   pn_list_t *links;
-  void *context;
+  pn_context_t *context;
   size_t incoming_capacity;
   pn_sequence_t incoming_bytes;
   pn_sequence_t outgoing_bytes;

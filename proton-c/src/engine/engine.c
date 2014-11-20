@@ -152,15 +152,23 @@ void pn_connection_unbound(pn_connection_t *connection)
   }
 }
 
+pn_context_t *pn_connection_context(pn_connection_t *connection)
+{
+  assert(connection);
+  return connection->context;
+}
+
 void *pn_connection_get_context(pn_connection_t *conn)
 {
-    return conn ? conn->context : 0;
+  // XXX: we should really assert on conn here, but this causes
+  // messenger tests to fail
+  return conn ? pn_context_get(conn->context, PN_LEGCTX) : NULL;
 }
 
 void pn_connection_set_context(pn_connection_t *conn, void *context)
 {
-    if (conn)
-        conn->context = context;
+  assert(conn);
+  pn_context_set(conn->context, PN_LEGCTX, context);
 }
 
 pn_transport_t *pn_connection_transport(pn_connection_t *connection)
@@ -227,15 +235,21 @@ void pn_session_free(pn_session_t *session)
   pn_decref(session);
 }
 
+pn_context_t *pn_session_context(pn_session_t *session)
+{
+  assert(session);
+  return session->context;
+}
+
 void *pn_session_get_context(pn_session_t *session)
 {
-    return session ? session->context : 0;
+  return session ? pn_context_get(session->context, PN_LEGCTX) : 0;
 }
 
 void pn_session_set_context(pn_session_t *session, void *context)
 {
-    if (session)
-        session->context = context;
+  assert(context);
+  pn_context_set(session->context, PN_LEGCTX, context);
 }
 
 
@@ -359,6 +373,7 @@ static void pn_connection_finalize(void *object)
     return;
   }
 
+  pn_free(conn->context);
   pn_decref(conn->collector);
   pn_free(conn->sessions);
   pn_free(conn->container);
@@ -374,13 +389,12 @@ static void pn_connection_finalize(void *object)
 #define pn_connection_compare NULL
 #define pn_connection_inspect NULL
 
-pn_connection_t *pn_connection()
+pn_connection_t *pn_connection(void)
 {
   static const pn_class_t clazz = PN_CLASS(pn_connection);
   pn_connection_t *conn = (pn_connection_t *) pn_class_new(&clazz, sizeof(pn_connection_t));
   if (!conn) return NULL;
 
-  conn->context = NULL;
   conn->endpoint_head = NULL;
   conn->endpoint_tail = NULL;
   pn_endpoint_init(&conn->endpoint, CONNECTION, conn);
@@ -398,6 +412,7 @@ pn_connection_t *pn_connection()
   conn->desired_capabilities = pn_data(0);
   conn->properties = pn_data(0);
   conn->collector = NULL;
+  conn->context = pn_context();
 
   return conn;
 }
@@ -707,6 +722,7 @@ static void pn_session_finalize(void *object)
     return;
   }
 
+  pn_free(session->context);
   pn_free(session->links);
   pn_endpoint_tini(endpoint);
   pn_delivery_map_free(&session->state.incoming);
@@ -731,7 +747,7 @@ pn_session_t *pn_session(pn_connection_t *conn)
   pn_endpoint_init(&ssn->endpoint, SESSION, conn);
   pn_add_session(conn, ssn);
   ssn->links = pn_list(PN_WEAKREF, 0);
-  ssn->context = 0;
+  ssn->context = pn_context();
   ssn->incoming_capacity = 1024*1024;
   ssn->incoming_bytes = 0;
   ssn->outgoing_bytes = 0;

@@ -85,6 +85,15 @@ PN_EXTERN void *pn_session_get_context(pn_session_t *session);
 PN_EXTERN void pn_session_set_context(pn_session_t *session, void *context);
 
 /**
+ * Get the application context that is associated with a session
+ * object.
+ *
+ * @param[in] session the session whose context is to be returned.
+ * @return the application context for the session object
+ */
+PN_EXTERN pn_context_t *pn_session_context(pn_session_t *session);
+
+/**
  * Get the endpoint state flags for a session.
  *
  * @param[in] session the session

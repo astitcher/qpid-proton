@@ -161,6 +161,15 @@ PN_EXTERN void *pn_connection_get_context(pn_connection_t *connection);
 PN_EXTERN void pn_connection_set_context(pn_connection_t *connection, void *context);
 
 /**
+ * Get the application context that is associated with a connection
+ * object.
+ *
+ * @param[in] connection the connection whose context is to be returned.
+ * @return the application context for the connection object
+ */
+PN_EXTERN pn_context_t *pn_connection_context(pn_connection_t *connection);
+
+/**
  * Get the endpoint state flags for a connection.
  *
  * @param[in] connection the connection
