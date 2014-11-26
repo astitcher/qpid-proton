@@ -102,7 +102,7 @@ pn_sasl_t *pn_sasl(pn_transport_t *transport)
 {
   if (!transport->sasl) {
     pni_sasl_t *sasl = (pni_sasl_t *) malloc(sizeof(pni_sasl_t));
-    sasl->disp = pn_dispatcher(1, transport);
+    sasl->disp = pn_dispatcher(transport);
     sasl->disp->batch = false;
 
     sasl->client = !transport->server;
@@ -283,7 +283,7 @@ void pn_sasl_free(pn_transport_t *transport)
 void pn_client_init(pni_sasl_t *sasl)
 {
   pn_buffer_memory_t bytes = pn_buffer_memory(sasl->send_data);
-  pn_post_frame(sasl->disp, 0, "DL[sz]", SASL_INIT, sasl->mechanisms,
+  pn_post_frame(sasl->disp, SASL_FRAME_TYPE, 0, "DL[sz]", SASL_INIT, sasl->mechanisms,
                 bytes.size, bytes.start);
   pn_buffer_clear(sasl->send_data);
 }
@@ -316,13 +316,13 @@ void pn_server_init(pni_sasl_t *sasl)
     }
   }
 
-  pn_post_frame(sasl->disp, 0, "DL[@T[*s]]", SASL_MECHANISMS, PN_SYMBOL, count, mechs);
+  pn_post_frame(sasl->disp, SASL_FRAME_TYPE, 0, "DL[@T[*s]]", SASL_MECHANISMS, PN_SYMBOL, count, mechs);
 }
 
 void pn_server_done(pn_sasl_t *sasl0)
 {
   pni_sasl_t *sasl = get_sasl_internal(sasl0);
-  pn_post_frame(sasl->disp, 0, "DL[B]", SASL_OUTCOME, sasl->outcome);
+  pn_post_frame(sasl->disp, SASL_FRAME_TYPE, 0, "DL[B]", SASL_OUTCOME, sasl->outcome);
 }
 
 void pn_sasl_process(pn_transport_t *transport)
@@ -339,7 +339,7 @@ void pn_sasl_process(pn_transport_t *transport)
 
   if (pn_buffer_size(sasl->send_data)) {
     pn_buffer_memory_t bytes = pn_buffer_memory(sasl->send_data);
-    pn_post_frame(sasl->disp, 0, "DL[z]", sasl->client ? SASL_RESPONSE : SASL_CHALLENGE,
+    pn_post_frame(sasl->disp, SASL_FRAME_TYPE, 0, "DL[z]", sasl->client ? SASL_RESPONSE : SASL_CHALLENGE,
                   bytes.size, bytes.start);
     pn_buffer_clear(sasl->send_data);
   }

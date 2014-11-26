@@ -75,11 +75,10 @@ static inline int pni_dispatch_action(pn_transport_t* transport, uint64_t lcode,
   return action(transport, frame_type, channel, args, payload);
 }
 
-pn_dispatcher_t *pn_dispatcher(uint8_t frame_type, pn_transport_t *transport)
+pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
 {
   pn_dispatcher_t *disp = (pn_dispatcher_t *) calloc(sizeof(pn_dispatcher_t), 1);
 
-  disp->frame_type = frame_type;
   disp->transport = transport;
 
   disp->args = pn_data(16);
@@ -211,7 +210,7 @@ void pn_set_payload(pn_dispatcher_t *disp, const char *data, size_t size)
   disp->output_size = size;
 }
 
-int pn_post_frame(pn_dispatcher_t *disp, uint16_t ch, const char *fmt, ...)
+int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
@@ -243,7 +242,7 @@ int pn_post_frame(pn_dispatcher_t *disp, uint16_t ch, const char *fmt, ...)
     return PN_ERR;
   }
 
-  pn_frame_t frame = {disp->frame_type};
+  pn_frame_t frame = {type};
   frame.channel = ch;
   frame.payload = buf.start;
   frame.size = wr;
@@ -276,14 +275,14 @@ ssize_t pn_dispatcher_output(pn_dispatcher_t *disp, char *bytes, size_t size)
 }
 
 
-int pn_post_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
-                           uint32_t handle,
-                           pn_sequence_t id,
-                           const pn_bytes_t *tag,
-                           uint32_t message_format,
-                           bool settled,
-                           bool more,
-                           pn_sequence_t frame_limit)
+int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
+                                uint32_t handle,
+                                pn_sequence_t id,
+                                const pn_bytes_t *tag,
+                                uint32_t message_format,
+                                bool settled,
+                                bool more,
+                                pn_sequence_t frame_limit)
 {
   bool more_flag = more;
   int framecount = 0;
@@ -350,7 +349,7 @@ int pn_post_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
     disp->output_size -= available;
     buf.size += available;
 
-    pn_frame_t frame = {disp->frame_type};
+    pn_frame_t frame = {AMQP_FRAME_TYPE};
     frame.channel = ch;
     frame.payload = buf.start;
     frame.size = buf.size;

@@ -48,24 +48,23 @@ struct pn_dispatcher_t {
   uint64_t output_frames_ct;
   uint64_t input_frames_ct;
   pn_string_t *scratch;
-  uint8_t frame_type; // Used when constructing outgoing frames
   bool halt;
   bool batch;
 };
 
-pn_dispatcher_t *pn_dispatcher(uint8_t frame_type, pn_transport_t *transport);
+pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport);
 void pn_dispatcher_free(pn_dispatcher_t *disp);
 void pn_set_payload(pn_dispatcher_t *disp, const char *data, size_t size);
-int pn_post_frame(pn_dispatcher_t *disp, uint16_t ch, const char *fmt, ...);
+int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *fmt, ...);
 ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available);
 ssize_t pn_dispatcher_output(pn_dispatcher_t *disp, char *bytes, size_t size);
-int pn_post_transfer_frame(pn_dispatcher_t *disp,
-                           uint16_t local_channel,
-                           uint32_t handle,
-                           pn_sequence_t delivery_id,
-                           const pn_bytes_t *delivery_tag,
-                           uint32_t message_format,
-                           bool settled,
-                           bool more,
-                           pn_sequence_t frame_limit);
+int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp,
+                                uint16_t local_channel,
+                                uint32_t handle,
+                                pn_sequence_t delivery_id,
+                                const pn_bytes_t *delivery_tag,
+                                uint32_t message_format,
+                                bool settled,
+                                bool more,
+                                pn_sequence_t frame_limit);
 #endif /* dispatcher.h */
