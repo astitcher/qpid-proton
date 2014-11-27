@@ -47,7 +47,6 @@ struct pn_dispatcher_t {
   pn_transport_t *transport; // TODO: We keep this to get access to logging - perhaps move logging
   uint64_t output_frames_ct;
   uint64_t input_frames_ct;
-  pn_string_t *scratch;
   bool halt;
   bool batch;
 };

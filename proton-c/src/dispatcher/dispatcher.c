@@ -93,8 +93,6 @@ pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
   disp->halt = false;
   disp->batch = true;
 
-  disp->scratch = pn_string(NULL);
-
   return disp;
 }
 
@@ -105,50 +103,49 @@ void pn_dispatcher_free(pn_dispatcher_t *disp)
     pn_data_free(disp->output_args);
     pn_buffer_free(disp->frame);
     free(disp->output);
-    pn_free(disp->scratch);
     free(disp);
   }
 }
 
 typedef enum {IN, OUT} pn_dir_t;
 
-static void pn_do_trace(pn_dispatcher_t *disp, uint16_t ch, pn_dir_t dir,
+static void pn_do_trace(pn_transport_t *transport, uint16_t ch, pn_dir_t dir,
                         pn_data_t *args, const char *payload, size_t size)
 {
-  if (disp->transport->trace & PN_TRACE_FRM) {
-    pn_string_format(disp->scratch, "%u %s ", ch, dir == OUT ? "->" : "<-");
-    pn_inspect(args, disp->scratch);
+  if (transport->trace & PN_TRACE_FRM) {
+    pn_string_format(transport->scratch, "%u %s ", ch, dir == OUT ? "->" : "<-");
+    pn_inspect(args, transport->scratch);
 
     if (pn_data_size(args)==0) {
-        pn_string_addf(disp->scratch, "(EMPTY FRAME)");
+        pn_string_addf(transport->scratch, "(EMPTY FRAME)");
     }
 
     if (size) {
       char buf[1024];
       int e = pn_quote_data(buf, 1024, payload, size);
-      pn_string_addf(disp->scratch, " (%" PN_ZU ") \"%s\"%s", size, buf,
+      pn_string_addf(transport->scratch, " (%" PN_ZU ") \"%s\"%s", size, buf,
                      e == PN_OVERFLOW ? "... (truncated)" : "");
     }
 
-    pn_transport_log(disp->transport, pn_string_get(disp->scratch));
+    pn_transport_log(transport, pn_string_get(transport->scratch));
   }
 }
 
-static int pni_dispatch_frame(pn_dispatcher_t *disp, pn_data_t *args, pn_frame_t frame)
+static int pni_dispatch_frame(pn_transport_t * transport, pn_data_t *args, pn_frame_t frame)
 {
   if (frame.size == 0) { // ignore null frames
-    if (disp->transport->trace & PN_TRACE_FRM)
-      pn_transport_logf(disp->transport, "%u <- (EMPTY FRAME)\n", frame.channel);
+    if (transport->trace & PN_TRACE_FRM)
+      pn_transport_logf(transport, "%u <- (EMPTY FRAME)\n", frame.channel);
     return 0;
   }
 
   ssize_t dsize = pn_data_decode(args, frame.payload, frame.size);
   if (dsize < 0) {
-    pn_string_format(disp->scratch,
+    pn_string_format(transport->scratch,
                      "Error decoding frame: %s %s\n", pn_code(dsize),
                      pn_error_text(pn_data_error(args)));
-    pn_quote(disp->scratch, frame.payload, frame.size);
-    pn_transport_log(disp->transport, pn_string_get(disp->scratch));
+    pn_quote(transport->scratch, frame.payload, frame.size);
+    pn_transport_log(transport, pn_string_get(transport->scratch));
     return dsize;
   }
 
@@ -160,20 +157,20 @@ static int pni_dispatch_frame(pn_dispatcher_t *disp, pn_data_t *args, pn_frame_t
   bool scanned;
   int e = pn_data_scan(args, "D?L.", &scanned, &lcode);
   if (e) {
-    pn_transport_log(disp->transport, "Scan error");
+    pn_transport_log(transport, "Scan error");
     return e;
   }
   if (!scanned) {
-    pn_transport_log(disp->transport, "Error dispatching frame");
+    pn_transport_log(transport, "Error dispatching frame");
     return PN_ERR;
   }
   size_t payload_size = frame.size - dsize;
   const char *payload_mem = payload_size ? frame.payload + dsize : NULL;
   pn_bytes_t payload = {payload_size, payload_mem};
 
-  pn_do_trace(disp, channel, IN, args, payload_mem, payload_size);
+  pn_do_trace(transport, channel, IN, args, payload_mem, payload_size);
 
-  int err = pni_dispatch_action(disp->transport, lcode, frame_type, channel, args, &payload);
+  int err = pni_dispatch_action(transport, lcode, frame_type, channel, args, &payload);
 
   pn_data_clear(args);
 
@@ -192,7 +189,7 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
       read += n;
       available -= n;
       disp->input_frames_ct += 1;
-      int e = pni_dispatch_frame(disp, disp->args, frame);
+      int e = pni_dispatch_frame(disp->transport, disp->args, frame);
       if (e) return e;
     } else {
       break;
@@ -224,7 +221,7 @@ int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *
     return PN_ERR;
   }
 
-  pn_do_trace(disp, ch, OUT, disp->output_args, disp->output_payload, disp->output_size);
+  pn_do_trace(disp->transport, ch, OUT, disp->output_args, disp->output_payload, disp->output_size);
 
  encode_performatives:
   pn_buffer_clear( disp->frame );
@@ -254,10 +251,10 @@ int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *
   }
   disp->output_frames_ct += 1;
   if (disp->transport->trace & PN_TRACE_RAW) {
-    pn_string_set(disp->scratch, "RAW: \"");
-    pn_quote(disp->scratch, disp->output + disp->available, n);
-    pn_string_addf(disp->scratch, "\"");
-    pn_transport_log(disp->transport, pn_string_get(disp->scratch));
+    pn_string_set(disp->transport->scratch, "RAW: \"");
+    pn_quote(disp->transport->scratch, disp->output + disp->available, n);
+    pn_string_addf(disp->transport->scratch, "\"");
+    pn_transport_log(disp->transport, pn_string_get(disp->transport->scratch));
   }
   disp->available += n;
 
@@ -342,7 +339,7 @@ int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
       goto encode_performatives;
     }
 
-    pn_do_trace(disp, ch, OUT, disp->output_args, disp->output_payload, available);
+    pn_do_trace(disp->transport, ch, OUT, disp->output_args, disp->output_payload, available);
 
     memmove( buf.start + buf.size, disp->output_payload, available);
     disp->output_payload += available;
@@ -363,10 +360,10 @@ int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
     disp->output_frames_ct += 1;
     framecount++;
     if (disp->transport->trace & PN_TRACE_RAW) {
-      pn_string_set(disp->scratch, "RAW: \"");
-      pn_quote(disp->scratch, disp->output + disp->available, n);
-      pn_string_addf(disp->scratch, "\"");
-      pn_transport_log(disp->transport, pn_string_get(disp->scratch));
+      pn_string_set(disp->transport->scratch, "RAW: \"");
+      pn_quote(disp->transport->scratch, disp->output + disp->available, n);
+      pn_string_addf(disp->transport->scratch, "\"");
+      pn_transport_log(disp->transport, pn_string_get(disp->transport->scratch));
     }
     disp->available += n;
   } while (disp->output_size > 0 && framecount < frame_limit);
