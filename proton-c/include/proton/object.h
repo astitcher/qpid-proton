@@ -43,6 +43,7 @@ typedef struct pn_map_t pn_map_t;
 typedef struct pn_hash_t pn_hash_t;
 typedef void *(*pn_iterator_next_t)(void *state);
 typedef struct pn_iterator_t pn_iterator_t;
+typedef struct pn_context_t pn_context_t;
 
 struct pn_class_t {
   const char *name;
@@ -197,6 +198,14 @@ PN_EXTERN pn_iterator_t *pn_iterator(void);
 PN_EXTERN void *pn_iterator_start(pn_iterator_t *iterator,
                                   pn_iterator_next_t next, size_t size);
 PN_EXTERN void *pn_iterator_next(pn_iterator_t *iterator);
+
+#define PN_LEGCTX ((pn_handle_t) 0)
+
+PN_EXTERN pn_context_t *pn_context(void);
+PN_EXTERN void pn_context_def(pn_context_t *context, pn_handle_t key, const pn_class_t *clazz);
+PN_EXTERN void *pn_context_get(pn_context_t *context, pn_handle_t key);
+PN_EXTERN void pn_context_set(pn_context_t *context, pn_handle_t key, void *value);
+PN_EXTERN void pn_context_clear(pn_context_t *context);
 
 #ifdef __cplusplus
 }

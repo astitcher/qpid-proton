@@ -100,6 +100,15 @@ PN_EXTERN void *pn_delivery_get_context(pn_delivery_t *delivery);
 PN_EXTERN void pn_delivery_set_context(pn_delivery_t *delivery, void *context);
 
 /**
+ * Get the application context that is associated with a delivery
+ * object.
+ *
+ * @param[in] delivery the delivery whose context is to be returned.
+ * @return the application context for the delivery object
+ */
+PN_EXTERN pn_context_t *pn_delivery_context(pn_delivery_t *delivery);
+
+/**
  * Get the tag for a delivery object.
  *
  * @param[in] delivery a delivery object
