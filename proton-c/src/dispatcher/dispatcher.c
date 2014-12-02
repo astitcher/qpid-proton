@@ -81,8 +81,6 @@ pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
 
   disp->transport = transport;
 
-  disp->args = pn_data(16);
-
   disp->output_args = pn_data(16);
   disp->frame = pn_buffer( 4*1024 );
   // XXX
@@ -98,7 +96,6 @@ pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
 void pn_dispatcher_free(pn_dispatcher_t *disp)
 {
   if (disp) {
-    pn_data_free(disp->args);
     pn_data_free(disp->output_args);
     pn_buffer_free(disp->frame);
     free(disp->output);
@@ -188,7 +185,7 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
       read += n;
       available -= n;
       disp->input_frames_ct += 1;
-      int e = pni_dispatch_frame(disp->transport, disp->args, frame);
+      int e = pni_dispatch_frame(disp->transport, disp->transport->args, frame);
       if (e) return e;
     } else {
       break;

@@ -150,7 +150,11 @@ struct pn_transport_t {
 
   pn_hash_t *local_channels;
   pn_hash_t *remote_channels;
+
+
+  /* scratch area */
   pn_string_t *scratch;
+  pn_data_t *args;
 
   /* statistics */
   uint64_t bytes_input;

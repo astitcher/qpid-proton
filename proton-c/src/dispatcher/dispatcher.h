@@ -35,7 +35,6 @@ typedef struct pn_dispatcher_t pn_dispatcher_t;
 typedef int (pn_action_t)(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, pn_data_t *args, const pn_bytes_t *payload);
 
 struct pn_dispatcher_t {
-  pn_data_t *args;
   pn_data_t *output_args;
   const char *output_payload;
   size_t output_size;

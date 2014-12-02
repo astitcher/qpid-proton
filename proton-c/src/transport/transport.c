@@ -305,7 +305,10 @@ static void pn_transport_initialize(void *object)
   transport->tracer = pni_default_tracer;
   transport->sasl = NULL;
   transport->ssl = NULL;
+
   transport->scratch = pn_string(NULL);
+  transport->args = pn_data(16);
+
   transport->disp = pn_dispatcher(transport);
   transport->connection = NULL;
   transport->context = pn_record();
@@ -454,6 +457,7 @@ static void pn_transport_finalize(void *object)
   if (transport->input_buf) free(transport->input_buf);
   if (transport->output_buf) free(transport->output_buf);
   pn_free(transport->scratch);
+  pn_data_free(transport->args);
 }
 
 int pn_transport_bind(pn_transport_t *transport, pn_connection_t *connection)
