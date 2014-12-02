@@ -48,14 +48,13 @@ struct pn_dispatcher_t {
   uint64_t output_frames_ct;
   uint64_t input_frames_ct;
   bool halt;
-  bool batch;
 };
 
 pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport);
 void pn_dispatcher_free(pn_dispatcher_t *disp);
 void pn_set_payload(pn_dispatcher_t *disp, const char *data, size_t size);
 int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *fmt, ...);
-ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available);
+ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available, bool batch);
 ssize_t pn_dispatcher_output(pn_dispatcher_t *disp, char *bytes, size_t size);
 int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp,
                                 uint16_t local_channel,

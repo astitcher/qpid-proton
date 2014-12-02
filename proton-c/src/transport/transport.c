@@ -1325,7 +1325,7 @@ static ssize_t pn_input_read_amqp(pn_transport_t* transport, unsigned int layer,
   }
 
 
-  ssize_t n = pn_dispatcher_input(transport->disp, bytes, available);
+  ssize_t n = pn_dispatcher_input(transport->disp, bytes, available, true);
   if (n < 0) {
     //return pn_error_set(transport->error, n, "dispatch error");
     return PN_EOS;

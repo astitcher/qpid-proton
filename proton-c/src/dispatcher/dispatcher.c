@@ -91,7 +91,6 @@ pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
   disp->available = 0;
 
   disp->halt = false;
-  disp->batch = true;
 
   return disp;
 }
@@ -177,7 +176,7 @@ static int pni_dispatch_frame(pn_transport_t * transport, pn_data_t *args, pn_fr
   return err;
 }
 
-ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available)
+ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available, bool batch)
 {
   size_t read = 0;
 
@@ -195,7 +194,7 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
       break;
     }
 
-    if (!disp->batch) break;
+    if (!batch) break;
   }
 
   return read;

@@ -103,7 +103,6 @@ pn_sasl_t *pn_sasl(pn_transport_t *transport)
   if (!transport->sasl) {
     pni_sasl_t *sasl = (pni_sasl_t *) malloc(sizeof(pni_sasl_t));
     sasl->disp = pn_dispatcher(transport);
-    sasl->disp->batch = false;
 
     sasl->client = !transport->server;
     sasl->mechanisms = NULL;
@@ -362,7 +361,7 @@ void pn_sasl_process(pn_transport_t *transport)
 ssize_t pn_sasl_input(pn_transport_t *transport, const char *bytes, size_t available)
 {
   pni_sasl_t *sasl = transport->sasl;
-  ssize_t n = pn_dispatcher_input(sasl->disp, bytes, available);
+  ssize_t n = pn_dispatcher_input(sasl->disp, bytes, available, false);
   if (n < 0) return n;
 
   pn_sasl_process(transport);
