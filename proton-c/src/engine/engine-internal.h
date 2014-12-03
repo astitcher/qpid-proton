@@ -155,10 +155,14 @@ struct pn_transport_t {
   /* scratch area */
   pn_string_t *scratch;
   pn_data_t *args;
+  pn_data_t *output_args;
+  pn_buffer_t *frame;  // frame under construction
 
   /* statistics */
   uint64_t bytes_input;
   uint64_t bytes_output;
+  uint64_t output_frames_ct;
+  uint64_t input_frames_ct;
 
   /* output buffered for send */
   size_t output_size;

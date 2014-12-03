@@ -308,6 +308,8 @@ static void pn_transport_initialize(void *object)
 
   transport->scratch = pn_string(NULL);
   transport->args = pn_data(16);
+  transport->output_args = pn_data(16);
+  transport->frame = pn_buffer(4*1024);
 
   transport->disp = pn_dispatcher(transport);
   transport->connection = NULL;
@@ -458,6 +460,8 @@ static void pn_transport_finalize(void *object)
   if (transport->output_buf) free(transport->output_buf);
   pn_free(transport->scratch);
   pn_data_free(transport->args);
+  pn_data_free(transport->output_args);
+  pn_buffer_free(transport->frame);
 }
 
 int pn_transport_bind(pn_transport_t *transport, pn_connection_t *connection)
@@ -726,8 +730,6 @@ int pn_do_open(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, 
                         transport->remote_max_frame, AMQP_MIN_MAX_FRAME_SIZE);
       transport->remote_max_frame = AMQP_MIN_MAX_FRAME_SIZE;
     }
-    transport->disp->remote_max_frame = transport->remote_max_frame;
-    pn_buffer_clear( transport->disp->frame );
   }
   if (container_q) {
     transport->remote_container = pn_bytes_strdup(remote_container);
@@ -1694,12 +1696,12 @@ int pn_process_tpwork_sender(pn_transport_t *transport, pn_delivery_t *delivery,
       }
 
       pn_bytes_t bytes = pn_buffer_bytes(delivery->bytes);
-      pn_set_payload(transport->disp, bytes.start, bytes.size);
+      size_t full_size = bytes.size;
       pn_bytes_t tag = pn_buffer_bytes(delivery->tag);
       int count = pn_post_amqp_transfer_frame(transport->disp,
                                               ssn_state->local_channel,
                                               link_state->local_handle,
-                                              state->id, &tag,
+                                              state->id, &bytes, &tag,
                                               0, // message-format
                                               delivery->local.settled,
                                               !delivery->done,
@@ -1709,7 +1711,7 @@ int pn_process_tpwork_sender(pn_transport_t *transport, pn_delivery_t *delivery,
       ssn_state->outgoing_transfer_count += count;
       ssn_state->remote_incoming_window -= count;
 
-      int sent = bytes.size - transport->disp->output_size;
+      int sent = full_size - bytes.size;
       pn_buffer_trim(delivery->bytes, sent, 0);
       link->session->outgoing_bytes -= sent;
       if (!pn_buffer_size(delivery->bytes) && delivery->done) {
@@ -2237,15 +2239,15 @@ pn_timestamp_t pn_transport_tick(pn_transport_t *transport, pn_timestamp_t now)
 
 uint64_t pn_transport_get_frames_output(const pn_transport_t *transport)
 {
-  if (transport && transport->disp)
-    return transport->disp->output_frames_ct;
+  if (transport)
+    return transport->output_frames_ct;
   return 0;
 }
 
 uint64_t pn_transport_get_frames_input(const pn_transport_t *transport)
 {
-  if (transport && transport->disp)
-    return transport->disp->input_frames_ct;
+  if (transport)
+    return transport->input_frames_ct;
   return 0;
 }
 

@@ -35,23 +35,16 @@ typedef struct pn_dispatcher_t pn_dispatcher_t;
 typedef int (pn_action_t)(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, pn_data_t *args, const pn_bytes_t *payload);
 
 struct pn_dispatcher_t {
-  pn_data_t *output_args;
-  const char *output_payload;
-  size_t output_size;
-  size_t remote_max_frame;
-  pn_buffer_t *frame;  // frame under construction
   size_t capacity;
   size_t available; /* number of raw bytes pending output */
   char *output;
+
   pn_transport_t *transport; // TODO: We keep this to get access to logging - perhaps move logging
-  uint64_t output_frames_ct;
-  uint64_t input_frames_ct;
   bool halt;
 };
 
 pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport);
 void pn_dispatcher_free(pn_dispatcher_t *disp);
-void pn_set_payload(pn_dispatcher_t *disp, const char *data, size_t size);
 int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *fmt, ...);
 ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available, bool batch);
 ssize_t pn_dispatcher_output(pn_dispatcher_t *disp, char *bytes, size_t size);
@@ -59,6 +52,7 @@ int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp,
                                 uint16_t local_channel,
                                 uint32_t handle,
                                 pn_sequence_t delivery_id,
+                                pn_bytes_t *payload,
                                 const pn_bytes_t *delivery_tag,
                                 uint32_t message_format,
                                 bool settled,
