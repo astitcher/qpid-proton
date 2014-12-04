@@ -120,7 +120,6 @@ struct pn_transport_t {
   pni_sasl_t *sasl;
   pni_ssl_t *ssl;
   pn_connection_t *connection;  // reference counted
-  pn_dispatcher_t *disp;
   char *remote_container;
   char *remote_hostname;
   pn_data_t *remote_offered_capabilities;
@@ -194,6 +193,7 @@ struct pn_transport_t {
   bool done_processing; // if true, don't call pn_process again
   bool posted_idle_timeout;
   bool server;
+  bool halt;
 };
 
 struct pn_connection_t {

@@ -30,19 +30,10 @@
 #include "proton/transport.h"
 #include "buffer.h"
 
-typedef struct pn_dispatcher_t pn_dispatcher_t;
-
 typedef int (pn_action_t)(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, pn_data_t *args, const pn_bytes_t *payload);
 
-struct pn_dispatcher_t {
-  pn_transport_t *transport; // TODO: We keep this to get access to logging - perhaps move logging
-  bool halt;
-};
-
-pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport);
-void pn_dispatcher_free(pn_dispatcher_t *disp);
 int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const char *fmt, ...);
-ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available, bool batch);
+ssize_t pn_dispatcher_input(pn_transport_t* transport, const char* bytes, size_t available, bool batch, bool* halt);
 ssize_t pn_dispatcher_output(pn_transport_t *transport, char *bytes, size_t size);
 int pn_post_amqp_transfer_frame(pn_transport_t *transport,
                                 uint16_t local_channel,

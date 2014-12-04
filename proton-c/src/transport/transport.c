@@ -311,7 +311,6 @@ static void pn_transport_initialize(void *object)
   transport->output_args = pn_data(16);
   transport->frame = pn_buffer(4*1024);
 
-  transport->disp = pn_dispatcher(transport);
   transport->connection = NULL;
   transport->context = pn_record();
 
@@ -362,6 +361,7 @@ static void pn_transport_initialize(void *object)
   transport->posted_idle_timeout = false;
 
   transport->server = false;
+  transport->halt = false;
 
   transport->trace = (pn_env_bool("PN_TRACE_RAW") ? PN_TRACE_RAW : PN_TRACE_OFF) |
     (pn_env_bool("PN_TRACE_FRM") ? PN_TRACE_FRM : PN_TRACE_OFF) |
@@ -453,7 +453,6 @@ static void pn_transport_finalize(void *object)
   pn_free(transport->context);
   pn_ssl_free(transport);
   pn_sasl_free(transport);
-  pn_dispatcher_free(transport->disp);
   free(transport->remote_container);
   free(transport->remote_hostname);
   pn_free(transport->remote_offered_capabilities);
@@ -492,7 +491,7 @@ int pn_transport_bind(pn_transport_t *transport, pn_connection_t *connection)
   if (transport->open_rcvd) {
     PN_SET_REMOTE(connection->endpoint.state, PN_REMOTE_ACTIVE);
     pn_collector_put(connection->collector, PN_OBJECT, connection, PN_CONNECTION_REMOTE_OPEN);
-    transport->disp->halt = false;
+    transport->halt = false;
     transport_consume(transport);        // blech - testBindAfterOpen
   }
 
@@ -701,7 +700,7 @@ int pn_do_error(pn_transport_t *transport, const char *condition, const char *fm
     pn_post_close(transport, condition, buf);
     transport->close_sent = true;
   }
-  transport->disp->halt = true;
+  transport->halt = true;
   pn_condition_set_name(&transport->condition, condition);
   pn_condition_set_description(&transport->condition, buf);
   pn_collector_t *collector = pni_transport_collector(transport);
@@ -756,7 +755,7 @@ int pn_do_open(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, 
     PN_SET_REMOTE(conn->endpoint.state, PN_REMOTE_ACTIVE);
     pn_collector_put(conn->collector, PN_OBJECT, conn, PN_CONNECTION_REMOTE_OPEN);
   } else {
-    transport->disp->halt = true;
+    transport->halt = true;
   }
   transport->open_rcvd = true;
   return 0;
@@ -1341,7 +1340,7 @@ static ssize_t pn_input_read_amqp(pn_transport_t* transport, unsigned int layer,
   }
 
 
-  ssize_t n = pn_dispatcher_input(transport->disp, bytes, available, true);
+  ssize_t n = pn_dispatcher_input(transport, bytes, available, true, &transport->halt);
   if (n < 0) {
     //return pn_error_set(transport->error, n, "dispatch error");
     return PN_EOS;

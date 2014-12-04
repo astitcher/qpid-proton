@@ -75,21 +75,6 @@ static inline int pni_dispatch_action(pn_transport_t* transport, uint64_t lcode,
   return action(transport, frame_type, channel, args, payload);
 }
 
-pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
-{
-  pn_dispatcher_t *disp = (pn_dispatcher_t *) calloc(sizeof(pn_dispatcher_t), 1);
-
-  disp->transport = transport;
-  disp->halt = false;
-
-  return disp;
-}
-
-void pn_dispatcher_free(pn_dispatcher_t *disp)
-{
-  free(disp);
-}
-
 typedef enum {IN, OUT} pn_dir_t;
 
 static void pn_do_trace(pn_transport_t *transport, uint16_t ch, pn_dir_t dir,
@@ -160,12 +145,11 @@ static int pni_dispatch_frame(pn_transport_t * transport, pn_data_t *args, pn_fr
   return err;
 }
 
-ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available, bool batch)
+ssize_t pn_dispatcher_input(pn_transport_t *transport, const char *bytes, size_t available, bool batch, bool *halt)
 {
   size_t read = 0;
-  pn_transport_t *transport = disp->transport;
 
-  while (available && !disp->halt) {
+  while (available && !*halt) {
     pn_frame_t frame;
 
     size_t n = pn_read_frame(&frame, bytes + read, available);
