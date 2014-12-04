@@ -418,6 +418,15 @@ pn_transport_t *pn_transport(void)
     pn_transport_free(transport);
     return NULL;
   }
+
+  transport->capacity = 4*1024;
+  transport->available = 0;
+  transport->output = (char *) malloc(transport->capacity);
+  if (!transport->output) {
+    pn_transport_free(transport);
+    return NULL;
+  }
+
   return transport;
 }
 
@@ -462,6 +471,7 @@ static void pn_transport_finalize(void *object)
   pn_data_free(transport->args);
   pn_data_free(transport->output_args);
   pn_buffer_free(transport->frame);
+  free(transport->output);
 }
 
 int pn_transport_bind(pn_transport_t *transport, pn_connection_t *connection)
@@ -644,7 +654,7 @@ int pn_post_close(pn_transport_t *transport, const char *condition, const char *
     info = pn_condition_info(cond);
   }
 
-  return pn_post_frame(transport->disp, AMQP_FRAME_TYPE, 0, "DL[?DL[sSC]]", CLOSE,
+  return pn_post_frame(transport, AMQP_FRAME_TYPE, 0, "DL[?DL[sSC]]", CLOSE,
                        (bool) condition, ERROR, condition, description, info);
 }
 
@@ -685,7 +695,7 @@ int pn_do_error(pn_transport_t *transport, const char *condition, const char *fm
   va_end(ap);
   if (!transport->close_sent) {
     if (!transport->open_sent) {
-      pn_post_frame(transport->disp, AMQP_FRAME_TYPE, 0, "DL[S]", OPEN, "");
+      pn_post_frame(transport, AMQP_FRAME_TYPE, 0, "DL[S]", OPEN, "");
     }
 
     pn_post_close(transport, condition, buf);
@@ -1371,10 +1381,10 @@ static pn_timestamp_t pn_tick_amqp(pn_transport_t* transport, unsigned int layer
       transport->last_bytes_output = transport->bytes_output;
     } else if (transport->keepalive_deadline <= now) {
       transport->keepalive_deadline = now + (pn_timestamp_t)(transport->remote_idle_timeout/2.0);
-      if (transport->disp->available == 0) {    // no outbound data pending
+      if (transport->available == 0) {    // no outbound data pending
         // so send empty frame (and account for it!)
-        pn_post_frame(transport->disp, AMQP_FRAME_TYPE, 0, "");
-        transport->last_bytes_output += transport->disp->available;
+        pn_post_frame(transport, AMQP_FRAME_TYPE, 0, "");
+        transport->last_bytes_output += transport->available;
       }
     }
     timeout = pn_timestamp_min( timeout, transport->keepalive_deadline );
@@ -1396,7 +1406,7 @@ int pn_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endpoint)
           : 0;
       pn_connection_t *connection = (pn_connection_t *) endpoint;
       const char *cid = pn_string_get(connection->container);
-      int err = pn_post_frame(transport->disp, AMQP_FRAME_TYPE, 0, "DL[SS?I?H?InnCCC]", OPEN,
+      int err = pn_post_frame(transport, AMQP_FRAME_TYPE, 0, "DL[SS?I?H?InnCCC]", OPEN,
                               cid ? cid : "",
                               pn_string_get(connection->hostname),
                               // if not zero, advertise our max frame size and idle timeout
@@ -1470,7 +1480,7 @@ int pn_process_ssn_setup(pn_transport_t *transport, pn_endpoint_t *endpoint)
       pni_map_local_channel(ssn);
       state->incoming_window = pn_session_incoming_window(ssn);
       state->outgoing_window = pn_session_outgoing_window(ssn);
-      pn_post_frame(transport->disp, AMQP_FRAME_TYPE, state->local_channel, "DL[?HIII]", BEGIN,
+      pn_post_frame(transport, AMQP_FRAME_TYPE, state->local_channel, "DL[?HIII]", BEGIN,
                     ((int16_t) state->remote_channel >= 0), state->remote_channel,
                     state->outgoing_transfer_count,
                     state->incoming_window,
@@ -1518,7 +1528,7 @@ int pn_process_link_setup(pn_transport_t *transport, pn_endpoint_t *endpoint)
       pni_map_local_handle(link);
       const pn_distribution_mode_t dist_mode = link->source.distribution_mode;
       if (link->target.type == PN_COORDINATOR) {
-        int err = pn_post_frame(transport->disp, AMQP_FRAME_TYPE, ssn_state->local_channel,
+        int err = pn_post_frame(transport, AMQP_FRAME_TYPE, ssn_state->local_channel,
                                 "DL[SIoBB?DL[SIsIoC?sCnCC]DL[C]nnI]", ATTACH,
                                 pn_string_get(link->name),
                                 state->local_handle,
@@ -1540,7 +1550,7 @@ int pn_process_link_setup(pn_transport_t *transport, pn_endpoint_t *endpoint)
                                 0);
         if (err) return err;
       } else {
-        int err = pn_post_frame(transport->disp, AMQP_FRAME_TYPE, ssn_state->local_channel,
+        int err = pn_post_frame(transport, AMQP_FRAME_TYPE, ssn_state->local_channel,
                                 "DL[SIoBB?DL[SIsIoC?sCnCC]?DL[SIsIoCC]nnI]", ATTACH,
                                 pn_string_get(link->name),
                                 state->local_handle,
@@ -1581,7 +1591,7 @@ int pn_post_flow(pn_transport_t *transport, pn_session_t *ssn, pn_link_t *link)
   ssn->state.outgoing_window = pn_session_outgoing_window(ssn);
   bool linkq = (bool) link;
   pn_link_state_t *state = &link->state;
-  return pn_post_frame(transport->disp, AMQP_FRAME_TYPE, ssn->state.local_channel, "DL[?IIII?I?I?In?o]", FLOW,
+  return pn_post_frame(transport, AMQP_FRAME_TYPE, ssn->state.local_channel, "DL[?IIII?I?I?In?o]", FLOW,
                        (int16_t) ssn->state.remote_channel >= 0, ssn->state.incoming_transfer_count,
                        ssn->state.incoming_window,
                        ssn->state.outgoing_transfer_count,
@@ -1615,7 +1625,7 @@ int pn_flush_disp(pn_transport_t *transport, pn_session_t *ssn)
   uint64_t code = ssn->state.disp_code;
   bool settled = ssn->state.disp_settled;
   if (ssn->state.disp) {
-    int err = pn_post_frame(transport->disp, AMQP_FRAME_TYPE, ssn->state.local_channel, "DL[oIIo?DL[]]", DISPOSITION,
+    int err = pn_post_frame(transport, AMQP_FRAME_TYPE, ssn->state.local_channel, "DL[oIIo?DL[]]", DISPOSITION,
                             ssn->state.disp_type, ssn->state.disp_first, ssn->state.disp_last,
                             settled, (bool)code, code);
     if (err) return err;
@@ -1647,7 +1657,7 @@ int pn_post_disp(pn_transport_t *transport, pn_delivery_t *delivery)
   if (!pni_disposition_batchable(&delivery->local)) {
     pn_data_clear(transport->disp_data);
     pni_disposition_encode(&delivery->local, transport->disp_data);
-    return pn_post_frame(transport->disp, AMQP_FRAME_TYPE, ssn->state.local_channel,
+    return pn_post_frame(transport, AMQP_FRAME_TYPE, ssn->state.local_channel,
                          "DL[oIIo?DLC]", DISPOSITION,
                          role, state->id, state->id, delivery->local.settled,
                          (bool)code, code, transport->disp_data);
@@ -1698,7 +1708,7 @@ int pn_process_tpwork_sender(pn_transport_t *transport, pn_delivery_t *delivery,
       pn_bytes_t bytes = pn_buffer_bytes(delivery->bytes);
       size_t full_size = bytes.size;
       pn_bytes_t tag = pn_buffer_bytes(delivery->tag);
-      int count = pn_post_amqp_transfer_frame(transport->disp,
+      int count = pn_post_amqp_transfer_frame(transport,
                                               ssn_state->local_channel,
                                               link_state->local_handle,
                                               state->id, &bytes, &tag,
@@ -1866,7 +1876,7 @@ int pn_process_link_teardown(pn_transport_t *transport, pn_endpoint_t *endpoint)
       }
 
       int err =
-          pn_post_frame(transport->disp, AMQP_FRAME_TYPE, ssn_state->local_channel,
+          pn_post_frame(transport, AMQP_FRAME_TYPE, ssn_state->local_channel,
                         "DL[Io?DL[sSC]]", DETACH, state->local_handle, !link->detached,
                         (bool)name, ERROR, name, description, info);
       if (err) return err;
@@ -1937,7 +1947,7 @@ int pn_process_ssn_teardown(pn_transport_t *transport, pn_endpoint_t *endpoint)
         info = pn_condition_info(&endpoint->condition);
       }
 
-      int err = pn_post_frame(transport->disp, AMQP_FRAME_TYPE, state->local_channel, "DL[?DL[sSC]]", END,
+      int err = pn_post_frame(transport, AMQP_FRAME_TYPE, state->local_channel, "DL[?DL[sSC]]", END,
                               (bool) name, ERROR, name, description, info);
       if (err) return err;
       pni_unmap_local_channel(session);
@@ -2035,11 +2045,11 @@ static ssize_t pn_output_write_amqp(pn_transport_t* transport, unsigned int laye
   // write out any buffered data _before_ returning PN_EOS, else we
   // could truncate an outgoing Close frame containing a useful error
   // status
-  if (!transport->disp->available && transport->close_sent) {
+  if (!transport->available && transport->close_sent) {
     return PN_EOS;
   }
 
-  return pn_dispatcher_output(transport->disp, bytes, available);
+  return pn_dispatcher_output(transport, bytes, available);
 }
 
 static void pni_close_head(pn_transport_t *transport)

@@ -157,6 +157,10 @@ struct pn_transport_t {
   pn_data_t *args;
   pn_data_t *output_args;
   pn_buffer_t *frame;  // frame under construction
+  // Temporary
+  size_t capacity;
+  size_t available; /* number of raw bytes pending output */
+  char *output;
 
   /* statistics */
   uint64_t bytes_input;

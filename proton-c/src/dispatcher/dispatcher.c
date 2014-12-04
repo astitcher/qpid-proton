@@ -80,12 +80,6 @@ pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
   pn_dispatcher_t *disp = (pn_dispatcher_t *) calloc(sizeof(pn_dispatcher_t), 1);
 
   disp->transport = transport;
-
-  // XXX
-  disp->capacity = 4*1024;
-  disp->output = (char *) malloc(disp->capacity);
-  disp->available = 0;
-
   disp->halt = false;
 
   return disp;
@@ -93,10 +87,7 @@ pn_dispatcher_t *pn_dispatcher(pn_transport_t *transport)
 
 void pn_dispatcher_free(pn_dispatcher_t *disp)
 {
-  if (disp) {
-    free(disp->output);
-    free(disp);
-  }
+  free(disp);
 }
 
 typedef enum {IN, OUT} pn_dir_t;
@@ -194,9 +185,8 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
   return read;
 }
 
-int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *fmt, ...)
+int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const char *fmt, ...)
 {
-  pn_transport_t *transport = disp->transport;
   pn_buffer_t *frame_buf = transport->frame;
   va_list ap;
   va_start(ap, fmt);
@@ -233,35 +223,35 @@ int pn_post_frame(pn_dispatcher_t *disp, uint8_t type, uint16_t ch, const char *
   frame.payload = buf.start;
   frame.size = wr;
   size_t n;
-  while (!(n = pn_write_frame(disp->output + disp->available,
-                              disp->capacity - disp->available, frame))) {
-    disp->capacity *= 2;
-    disp->output = (char *) realloc(disp->output, disp->capacity);
+  while (!(n = pn_write_frame(transport->output + transport->available,
+                              transport->capacity - transport->available, frame))) {
+    transport->capacity *= 2;
+    transport->output = (char *) realloc(transport->output, transport->capacity);
   }
   transport->output_frames_ct += 1;
   if (transport->trace & PN_TRACE_RAW) {
     pn_string_set(transport->scratch, "RAW: \"");
-    pn_quote(transport->scratch, disp->output + disp->available, n);
+    pn_quote(transport->scratch, transport->output + transport->available, n);
     pn_string_addf(transport->scratch, "\"");
     pn_transport_log(transport, pn_string_get(transport->scratch));
   }
-  disp->available += n;
+  transport->available += n;
 
   return 0;
 }
 
-ssize_t pn_dispatcher_output(pn_dispatcher_t *disp, char *bytes, size_t size)
+ssize_t pn_dispatcher_output(pn_transport_t *transport, char *bytes, size_t size)
 {
-  int n = disp->available < size ? disp->available : size;
-  memmove(bytes, disp->output, n);
-  memmove(disp->output, disp->output + n, disp->available - n);
-  disp->available -= n;
+  int n = transport->available < size ? transport->available : size;
+  memmove(bytes, transport->output, n);
+  memmove(transport->output, transport->output + n, transport->available - n);
+  transport->available -= n;
   // XXX: need to check for errors
   return n;
 }
 
 
-int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
+int pn_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
                                 uint32_t handle,
                                 pn_sequence_t id,
                                 pn_bytes_t *payload,
@@ -273,7 +263,6 @@ int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
 {
   bool more_flag = more;
   int framecount = 0;
-  pn_transport_t *transport = disp->transport;
   pn_buffer_t *frame = transport->frame;
 
   // create preformatives, assuming 'more' flag need not change
@@ -344,20 +333,20 @@ int pn_post_amqp_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
     frame.size = buf.size;
 
     size_t n;
-    while (!(n = pn_write_frame(disp->output + disp->available,
-                                disp->capacity - disp->available, frame))) {
-      disp->capacity *= 2;
-      disp->output = (char *) realloc(disp->output, disp->capacity);
+    while (!(n = pn_write_frame(transport->output + transport->available,
+                                transport->capacity - transport->available, frame))) {
+      transport->capacity *= 2;
+      transport->output = (char *) realloc(transport->output, transport->capacity);
     }
     transport->output_frames_ct += 1;
     framecount++;
     if (transport->trace & PN_TRACE_RAW) {
       pn_string_set(transport->scratch, "RAW: \"");
-      pn_quote(transport->scratch, disp->output + disp->available, n);
+      pn_quote(transport->scratch, transport->output + transport->available, n);
       pn_string_addf(transport->scratch, "\"");
       pn_transport_log(transport, pn_string_get(transport->scratch));
     }
-    disp->available += n;
+    transport->available += n;
   } while (payload->size > 0 && framecount < frame_limit);
 
   return framecount;
