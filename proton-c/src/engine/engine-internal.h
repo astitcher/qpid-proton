@@ -330,4 +330,11 @@ int pn_do_error(pn_transport_t *transport, const char *condition, const char *fm
 void pn_session_unbound(pn_session_t* ssn);
 void pn_link_unbound(pn_link_t* link);
 
+int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const char *fmt, ...);
+
+typedef enum {IN, OUT} pn_dir_t;
+
+void pn_do_trace(pn_transport_t *transport, uint16_t ch, pn_dir_t dir,
+                 pn_data_t *args, const char *payload, size_t size);
+
 #endif /* engine-internal.h */

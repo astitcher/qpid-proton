@@ -640,6 +640,185 @@ void pni_disposition_encode(pn_disposition_t *disposition, pn_data_t *data)
   }
 }
 
+
+void pn_do_trace(pn_transport_t *transport, uint16_t ch, pn_dir_t dir,
+                 pn_data_t *args, const char *payload, size_t size)
+{
+  if (transport->trace & PN_TRACE_FRM) {
+    pn_string_format(transport->scratch, "%u %s ", ch, dir == OUT ? "->" : "<-");
+    pn_inspect(args, transport->scratch);
+
+    if (pn_data_size(args)==0) {
+        pn_string_addf(transport->scratch, "(EMPTY FRAME)");
+    }
+
+    if (size) {
+      char buf[1024];
+      int e = pn_quote_data(buf, 1024, payload, size);
+      pn_string_addf(transport->scratch, " (%" PN_ZU ") \"%s\"%s", size, buf,
+                     e == PN_OVERFLOW ? "... (truncated)" : "");
+    }
+
+    pn_transport_log(transport, pn_string_get(transport->scratch));
+  }
+}
+
+int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const char *fmt, ...)
+{
+  pn_buffer_t *frame_buf = transport->frame;
+  va_list ap;
+  va_start(ap, fmt);
+  pn_data_clear(transport->output_args);
+  int err = pn_data_vfill(transport->output_args, fmt, ap);
+  va_end(ap);
+  if (err) {
+    pn_transport_logf(transport,
+                      "error posting frame: %s, %s: %s", fmt, pn_code(err),
+                      pn_error_text(pn_data_error(transport->output_args)));
+    return PN_ERR;
+  }
+
+  pn_do_trace(transport, ch, OUT, transport->output_args, NULL, 0);
+
+ encode_performatives:
+  pn_buffer_clear( frame_buf );
+  pn_buffer_memory_t buf = pn_buffer_memory( frame_buf );
+  buf.size = pn_buffer_available( frame_buf );
+
+  ssize_t wr = pn_data_encode( transport->output_args, buf.start, buf.size );
+  if (wr < 0) {
+    if (wr == PN_OVERFLOW) {
+      pn_buffer_ensure( frame_buf, pn_buffer_available( frame_buf ) * 2 );
+      goto encode_performatives;
+    }
+    pn_transport_logf(transport,
+                      "error posting frame: %s", pn_code(wr));
+    return PN_ERR;
+  }
+
+  pn_frame_t frame = {type};
+  frame.channel = ch;
+  frame.payload = buf.start;
+  frame.size = wr;
+  size_t n;
+  while (!(n = pn_write_frame(transport->output + transport->available,
+                              transport->capacity - transport->available, frame))) {
+    transport->capacity *= 2;
+    transport->output = (char *) realloc(transport->output, transport->capacity);
+  }
+  transport->output_frames_ct += 1;
+  if (transport->trace & PN_TRACE_RAW) {
+    pn_string_set(transport->scratch, "RAW: \"");
+    pn_quote(transport->scratch, transport->output + transport->available, n);
+    pn_string_addf(transport->scratch, "\"");
+    pn_transport_log(transport, pn_string_get(transport->scratch));
+  }
+  transport->available += n;
+
+  return 0;
+}
+
+int pn_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
+                                uint32_t handle,
+                                pn_sequence_t id,
+                                pn_bytes_t *payload,
+                                const pn_bytes_t *tag,
+                                uint32_t message_format,
+                                bool settled,
+                                bool more,
+                                pn_sequence_t frame_limit)
+{
+  bool more_flag = more;
+  int framecount = 0;
+  pn_buffer_t *frame = transport->frame;
+
+  // create preformatives, assuming 'more' flag need not change
+
+ compute_performatives:
+  pn_data_clear(transport->output_args);
+  int err = pn_data_fill(transport->output_args, "DL[IIzIoo]", TRANSFER,
+                         handle, id, tag->size, tag->start,
+                         message_format,
+                         settled, more_flag);
+  if (err) {
+    pn_transport_logf(transport,
+                      "error posting transfer frame: %s: %s", pn_code(err),
+                      pn_error_text(pn_data_error(transport->output_args)));
+    return PN_ERR;
+  }
+
+  do { // send as many frames as possible without changing the 'more' flag...
+
+  encode_performatives:
+    pn_buffer_clear( frame );
+    pn_buffer_memory_t buf = pn_buffer_memory( frame );
+    buf.size = pn_buffer_available( frame );
+
+    ssize_t wr = pn_data_encode(transport->output_args, buf.start, buf.size);
+    if (wr < 0) {
+      if (wr == PN_OVERFLOW) {
+        pn_buffer_ensure( frame, pn_buffer_available( frame ) * 2 );
+        goto encode_performatives;
+      }
+      pn_transport_logf(transport, "error posting frame: %s", pn_code(wr));
+      return PN_ERR;
+    }
+    buf.size = wr;
+
+    // check if we need to break up the outbound frame
+    size_t available = payload->size;
+    if (transport->remote_max_frame) {
+      if ((available + buf.size) > transport->remote_max_frame - 8) {
+        available = transport->remote_max_frame - 8 - buf.size;
+        if (more_flag == false) {
+          more_flag = true;
+          goto compute_performatives;  // deal with flag change
+        }
+      } else if (more_flag == true && more == false) {
+        // caller has no more, and this is the last frame
+        more_flag = false;
+        goto compute_performatives;
+      }
+    }
+
+    if (pn_buffer_available( frame ) < (available + buf.size)) {
+      // not enough room for payload - try again...
+      pn_buffer_ensure( frame, available + buf.size );
+      goto encode_performatives;
+    }
+
+    pn_do_trace(transport, ch, OUT, transport->output_args, payload->start, available);
+
+    memmove( buf.start + buf.size, payload->start, available);
+    payload->start += available;
+    payload->size -= available;
+    buf.size += available;
+
+    pn_frame_t frame = {AMQP_FRAME_TYPE};
+    frame.channel = ch;
+    frame.payload = buf.start;
+    frame.size = buf.size;
+
+    size_t n;
+    while (!(n = pn_write_frame(transport->output + transport->available,
+                                transport->capacity - transport->available, frame))) {
+      transport->capacity *= 2;
+      transport->output = (char *) realloc(transport->output, transport->capacity);
+    }
+    transport->output_frames_ct += 1;
+    framecount++;
+    if (transport->trace & PN_TRACE_RAW) {
+      pn_string_set(transport->scratch, "RAW: \"");
+      pn_quote(transport->scratch, transport->output + transport->available, n);
+      pn_string_addf(transport->scratch, "\"");
+      pn_transport_log(transport, pn_string_get(transport->scratch));
+    }
+    transport->available += n;
+  } while (payload->size > 0 && framecount < frame_limit);
+
+  return framecount;
+}
+
 int pn_post_close(pn_transport_t *transport, const char *condition, const char *description)
 {
   pn_condition_t *cond = NULL;
