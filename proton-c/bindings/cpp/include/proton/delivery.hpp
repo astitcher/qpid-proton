@@ -22,7 +22,7 @@
  *
  */
 #include "proton/export.hpp"
-#include "proton/facade.hpp"
+#include "proton/object.hpp"
 
 #include "proton/delivery.h"
 #include "proton/disposition.h"
@@ -30,8 +30,10 @@
 namespace proton {
 
 /** delivery status of a message */
-class delivery : public counted_facade<pn_delivery_t, delivery> {
+class delivery : public object<pn_delivery_t> {
   public:
+    delivery(pn_delivery_t* d=0) : object(d) {}
+
     /** Delivery state of a message */
     enum state {
         NONE = 0, ///< Unknown state

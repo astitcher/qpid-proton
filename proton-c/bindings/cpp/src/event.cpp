@@ -43,23 +43,23 @@ container &event::container() const {
     throw error(MSG("No container context for event"));
 }
 
-connection &event::connection() const {
+connection event::connection() const {
     throw error(MSG("No connection context for event"));
 }
 
-sender& event::sender() const {
+sender event::sender() const {
     throw error(MSG("No sender context for event"));
 }
 
-receiver& event::receiver() const {
+receiver event::receiver() const {
     throw error(MSG("No receiver context for event"));
 }
 
-link& event::link() const {
+link event::link() const {
     throw error(MSG("No link context for event"));
 }
 
-delivery& event::delivery() const {
+delivery event::delivery() const {
     throw error(MSG("No link context for event"));
 }
 

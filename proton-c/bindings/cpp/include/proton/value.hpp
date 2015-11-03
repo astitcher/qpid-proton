@@ -35,11 +35,11 @@ class value : public comparable<value> {
   public:
     PN_CPP_EXTERN value();
     PN_CPP_EXTERN value(const value& x);
-    template <class T> value(const T& x) : data_(data::create()) { *data_ = x; }
+    template <class T> value(const T& x) : data_(data::create()) { data_ = x; }
 
     PN_CPP_EXTERN value& operator=(const value& x);
     PN_CPP_EXTERN value& operator=(const data& x);
-    template <class T> value& operator=(const T& x) { *data_ = x; return *this; }
+    template <class T> value& operator=(const T& x) { data_ = x; return *this; }
 
     PN_CPP_EXTERN void clear();
     PN_CPP_EXTERN bool empty() const;
@@ -47,10 +47,10 @@ class value : public comparable<value> {
     /** Encoder to encode complex data into this value.
      * Note if you enocde more than one value, all but the first will be ignored.
      */
-    PN_CPP_EXTERN class encoder& encoder();
+    PN_CPP_EXTERN class encoder encoder();
 
     /** Decoder to decode complex data from this value */
-    PN_CPP_EXTERN class decoder& decoder();
+    PN_CPP_EXTERN class decoder decoder();
 
     /** Type of the current value*/
     PN_CPP_EXTERN type_id type() const;
@@ -64,15 +64,15 @@ class value : public comparable<value> {
     PN_CPP_EXTERN bool operator==(const value& x) const;
     PN_CPP_EXTERN bool operator<(const value& x) const;
 
-  friend PN_CPP_EXTERN class encoder& operator<<(class encoder& e, const value& dv);
-  friend PN_CPP_EXTERN class decoder& operator>>(class decoder& d, value& dv);
+  friend PN_CPP_EXTERN class encoder operator<<(class encoder e, const value& dv);
+  friend PN_CPP_EXTERN class decoder operator>>(class decoder d, value& dv);
   friend PN_CPP_EXTERN std::ostream& operator<<(std::ostream& o, const value& dv);
 
   private:
     value(const data&);
-    class decoder& rewind() const { data_->decoder().rewind(); return data_->decoder(); }
+    class decoder rewind() const { data_.decoder().rewind(); return data_.decoder(); }
 
-    pn_unique_ptr<data> data_;
+    data data_;
   friend class message;
 };
 

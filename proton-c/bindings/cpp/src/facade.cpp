@@ -26,20 +26,6 @@
 
 #include <assert.h>
 
-// For empty check.
-#include "proton/acceptor.hpp"
-#include "proton/connection.hpp"
-#include "proton/data.hpp"
-#include "proton/decoder.hpp"
-#include "proton/delivery.hpp"
-#include "proton/encoder.hpp"
-#include "proton/facade.hpp"
-#include "proton/link.hpp"
-#include "proton/message.hpp"
-#include "proton/session.hpp"
-#include "proton/terminus.hpp"
-#include "proton/transport.hpp"
-
 namespace proton {
 
 void incref(const void* p) {
@@ -57,14 +43,4 @@ void decref(const void* p) {
 #define CHECK_EMPTY(T) struct T##_CHECK_EMPTY__ { char T##__facade_not_empty[sizeof(T) == 1 ? 1 : -1]; }
 #endif
 
-CHECK_EMPTY(acceptor);
-CHECK_EMPTY(connection);
-CHECK_EMPTY(data);
-CHECK_EMPTY(decoder);
-CHECK_EMPTY(delivery);
-CHECK_EMPTY(encoder);
-CHECK_EMPTY(link);
-CHECK_EMPTY(session);
-CHECK_EMPTY(terminus);
-CHECK_EMPTY(transport);
 }

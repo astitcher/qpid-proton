@@ -69,7 +69,7 @@ class reactor_send : public proton::messaging_handler {
     }
 
     void on_sendable(proton::event &e) {
-        proton::sender& sender = e.sender();
+        proton::sender sender = e.sender();
 
         while (sender.credit() && sent_ < total_) {
             id_value_ = sent_ + 1;

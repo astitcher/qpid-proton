@@ -28,27 +28,27 @@ namespace proton {
 
 value::value() : data_(data::create()) {}
 
-value::value(const value& x) : data_(data::create()) { *data_ = *x.data_; }
+value::value(const value& x) : data_(data::create()) { data_ = x.data_; }
 
-value::value(const data& x) : data_(data::create()) { *data_ = x; }
+value::value(const data& x) : data_(data::create()) { data_ = x; }
 
-value& value::operator=(const value& x) { *data_ = *x.data_; return *this; }
+value& value::operator=(const value& x) { data_ = x.data_; return *this; }
 
-value& value::operator=(const data& x) { *data_ = x; return *this; }
+value& value::operator=(const data& x) { data_ = x; return *this; }
 
-void value::clear() { data_->clear(); }
+void value::clear() { data_.clear(); }
 
-bool value::empty() const { return data_->empty(); }
+bool value::empty() const { return data_.empty(); }
 
-class encoder& value::encoder() { return data_->encoder(); }
+class encoder value::encoder() { return data_.encoder(); }
 
-class decoder& value::decoder() { return data_->decoder(); }
+class decoder value::decoder() { return data_.decoder(); }
 
 type_id value::type() const { return rewind().type(); }
 
-bool value::operator==(const value& x) const { return *data_ == *x.data_; }
+bool value::operator==(const value& x) const { return data_ == x.data_; }
 
-bool value::operator<(const value& x) const { return *data_ < *x.data_; }
+bool value::operator<(const value& x) const { return data_ < x.data_; }
 
 
 
@@ -59,16 +59,16 @@ std::ostream& operator<<(std::ostream& o, const value& v) {
       case SYMBOL:
         return o << v.get<std::string>();
       default:
-        return o << *v.data_;
+        return o << v.data_;
     }
 }
 
-class encoder& operator<<(class encoder& e, const value& v) {
-    return e << *v.data_;
+class encoder operator<<(class encoder e, const value& v) {
+    return e << v.data_;
 }
 
-class decoder& operator>>(class decoder& d, value& v) {
-    return d >> *v.data_;
+class decoder operator>>(class decoder d, value& v) {
+    return d >> v.data_;
 }
 
 }

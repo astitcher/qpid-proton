@@ -44,7 +44,7 @@ template <class T> class object {
     typedef T ptr_type;
 
     object() : object_(0) {}
-    object(T* o) : object_(o)  {}
+    object(T* o) : object_(o) { incref(object_); }
     object(const object& o) : object_(o) { incref(object_); }
     ~object() { decref(object_); };
 
