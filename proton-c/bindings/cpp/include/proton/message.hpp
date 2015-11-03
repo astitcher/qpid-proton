@@ -102,10 +102,10 @@ class message
     template <class T> void body(const T& v) { body().clear(); body().encoder() << v; }
 
     /** Get the body values. */
-    PN_CPP_EXTERN const data& body() const;
+    PN_CPP_EXTERN const data body() const;
 
     /** Get a reference to the body data, can be modified in-place. */
-    PN_CPP_EXTERN data& body();
+    PN_CPP_EXTERN data body();
 
     /** Encode into memory starting at buffer.first and ending before buffer.second */
     PN_CPP_EXTERN void encode(std::pair<char*, char*> buffer);
@@ -123,7 +123,7 @@ class message
     PN_CPP_EXTERN void decode(const std::string &data);
 
     /// Decode the message from link corresponding to delivery.
-    PN_CPP_EXTERN void decode(proton::link&, proton::delivery&);
+    PN_CPP_EXTERN void decode(proton::link, proton::delivery);
 
   private:
     pn_message_t *message_;

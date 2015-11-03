@@ -24,7 +24,7 @@
 #include "proton/export.hpp"
 
 #include "proton/link.h"
-#include "proton/facade.hpp"
+#include "proton/object.hpp"
 #include <string>
 
 namespace proton {
@@ -34,9 +34,10 @@ class link;
 /** A terminus represents one end of a link.
  * The source terminus is where originate, the target terminus is where they go.
  */
-class terminus : public counted_facade<pn_terminus_t, terminus>
+class terminus : public object<pn_terminus_t>
 {
   public:
+    terminus(pn_terminus_t* t) : object(t) {}
     /// Type of terminus
     enum type_t {
         TYPE_UNSPECIFIED = PN_UNSPECIFIED,

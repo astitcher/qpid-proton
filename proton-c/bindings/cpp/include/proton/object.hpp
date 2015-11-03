@@ -44,8 +44,8 @@ template <class T> class object {
     typedef T ptr_type;
 
     object() : object_(0) {}
-    object(T* o) : object_(o)  {}
-    object(const object& o) : object_(o) { incref(object_); }
+    object(T* o) : object_(o) { incref(object_); }
+    object(const object& o) : object_(o.object_) { incref(object_); }
     ~object() { decref(object_); };
 
     object& operator=(const object& o) 
@@ -53,18 +53,18 @@ template <class T> class object {
 
 #ifdef PN_HAS_CPP11
     // Move constructor/assignment operator
-    object(object&& o) : object_(o) {}
-    object& operator=(const object&& o)
-    { decref(object_); object_ = o; return *this; }
+    object(object&& o) : object_(o.object_) {}
+    object& operator=(object&& o)
+    { decref(object_); object_ = o.object_; return *this; }
 #endif
 
     void swap(object& o) { std::swap(object_, o.object_); }
 
     operator T* () const { return object_; }
-    T* operator->() const { return object_; }
-    T& operator*() const { return *object_; }
-    operator bool() const { return !!object_; }
-    bool operator!() const { return !object_; }
+    //T* operator->() const { return object_; }
+    //T& operator*() const { return *object_; }
+    //operator bool() const { return !!object_; }
+    //bool operator!() const { return !object_; }
   private:
     T* object_;
 };

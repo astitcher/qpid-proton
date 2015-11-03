@@ -31,24 +31,25 @@ using namespace proton;
 template <class connection_ptr, class session_ptr>
 void test_owning() {
 
-    connection_ptr conn(connection::cast(pn_connection()));
-    session& s = conn->default_session();
-    session_ptr p = s.ptr();
-    session_ptr p2 = s.ptr();
+    connection_ptr conn(pn_connection());
+    session s = conn->default_session();
+    session_ptr p = s;
+    session_ptr p2 = s;
 }
 
 template <class connection_ptr, class session_ptr>
 void test_counted() {
-    connection_ptr conn(connection::cast(pn_connection()), false);
-    session& s = conn->default_session();
-    session_ptr p = s.ptr();
-    session_ptr p2 = s.ptr();
+    connection_ptr conn(pn_connection());
+    session s = conn.default_session();
+    session_ptr p = s;
+    session_ptr p2 = s;
 }
 
+#undef PN_HAS_STD_PTR
+#undef PN_HAS_BOOST
 int main(int argc, char** argv) {
     int failed = 0;
-    failed += run_test(&test_counted<counted_ptr<connection>,
-                       counted_ptr<session> >, "counted");
+    failed += run_test(&test_counted<connection, session>, "counted");
 
 #if PN_HAS_STD_PTR
     failed += run_test(&test_owning<

@@ -22,7 +22,7 @@
  *
  */
 
-#include "proton/facade.hpp"
+#include "proton/object.hpp"
 
 #include "proton/export.hpp"
 
@@ -33,10 +33,12 @@ namespace proton {
 class connection;
 
 /** Represents a connection transport */
-class transport : public counted_facade<pn_transport_t, transport>
+class transport : public object<pn_transport_t>
 {
   public:
-    class connection* connection() const;
+    transport(pn_transport_t* t) : object(t) {}
+
+    class connection connection() const;
 };
 
 

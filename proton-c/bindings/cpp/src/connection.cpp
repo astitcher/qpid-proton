@@ -37,52 +37,54 @@
 
 namespace proton {
 
-void connection::open() { pn_connection_open(pn_cast(this)); }
+void connection::open() { pn_connection_open(*this); }
 
-void connection::close() { pn_connection_close(pn_cast(this)); }
+void connection::close() { pn_connection_close(*this); }
 
 std::string connection::host() const {
-    return std::string(pn_connection_get_hostname(pn_cast(this)));
+    return std::string(pn_connection_get_hostname(*this));
 }
 
 std::string connection::container_id() const {
-    const char* id = pn_connection_get_container(pn_cast(this));
+    const char* id = pn_connection_get_container(*this);
     return id ? std::string(id) : std::string();
 }
 
 container& connection::container() const {
-    return container_context(pn_object_reactor(pn_cast(this)));
+    return container_context(pn_object_reactor(*this));
 }
 
+#if 0
 link_range connection::find_links(endpoint::state mask) const {
-    return link_range(link_iterator(link::cast(pn_link_head(pn_cast(this), mask))));
+    return link_range(link_iterator(pn_link_head(*this, mask)));
 }
 
 session_range connection::find_sessions(endpoint::state mask) const {
     return session_range(
-        session_iterator(session::cast(pn_session_head(pn_cast(this), mask))));
+        session_iterator(session::cast(pn_session_head(*this, mask))));
 }
+#endif
 
-session& connection::open_session() { return *session::cast(pn_session(pn_cast(this))); }
+session connection::open_session() { return pn_session(*this); }
 
-session& connection::default_session() {
-    struct connection_context& ctx = connection_context::get(pn_cast(this));
+session connection::default_session() {
+    struct connection_context& ctx = connection_context::get(*this);
     if (!ctx.default_session) {
-        ctx.default_session = &open_session();
-        ctx.default_session->open();
+        ctx.default_session = open_session();
+        ctx.default_session.open();
     }
-    return *ctx.default_session;
+    return ctx.default_session;
 }
 
-sender& connection::open_sender(const std::string &addr, handler *h) {
+sender connection::open_sender(const std::string &addr, handler *h) {
     return default_session().open_sender(addr, h);
 }
 
-receiver& connection::open_receiver(const std::string &addr, bool dynamic, handler *h)
+receiver connection::open_receiver(const std::string &addr, bool dynamic, handler *h)
 {
     return default_session().open_receiver(addr, dynamic, h);
 }
 
-endpoint::state connection::state() const { return pn_connection_state(pn_cast(this)); }
+endpoint::state connection::state() const { return pn_connection_state(*this); }
 
 }
