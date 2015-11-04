@@ -141,42 +141,42 @@ container_impl::container_impl(container& c, handler *h, const std::string& id) 
 
 container_impl::~container_impl() {}
 
-connection& container_impl::connect(const proton::url &url, handler *h) {
+connection container_impl::connect(const proton::url &url, handler *h) {
     counted_ptr<pn_handler_t> chandler = h ? cpp_handler(h) : counted_ptr<pn_handler_t>();
-    connection& conn(           // Reactor owns the reference.
-        *connection::cast(pn_reactor_connection(pn_cast(reactor_.get()), chandler.get())));
+    connection conn(           // Reactor owns the reference.
+        pn_reactor_connection(pn_cast(reactor_.get()), chandler.get()));
     pn_unique_ptr<connector> ctor(new connector(conn));
     ctor->address(url);  // TODO: url vector
-    connection_context& cc(connection_context::get(pn_cast(&conn)));
+    connection_context& cc(connection_context::get(conn));
     cc.container_impl = this;
     cc.handler.reset(ctor.release());
     conn.open();
     return conn;
 }
 
-sender& container_impl::open_sender(const proton::url &url) {
-    connection& conn = connect(url, 0);
+sender container_impl::open_sender(const proton::url &url) {
+    connection conn = connect(url, 0);
     std::string path = url.path();
-    sender& snd = conn.default_session().open_sender(id_ + '-' + path);
+    sender snd = conn.default_session().open_sender(id_ + '-' + path);
     snd.target().address(path);
     snd.open();
     return snd;
 }
 
-receiver& container_impl::open_receiver(const proton::url &url) {
-    connection& conn = connect(url, 0);
+receiver container_impl::open_receiver(const proton::url &url) {
+    connection conn = connect(url, 0);
     std::string path = url.path();
-    receiver& rcv = conn.default_session().open_receiver(id_ + '-' + path);
-    pn_terminus_set_address(pn_link_source(pn_cast(&rcv)), path.c_str());
+    receiver rcv = conn.default_session().open_receiver(id_ + '-' + path);
+    pn_terminus_set_address(pn_link_source(rcv), path.c_str());
     rcv.open();
     return rcv;
 }
 
-acceptor& container_impl::listen(const proton::url& url) {
+acceptor container_impl::listen(const proton::url& url) {
     pn_acceptor_t *acptr = pn_reactor_acceptor(
         pn_cast(reactor_.get()), url.host().c_str(), url.port().c_str(), NULL);
     if (acptr)
-        return *acceptor::cast(acptr);
+        return acptr;
     else
         throw error(MSG("accept fail: " <<
                         pn_error_text(pn_io_error(pn_reactor_io(pn_cast(reactor_.get()))))

@@ -48,7 +48,7 @@ class reactor_send : public proton::messaging_handler {
     size_t received_bytes_;
     proton::amqp_binary received_content_;
     bool replying_;
-    proton::value id_value_;
+    proton::message_id id_value_;
     pn_reactor_t *reactor_;
   public:
 
@@ -69,7 +69,7 @@ class reactor_send : public proton::messaging_handler {
     }
 
     void on_sendable(proton::event &e) {
-        proton::sender& sender = e.sender();
+        proton::sender sender = e.sender();
 
         while (sender.credit() && sent_ < total_) {
             id_value_ = sent_ + 1;

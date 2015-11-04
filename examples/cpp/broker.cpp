@@ -38,18 +38,18 @@ class queue {
   public:
     bool dynamic;
     typedef std::deque<proton::message> message_queue;
-    typedef std::list<proton::counted_ptr<proton::sender> > sender_list;
+    typedef std::list<proton::sender> sender_list;
     message_queue messages;
     sender_list consumers;
 
     queue(bool dyn = false) : dynamic(dyn) {}
 
-    void subscribe(proton::sender &c) {
-        consumers.push_back(c.ptr());
+    void subscribe(proton::sender c) {
+        consumers.push_back(c);
     }
 
-    bool unsubscribe(proton::sender &c) {
-        consumers.remove(c.ptr());
+    bool unsubscribe(proton::sender c) {
+        consumers.remove(c);
         return (consumers.size() == 0 && (dynamic || messages.size() == 0));
     }
 
@@ -58,22 +58,22 @@ class queue {
         dispatch(0);
     }
 
-    void dispatch(proton::sender *s) {
+    void dispatch(proton::sender s) {
         while (deliver_to(s)) {}
     }
 
-    bool deliver_to(proton::sender *consumer) {
+    bool deliver_to(proton::sender consumer) {
         // deliver to single consumer if supplied, else all consumers
         int count = consumer ? 1 : consumers.size();
         if (!count) return false;
         bool result = false;
         sender_list::iterator it = consumers.begin();
         if (!consumer && count)
-            consumer = it->get();
+            consumer = *it;
 
         while (messages.size()) {
-            if (consumer->credit()) {
-                consumer->send(messages.front());
+            if (consumer.credit()) {
+                consumer.send(messages.front());
                 messages.pop_front();
                 result = true;
             }
@@ -120,22 +120,22 @@ class broker : public proton::messaging_handler {
     }
 
     void on_link_opening(proton::event &e) {
-        proton::link& lnk = e.link();
+        proton::link lnk = e.link();
         if (lnk.sender()) {
-            proton::terminus &remote_source(lnk.remote_source());
+            proton::terminus remote_source(lnk.remote_source());
             if (remote_source.dynamic()) {
                 std::string address = queue_name();
                 lnk.source().address(address);
                 queue *q = new queue(true);
                 queues[address] = q;
-                q->subscribe(*lnk.sender());
+                q->subscribe(lnk.sender());
                 std::cout << "broker dynamic outgoing link from " << address << std::endl;
             }
             else {
                 std::string address = remote_source.address();
                 if (!address.empty()) {
                     lnk.source().address(address);
-                    get_queue(address).subscribe(*lnk.sender());
+                    get_queue(address).subscribe(lnk.sender());
                     std::cout << "broker outgoing link from " << address << std::endl;
                 }
             }
@@ -148,7 +148,7 @@ class broker : public proton::messaging_handler {
         }
     }
 
-    void unsubscribe (proton::sender &lnk) {
+    void unsubscribe (proton::sender lnk) {
         std::string address = lnk.source().address();
         queue_map::iterator it = queues.find(address);
         if (it != queues.end() && it->second->unsubscribe(lnk)) {
@@ -158,9 +158,9 @@ class broker : public proton::messaging_handler {
     }
 
     void on_link_closing(proton::event &e) {
-        proton::link &lnk = e.link();
+        proton::link lnk = e.link();
         if (lnk.sender()) {
-            unsubscribe(*lnk.sender());
+            unsubscribe(lnk.sender());
         }
     }
 
@@ -172,17 +172,19 @@ class broker : public proton::messaging_handler {
         remove_stale_consumers(e.connection());
     }
 
-    void remove_stale_consumers(proton::connection &connection) {
+    void remove_stale_consumers(proton::connection connection) {
+#if 0
         proton::link_range r = connection.find_links(proton::endpoint::REMOTE_ACTIVE);
         for (proton::link_iterator l = r.begin(); l != r.end(); ++l) {
             if (l->sender()) {
                 unsubscribe(*l->sender());
             }
         }
+#endif
     }
 
     void on_sendable(proton::event &e) {
-        proton::link& lnk = e.link();
+        proton::link lnk = e.link();
         std::string addr = lnk.source().address();
         get_queue(addr).dispatch(lnk.sender());
     }

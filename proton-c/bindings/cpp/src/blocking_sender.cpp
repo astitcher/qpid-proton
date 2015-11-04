@@ -39,30 +39,30 @@ struct delivery_settled : public blocking_connection_impl::condition {
 blocking_sender::blocking_sender(blocking_connection &c, const std::string &address) :
     blocking_link(c)
 {
-    open(c.impl_->connection_->open_sender(address));
-    std::string ta = link_->target().address();
-    std::string rta = link_->remote_target().address();
+    open(c.impl_->connection_.open_sender(address));
+    std::string ta = link_.target().address();
+    std::string rta = link_.remote_target().address();
     if (ta.empty() || ta.compare(rta) != 0) {
         wait_for_closed();
-        link_->close();
-        std::string txt = "Failed to open sender " + link_->name() + ", target does not match";
+        link_.close();
+        std::string txt = "Failed to open sender " + link_.name() + ", target does not match";
         throw error(MSG(txt));
     }
 }
 
 blocking_sender::~blocking_sender() {}
 
-delivery& blocking_sender::send(const message &msg, duration timeout) {
-    delivery& dlv = sender().send(msg);
-    connection_.impl_->wait(delivery_settled(pn_cast(&dlv)), "sending on sender " + link_->name(), timeout);
+delivery blocking_sender::send(const message &msg, duration timeout) {
+    delivery dlv = sender().send(msg);
+    connection_.impl_->wait(delivery_settled(dlv), "sending on sender " + link_.name(), timeout);
     return dlv;
 }
 
-delivery& blocking_sender::send(const message &msg) {
+delivery blocking_sender::send(const message &msg) {
     // Use default timeout
     return send(msg, connection_.timeout());
 }
 
-sender& blocking_sender::sender() const { return *link_->sender(); }
+sender blocking_sender::sender() const { return link_.sender(); }
 
 }

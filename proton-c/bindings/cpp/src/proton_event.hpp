@@ -131,7 +131,7 @@ class proton_event : public event
 
     /**
      * The local session endpoint has been opened. Events of this type
-     * point ot the relevant session.
+     * point to the relevant session.
      */
     PN_CPP_EXTERN static const event_type SESSION_LOCAL_OPEN;
 
@@ -274,11 +274,11 @@ class proton_event : public event
 
     virtual PN_CPP_EXTERN void dispatch(handler &h);
     virtual PN_CPP_EXTERN class container &container() const;
-    virtual PN_CPP_EXTERN class connection &connection() const;
-    virtual PN_CPP_EXTERN class sender& sender() const;
-    virtual PN_CPP_EXTERN class receiver& receiver() const;
-    virtual PN_CPP_EXTERN class link& link() const;
-    virtual PN_CPP_EXTERN class delivery& delivery() const;
+    virtual PN_CPP_EXTERN class connection connection() const;
+    virtual PN_CPP_EXTERN class sender sender() const;
+    virtual PN_CPP_EXTERN class receiver receiver() const;
+    virtual PN_CPP_EXTERN class link link() const;
+    virtual PN_CPP_EXTERN class delivery delivery() const;
 
     /** Get type of event */
     PN_CPP_EXTERN event_type type() const;

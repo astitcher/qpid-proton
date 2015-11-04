@@ -18,28 +18,43 @@
  */
 
 #include "proton_bits.hpp"
-#include "proton/value.hpp"
+#include "proton/data.hpp"
 
 #include <proton/codec.h>
+
+#include <ostream>
 
 namespace proton {
 
 void data::operator delete(void *p) { ::pn_data_free(reinterpret_cast<pn_data_t*>(p)); }
 
-data& data::operator=(const data& x) { ::pn_data_copy(pn_cast(this), pn_cast(&x)); return *this; }
+data& data::operator=(const data& x) { ::pn_data_copy(*this, x); return *this; }
 
-void data::clear() { ::pn_data_clear(pn_cast(this)); }
+void data::clear() { ::pn_data_clear(*this); }
 
-bool data::empty() const { return ::pn_data_size(pn_cast(this)) == 0; }
+bool data::empty() const { return ::pn_data_size(*this) == 0; }
 
-std::ostream& operator<<(std::ostream& o, const data& d) { return o << inspectable(pn_cast(&d)); }
+namespace {
+struct save_state {
+    pn_data_t* data;
+    pn_handle_t handle;
+    save_state(pn_data_t* d) : data(d), handle(pn_data_point(d)) {}
+    ~save_state() { if (data) pn_data_restore(data, handle); }
+};
+}
 
-pn_unique_ptr<data> data::create() { return pn_unique_ptr<data>(cast(::pn_data(0))); }
+std::ostream& operator<<(std::ostream& o, const data& d) {
+    save_state s(d);
+    d.decoder().rewind();
+    return o << inspectable(d);
+}
 
-encoder& data::encoder() { return reinterpret_cast<class encoder&>(*this); }
-decoder& data::decoder() { return reinterpret_cast<class decoder&>(*this); }
+data data::create() { return pn_data(0); }
 
-type_id data::type() const { return reinterpret_cast<const class decoder&>(*this).type(); }
+encoder data::encoder() { return proton::encoder(*this); }
+decoder data::decoder() { return proton::decoder(*this); }
+
+type_id data::type() const { return static_cast<type_id>(pn_data_type(*this)); }
 
 namespace {
 
@@ -54,7 +69,7 @@ template <class T> int compare(const T& a, const T& b) {
 }
 
 int compare_container(data& a, data& b) {
-    decoder::scope sa(a.decoder()), sb(b.decoder());
+    scope sa(a.decoder()), sb(b.decoder());
     // Compare described vs. not-described.
     int cmp = compare(sa.is_described, sb.is_described);
     if (cmp) return cmp;
@@ -88,7 +103,7 @@ int compare_next(data& a, data& b) {
       case MAP:
       case DESCRIBED:
         return compare_container(a, b);
-      case BOOL: return compare_simple<amqp_bool>(a, b);
+      case BOOLEAN: return compare_simple<amqp_boolean>(a, b);
       case UBYTE: return compare_simple<amqp_ubyte>(a, b);
       case BYTE: return compare_simple<amqp_byte>(a, b);
       case USHORT: return compare_simple<amqp_ushort>(a, b);
@@ -114,6 +129,8 @@ int compare_next(data& a, data& b) {
 }
 
 int compare(data& a, data& b) {
+    save_state s1(a);
+    save_state s2(b);
     a.decoder().rewind();
     b.decoder().rewind();
     while (a.decoder().more() && b.decoder().more()) {

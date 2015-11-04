@@ -24,19 +24,18 @@ package proton
 
 //#include <proton/codec.h>
 //#include <proton/connection.h>
-//#include <proton/session.h>
-//#include <proton/session.h>
 //#include <proton/delivery.h>
-//#include <proton/link.h>
 //#include <proton/event.h>
-//#include <proton/transport.h>
 //#include <proton/link.h>
+//#include <proton/link.h>
+//#include <proton/object.h>
+//#include <proton/session.h>
+//#include <proton/transport.h>
 //#include <stdlib.h>
 import "C"
 
 import (
 	"fmt"
-	"qpid.apache.org/internal"
 	"qpid.apache.org/amqp"
 	"reflect"
 	"time"
@@ -45,33 +44,74 @@ import (
 
 // TODO aconway 2015-05-05: Documentation for generated types.
 
+// CHandle holds an unsafe.Pointer to a proton C struct, the C type depends on the
+// Go type implementing this interface. For low level, at-your-own-risk use only.
+type CHandle interface {
+	// CPtr returns the unsafe C pointer, equivalent to a C void*.
+	CPtr() unsafe.Pointer
+}
+
+// Incref increases the refcount of a proton value, which prevents the
+// underlying C struct being freed until you call Decref().
+//
+// It can be useful to "pin" a proton value in memory while it is in use by
+// goroutines other than the event loop goroutine. For example if you Incref() a
+// Link, the underlying object is not freed when the link is closed, so means
+// other goroutines can continue to safely use it as an index in a map or inject
+// it into the event loop goroutine. There will of course be an error if you try
+// to use a link after it is closed, but not a segmentation fault.
+func Incref(c CHandle) {
+	if p := c.CPtr(); p != nil {
+		C.pn_incref(p)
+	}
+}
+
+// Decref decreases the refcount of a proton value, freeing the underlying C
+// struct if this is the last reference.  Only call this if you previously
+// called Incref() for this value.
+func Decref(c CHandle) {
+	if p := c.CPtr(); p != nil {
+		C.pn_decref(p)
+	}
+}
+
 // Event is an AMQP protocol event.
 type Event struct {
 	pn         *C.pn_event_t
 	eventType  EventType
 	connection Connection
+	transport  Transport
 	session    Session
 	link       Link
 	delivery   Delivery
+	injecter   Injecter
 }
 
-func makeEvent(pn *C.pn_event_t) Event {
+func makeEvent(pn *C.pn_event_t, injecter Injecter) Event {
 	return Event{
 		pn:         pn,
 		eventType:  EventType(C.pn_event_type(pn)),
 		connection: Connection{C.pn_event_connection(pn)},
+		transport:  Transport{C.pn_event_transport(pn)},
 		session:    Session{C.pn_event_session(pn)},
 		link:       Link{C.pn_event_link(pn)},
 		delivery:   Delivery{C.pn_event_delivery(pn)},
+		injecter:   injecter,
 	}
 }
 func (e Event) IsNil() bool            { return e.eventType == EventType(0) }
 func (e Event) Type() EventType        { return e.eventType }
 func (e Event) Connection() Connection { return e.connection }
+func (e Event) Transport() Transport   { return e.transport }
 func (e Event) Session() Session       { return e.session }
 func (e Event) Link() Link             { return e.link }
 func (e Event) Delivery() Delivery     { return e.delivery }
 func (e Event) String() string         { return e.Type().String() }
+
+// Injecter should not be used in a handler function, but it can be passed to
+// other goroutines (via a channel or to a goroutine started by handler
+// functions) to let them inject functions back into the handlers goroutine.
+func (e Event) Injecter() Injecter { return e.injecter }
 
 // Data holds a pointer to decoded AMQP data.
 // Use amqp.marshal/unmarshal to access it as Go data types.
@@ -84,9 +124,7 @@ func (d Data) Free()                   { C.pn_data_free(d.pn) }
 func (d Data) Pointer() unsafe.Pointer { return unsafe.Pointer(d.pn) }
 func (d Data) Clear()                  { C.pn_data_clear(d.pn) }
 func (d Data) Rewind()                 { C.pn_data_rewind(d.pn) }
-func (d Data) Error() error {
-	return internal.PnError(unsafe.Pointer(C.pn_data_error(d.pn)))
-}
+func (d Data) Error() error            { return PnError(C.pn_data_error(d.pn)) }
 
 // State holds the state flags for an AMQP endpoint.
 type State byte
@@ -132,7 +170,8 @@ type Endpoint interface {
 	String() string
 }
 
-// CloseError sets an error condition on an endpoint and closes the endpoint.
+// CloseError sets an error condition on an endpoint and closes the endpoint
+// if not already closed
 func CloseError(e Endpoint, err error) {
 	if err != nil {
 		e.Condition().SetError(err)
@@ -204,6 +243,20 @@ func (l Link) Delivery(tag string) Delivery {
 	return Delivery{C.pn_delivery(l.pn, pnTag(tag))}
 }
 
+func (l Link) Connection() Connection { return l.Session().Connection() }
+
+// Human-readable link description including name, source, target and direction.
+func (l Link) String() string {
+	switch {
+	case l.IsNil():
+		return fmt.Sprintf("<nil-link>")
+	case l.IsSender():
+		return fmt.Sprintf("%s(%s->%s)", l.Name(), l.Source().Address(), l.Target().Address())
+	default:
+		return fmt.Sprintf("%s(%s<-%s)", l.Name(), l.Target().Address(), l.Source().Address())
+	}
+}
+
 func cPtr(b []byte) *C.char {
 	if len(b) == 0 {
 		return nil
@@ -227,27 +280,8 @@ func (s Session) Receiver(name string) Link {
 	return Link{C.pn_receiver(s.pn, cname)}
 }
 
-// Context information per connection.
-type connectionContext struct {
-	injecter Injecter
-	str      string
-}
-
-var connectionContexts = internal.MakeSafeMap()
-
-// Injecter for event-loop associated with this connection.
-func (c Connection) Injecter() Injecter {
-	if cc, ok := connectionContexts.Get(c).(connectionContext); ok {
-		return cc.injecter
-	}
-	return nil
-}
-
 // Unique (per process) string identifier for a connection, useful for debugging.
 func (c Connection) String() string {
-	if cc, ok := connectionContexts.Get(c).(connectionContext); ok {
-		return cc.str
-	}
 	return fmt.Sprintf("%x", c.pn)
 }
 
@@ -277,20 +311,6 @@ func (c Connection) Sessions(state State) (sessions []Session) {
 
 func (s Session) String() string {
 	return fmt.Sprintf("%s/%p", s.Connection(), s.pn)
-}
-
-func (l Link) Connection() Connection { return l.Session().Connection() }
-
-// Human-readable link description including name, source, target and direction.
-func (l Link) String() string {
-	switch {
-	case l.IsNil():
-		return fmt.Sprintf("<nil-link>")
-	case l.IsSender():
-		return fmt.Sprintf("%s(%s->%s)", l.Name(), l.Source().Address(), l.Target().Address())
-	default:
-		return fmt.Sprintf("%s(%s<-%s)", l.Name(), l.Target().Address(), l.Source().Address())
-	}
 }
 
 // Error returns an instance of amqp.Error or nil.

@@ -44,12 +44,12 @@ class container_impl
   public:
     PN_CPP_EXTERN container_impl(container&, handler *, const std::string& id);
     PN_CPP_EXTERN ~container_impl();
-    PN_CPP_EXTERN connection& connect(const url&, handler *h);
-    PN_CPP_EXTERN sender& open_sender(connection &connection, const std::string &addr, handler *h);
-    PN_CPP_EXTERN sender& open_sender(const url&);
-    PN_CPP_EXTERN receiver& open_receiver(connection &connection, const std::string &addr, bool dynamic, handler *h);
-    PN_CPP_EXTERN receiver& open_receiver(const url&);
-    PN_CPP_EXTERN class acceptor& listen(const url&);
+    PN_CPP_EXTERN connection connect(const url&, handler *h);
+    PN_CPP_EXTERN sender open_sender(connection &connection, const std::string &addr, handler *h);
+    PN_CPP_EXTERN sender open_sender(const url&);
+    PN_CPP_EXTERN receiver open_receiver(connection &connection, const std::string &addr, bool dynamic, handler *h);
+    PN_CPP_EXTERN receiver open_receiver(const url&);
+    PN_CPP_EXTERN class acceptor listen(const url&);
     PN_CPP_EXTERN duration timeout();
     PN_CPP_EXTERN void timeout(duration timeout);
 

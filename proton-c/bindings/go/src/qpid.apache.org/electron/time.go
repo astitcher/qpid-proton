@@ -20,7 +20,7 @@ under the License.
 package electron
 
 import (
-	"qpid.apache.org/internal"
+	"fmt"
 	"reflect"
 	"time"
 )
@@ -38,7 +38,7 @@ import (
 // If timeout == Forever the function will return only when there is a result or
 // some non-timeout error occurs.
 //
-var Timeout = internal.Errorf("timeout")
+var Timeout = fmt.Errorf("timeout")
 
 // Forever can be used as a timeout parameter to indicate wait forever.
 const Forever time.Duration = -1
@@ -49,24 +49,25 @@ const Forever time.Duration = -1
 // timeout==0 means do a non-blocking receive attempt. timeout < 0 means block
 // forever. Other values mean block up to the timeout.
 //
-func timedReceive(channel interface{}, timeout time.Duration) (value interface{}, ok bool, timedout bool) {
+// Returns error Timeout on timeout, Closed on channel close.
+func timedReceive(channel interface{}, timeout time.Duration) (interface{}, error) {
 	cases := []reflect.SelectCase{
 		reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(channel)},
 	}
-	switch {
-	case timeout == 0: // Non-blocking receive
+	if timeout == 0 { // Non-blocking
 		cases = append(cases, reflect.SelectCase{Dir: reflect.SelectDefault})
-	case timeout == Forever: // Block forever, nothing to add
-	default: // Block up to timeout
+	} else { // Block up to timeout
 		cases = append(cases,
-			reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(time.After(timeout))})
+			reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(After(timeout))})
 	}
-	chosen, recv, recvOk := reflect.Select(cases)
+	chosen, value, ok := reflect.Select(cases)
 	switch {
-	case chosen == 0:
-		return recv.Interface(), recvOk, false
+	case chosen == 0 && ok:
+		return value.Interface(), nil
+	case chosen == 0 && !ok:
+		return nil, Closed
 	default:
-		return nil, false, true
+		return nil, Timeout
 	}
 }
 

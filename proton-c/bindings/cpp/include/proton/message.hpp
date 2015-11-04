@@ -21,9 +21,10 @@
  * under the License.
  *
  */
-#include "proton/data.hpp"
 #include "proton/export.hpp"
 #include "proton/facade.hpp"
+#include "proton/message_id.hpp"
+#include "proton/data.hpp"
 #include "proton/pn_unique_ptr.hpp"
 
 #include <string>
@@ -35,6 +36,7 @@ namespace proton {
 
 class link;
 class delivery;
+class message_id;
 
 /** An AMQP message. Value semantics, can be copied or assigned to make a new message. */
 class message
@@ -56,15 +58,11 @@ class message
     ///@name Message properties
     ///@{
 
-    ///@ Set message identifier, can be a string, unsigned long, uuid or binary.
-    PN_CPP_EXTERN void id(const data& id);
-    ///@ Get message identifier
-    PN_CPP_EXTERN data& id();
-    ///@ Get message identifier reference, allows modification in-place.
-    PN_CPP_EXTERN const data& id() const;
+    PN_CPP_EXTERN void id(const message_id& id);
+    PN_CPP_EXTERN message_id id() const;
 
-    PN_CPP_EXTERN void user(const std::string &user);
-    PN_CPP_EXTERN std::string user() const;
+    PN_CPP_EXTERN void user_id(const std::string &user);
+    PN_CPP_EXTERN std::string user_id() const;
 
     PN_CPP_EXTERN void address(const std::string &addr);
     PN_CPP_EXTERN std::string address() const;
@@ -75,12 +73,8 @@ class message
     PN_CPP_EXTERN void reply_to(const std::string &s);
     PN_CPP_EXTERN std::string reply_to() const;
 
-    /// Get correlation identifier, can be a string, unsigned long, uuid or binary.
-    PN_CPP_EXTERN void correlation_id(const data&);
-    /// Get correlation identifier.
-    PN_CPP_EXTERN const data& correlation_id() const;
-    /// Get correlation identifier reference, allows modification in-place.
-    PN_CPP_EXTERN data& correlation_id();
+    PN_CPP_EXTERN void correlation_id(const message_id&);
+    PN_CPP_EXTERN message_id correlation_id() const;
 
     PN_CPP_EXTERN void content_type(const std::string &s);
     PN_CPP_EXTERN std::string content_type() const;
@@ -108,10 +102,10 @@ class message
     template <class T> void body(const T& v) { body().clear(); body().encoder() << v; }
 
     /** Get the body values. */
-    PN_CPP_EXTERN const data& body() const;
+    PN_CPP_EXTERN const data body() const;
 
     /** Get a reference to the body data, can be modified in-place. */
-    PN_CPP_EXTERN data& body();
+    PN_CPP_EXTERN data body();
 
     /** Encode into memory starting at buffer.first and ending before buffer.second */
     PN_CPP_EXTERN void encode(std::pair<char*, char*> buffer);
@@ -129,7 +123,7 @@ class message
     PN_CPP_EXTERN void decode(const std::string &data);
 
     /// Decode the message from link corresponding to delivery.
-    PN_CPP_EXTERN void decode(proton::link&, proton::delivery&);
+    PN_CPP_EXTERN void decode(proton::link, proton::delivery);
 
   private:
     pn_message_t *message_;
