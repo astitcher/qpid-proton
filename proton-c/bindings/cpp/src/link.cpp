@@ -32,59 +32,59 @@
 namespace proton {
 
 void link::open() {
-    pn_link_open(*this);
+    pn_link_open(object_);
 }
 
 void link::close() {
-    pn_link_close(*this);
+    pn_link_close(object_);
 }
 
 sender link::sender() {
-    return pn_link_is_sender(*this) ? proton::sender(*this) : proton::sender();
+    return pn_link_is_sender(object_) ? proton::sender(object_) : proton::sender();
 }
 
 receiver link::receiver() {
-    return pn_link_is_receiver(*this) ? proton::receiver(*this) : proton::receiver();
+    return pn_link_is_receiver(object_) ? proton::receiver(object_) : proton::receiver();
 }
 
 const sender link::sender() const {
-    return pn_link_is_sender(*this) ? proton::sender(*this) : proton::sender();
+    return pn_link_is_sender(object_) ? proton::sender(object_) : proton::sender();
 }
 
 const receiver link::receiver() const {
-    return pn_link_is_receiver(*this) ? proton::receiver(*this) : proton::receiver();
+    return pn_link_is_receiver(object_) ? proton::receiver(object_) : proton::receiver();
 }
 
 int link::credit() const {
-    return pn_link_credit(*this);
+    return pn_link_credit(object_);
 }
 
-terminus link::source() const { return pn_link_source(*this); }
-terminus link::target() const { return pn_link_target(*this); }
-terminus link::remote_source() const { return pn_link_remote_source(*this); }
-terminus link::remote_target() const { return pn_link_remote_target(*this); }
+terminus link::source() const { return pn_link_source(object_); }
+terminus link::target() const { return pn_link_target(object_); }
+terminus link::remote_source() const { return pn_link_remote_source(object_); }
+terminus link::remote_target() const { return pn_link_remote_target(object_); }
 
-std::string link::name() const { return std::string(pn_link_name(*this));}
+std::string link::name() const { return std::string(pn_link_name(object_));}
 
 class connection link::connection() const {
-    return pn_session_connection(pn_link_session(*this));
+    return pn_session_connection(pn_link_session(object_));
 }
 
 class session link::session() const {
-    return pn_link_session(*this);
+    return pn_link_session(object_);
 }
 
 void link::handler(class handler &h) {
-    pn_record_t *record = pn_link_attachments(*this);
-    connection_context& cc(connection_context::get(connection()));
+    pn_record_t *record = pn_link_attachments(object_);
+    connection_context& cc(connection_context::get(connection().object_));
     counted_ptr<pn_handler_t> chandler = cc.container_impl->cpp_handler(&h);
     pn_record_set_handler(record, chandler.get());
 }
 
 void link::detach_handler() {
-    pn_record_t *record = pn_link_attachments(*this);
+    pn_record_t *record = pn_link_attachments(object_);
     pn_record_set_handler(record, 0);
 }
 
-endpoint::state link::state() const { return pn_link_state(*this); }
+endpoint::state link::state() const { return pn_link_state(object_); }
 }

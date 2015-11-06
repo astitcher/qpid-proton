@@ -137,7 +137,7 @@ class broker_handler : public proton::messaging_handler {
 
     void on_link_opening(proton::event &e) {
         proton::link lnk = e.link();
-        if (lnk.sender()) {
+        if (!!lnk.sender()) {
             proton::terminus remote_source(lnk.remote_source());
             queue &q = remote_source.dynamic() ?
                 queues_.dynamic() : queues_.get(remote_source.address());
@@ -162,7 +162,7 @@ class broker_handler : public proton::messaging_handler {
 
     void on_link_closing(proton::event &e) {
         proton::link lnk = e.link();
-        if (lnk.sender()) 
+        if (!!lnk.sender()) 
             unsubscribe(lnk.sender());
     }
 

@@ -44,12 +44,12 @@ amqp_ulong tag_counter = 0;
 delivery sender::send(const message &message) {
     amqp_ulong id = ++tag_counter;
     pn_delivery_t *dlv =
-        pn_delivery(*this, pn_dtag(reinterpret_cast<const char*>(&id), sizeof(id)));
+        pn_delivery(object_, pn_dtag(reinterpret_cast<const char*>(&id), sizeof(id)));
     std::string buf;
     message.encode(buf);
-    pn_link_send(*this, buf.data(), buf.size());
-    pn_link_advance(*this);
-    if (pn_link_snd_settle_mode(*this) == PN_SND_SETTLED)
+    pn_link_send(object_, buf.data(), buf.size());
+    pn_link_advance(object_);
+    if (pn_link_snd_settle_mode(object_) == PN_SND_SETTLED)
         pn_delivery_settle(dlv);
     return dlv;
 }

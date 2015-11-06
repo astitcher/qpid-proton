@@ -147,7 +147,7 @@ connection container_impl::connect(const proton::url &url, handler *h) {
         pn_reactor_connection(pn_cast(reactor_.get()), chandler.get()));
     pn_unique_ptr<connector> ctor(new connector(conn));
     ctor->address(url);  // TODO: url vector
-    connection_context& cc(connection_context::get(conn));
+    connection_context& cc(connection_context::get(conn.object_));
     cc.container_impl = this;
     cc.handler.reset(ctor.release());
     conn.open();
@@ -167,7 +167,7 @@ receiver container_impl::open_receiver(const proton::url &url) {
     connection conn = connect(url, 0);
     std::string path = url.path();
     receiver rcv = conn.default_session().open_receiver(id_ + '-' + path);
-    pn_terminus_set_address(pn_link_source(rcv), path.c_str());
+    pn_terminus_set_address(pn_link_source(rcv.object_), path.c_str());
     rcv.open();
     return rcv;
 }

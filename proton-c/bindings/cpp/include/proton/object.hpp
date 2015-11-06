@@ -49,7 +49,7 @@ template <class T> class object {
     ~object() { decref(object_); };
 
     object& operator=(const object& o) 
-    { incref(o); decref(object_); object_ = o; return *this; }
+    { incref(o.object_); decref(object_); object_ = o.object_; return *this; }
 
 #ifdef PN_HAS_CPP11
     // Move constructor/assignment operator
@@ -60,12 +60,12 @@ template <class T> class object {
 
     void swap(object& o) { std::swap(object_, o.object_); }
 
-    operator T* () const { return object_; }
+    //operator T* () const { return object_; }
     //T* operator->() const { return object_; }
     //T& operator*() const { return *object_; }
     //operator bool() const { return !!object_; }
-    //bool operator!() const { return !object_; }
-  private:
+    bool operator!() const { return !object_; }
+  public:
     T* object_;
 };
 

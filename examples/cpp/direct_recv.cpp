@@ -57,7 +57,7 @@ class direct_recv : public proton::messaging_handler {
         if (received == expected) {
             e.receiver().close();
             e.connection().close();
-            if (acceptor) acceptor.close();
+            if (!!acceptor) acceptor.close();
         }
     }
 };

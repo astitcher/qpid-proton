@@ -39,7 +39,7 @@ void connector::address(const url &a) {
 }
 
 void connector::connect() {
-    pn_connection_t *conn = connection_;
+    pn_connection_t *conn = connection_.object_;
     pn_connection_set_container(conn, connection_.container_id().c_str());
     pn_connection_set_hostname(conn, address_.host_port().c_str());
 }
@@ -55,7 +55,7 @@ void connector::on_connection_init(event &e) {
 
 void connector::on_transport_closed(event &e) {
     // TODO: prepend with reconnect logic
-    pn_connection_release(connection_);
+    pn_connection_release(connection_.object_);
     connection_  = 0;
 }
 

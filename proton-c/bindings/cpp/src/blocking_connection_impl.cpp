@@ -51,14 +51,14 @@ blocking_connection_impl::blocking_connection_impl(const url& url, duration time
     container_->reactor().start();
     container_->reactor().timeout(timeout);
     connection_ = container_->connect(url, this); // Set this as handler.
-    wait(connection_opening(connection_));
+    wait(connection_opening(connection_.object_));
 }
 
 blocking_connection_impl::~blocking_connection_impl() {}
 
 void blocking_connection_impl::close() {
     connection_.close();
-    wait(connection_closed(connection_));
+    wait(connection_closed(connection_.object_));
 }
 
 namespace {

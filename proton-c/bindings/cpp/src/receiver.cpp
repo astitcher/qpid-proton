@@ -30,7 +30,7 @@
 namespace proton {
 
 void receiver::flow(int count) {
-    pn_link_flow(*this, count);
+    pn_link_flow(object_, count);
 }
 
 }

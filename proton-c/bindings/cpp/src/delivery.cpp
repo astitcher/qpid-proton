@@ -24,22 +24,22 @@
 
 namespace proton {
 
-bool delivery::settled() const { return pn_delivery_settled(*this); }
+bool delivery::settled() const { return pn_delivery_settled(object_); }
 
-void delivery::settle() { pn_delivery_settle(*this); }
+void delivery::settle() { pn_delivery_settle(object_); }
 
-void delivery::update(delivery::state state) { pn_delivery_update(*this, state); }
+void delivery::update(delivery::state state) { pn_delivery_update(object_, state); }
 
 void delivery::settle(delivery::state state) {
     update(state);
     settle();
 }
 
-bool delivery::partial()  const { return pn_delivery_partial(*this); }
-bool delivery::readable() const { return pn_delivery_readable(*this); }
-bool delivery::writable() const { return pn_delivery_writable(*this); }
-bool delivery::updated()  const { return pn_delivery_updated(*this); }
+bool delivery::partial()  const { return pn_delivery_partial(object_); }
+bool delivery::readable() const { return pn_delivery_readable(object_); }
+bool delivery::writable() const { return pn_delivery_writable(object_); }
+bool delivery::updated()  const { return pn_delivery_updated(object_); }
 
-void delivery::clear()  { pn_delivery_clear(*this); }
-delivery::state delivery::remote_state() const { return state(pn_delivery_remote_state(*this)); }
+void delivery::clear()  { pn_delivery_clear(object_); }
+delivery::state delivery::remote_state() const { return state(pn_delivery_remote_state(object_)); }
 }

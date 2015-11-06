@@ -30,28 +30,28 @@
 namespace proton {
 
 void session::open() {
-    pn_session_open(*this);
+    pn_session_open(object_);
 }
 
 connection session::connection() const {
-    return pn_session_connection(*this);
+    return pn_session_connection(object_);
 }
 
 namespace {
 std::string set_name(const std::string& name, session* s) {
     if (name.empty())
         return connection_context::get(
-            s->connection()).container_impl->next_link_name();
+            s->connection().object_).container_impl->next_link_name();
     return name;
 }
 }
 
 receiver session::create_receiver(const std::string& name) {
-    return pn_receiver(*this, set_name(name, this).c_str());
+    return pn_receiver(object_, set_name(name, this).c_str());
 }
 
 sender session::create_sender(const std::string& name) {
-    return pn_sender(*this, set_name(name, this).c_str());
+    return pn_sender(object_, set_name(name, this).c_str());
 }
 
 sender session::open_sender(const std::string &addr, handler *h) {
@@ -72,7 +72,7 @@ receiver session::open_receiver(const std::string &addr, bool dynamic, handler *
     return rcv;
 }
 
-endpoint::state session::state() const { return pn_session_state(*this); }
+endpoint::state session::state() const { return pn_session_state(object_); }
 
 #if 0
 link_range session::find_links(endpoint::state mask)  const {

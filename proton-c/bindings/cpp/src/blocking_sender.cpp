@@ -54,7 +54,7 @@ blocking_sender::~blocking_sender() {}
 
 delivery blocking_sender::send(const message &msg, duration timeout) {
     delivery dlv = sender().send(msg);
-    connection_.impl_->wait(delivery_settled(dlv), "sending on sender " + link_.name(), timeout);
+    connection_.impl_->wait(delivery_settled(dlv.object_), "sending on sender " + link_.name(), timeout);
     return dlv;
 }
 

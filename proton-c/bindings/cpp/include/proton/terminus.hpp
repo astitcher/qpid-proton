@@ -34,10 +34,10 @@ class link;
 /** A terminus represents one end of a link.
  * The source terminus is where originate, the target terminus is where they go.
  */
-class terminus : public object<pn_terminus_t>
+class terminus
 {
   public:
-    terminus(pn_terminus_t* t) : object(t) {}
+    terminus(pn_terminus_t* t) : object_(t) {}
     /// Type of terminus
     enum type_t {
         TYPE_UNSPECIFIED = PN_UNSPECIFIED,
@@ -70,6 +70,9 @@ class terminus : public object<pn_terminus_t>
     PN_CPP_EXTERN void address(const std::string &);
     PN_CPP_EXTERN bool dynamic() const;
     PN_CPP_EXTERN void dynamic(bool);
+
+private:
+    pn_terminus_t* object_;
 };
 
 

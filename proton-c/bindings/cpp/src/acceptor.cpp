@@ -25,6 +25,6 @@
 
 namespace proton {
 
-void acceptor::close() { pn_acceptor_close(*this); }
+void acceptor::close() { pn_acceptor_close(object_); }
 
 }

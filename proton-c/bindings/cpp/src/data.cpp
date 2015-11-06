@@ -26,13 +26,11 @@
 
 namespace proton {
 
-void data::operator delete(void *p) { ::pn_data_free(reinterpret_cast<pn_data_t*>(p)); }
+data& data::operator=(const data& x) { ::pn_data_copy(object_, x.object_); return *this; }
 
-data& data::operator=(const data& x) { ::pn_data_copy(*this, x); return *this; }
+void data::clear() { ::pn_data_clear(object_); }
 
-void data::clear() { ::pn_data_clear(*this); }
-
-bool data::empty() const { return ::pn_data_size(*this) == 0; }
+bool data::empty() const { return ::pn_data_size(object_) == 0; }
 
 namespace {
 struct save_state {
@@ -44,17 +42,17 @@ struct save_state {
 }
 
 std::ostream& operator<<(std::ostream& o, const data& d) {
-    save_state s(d);
+    save_state s(d.object_);
     d.decoder().rewind();
-    return o << inspectable(d);
+    return o << inspectable(d.object_);
 }
 
 data data::create() { return pn_data(0); }
 
-encoder data::encoder() { return proton::encoder(*this); }
-decoder data::decoder() { return proton::decoder(*this); }
+encoder data::encoder() { return proton::encoder(object_); }
+decoder data::decoder() { return proton::decoder(object_); }
 
-type_id data::type() const { return static_cast<type_id>(pn_data_type(*this)); }
+type_id data::type() const { return static_cast<type_id>(pn_data_type(object_)); }
 
 namespace {
 
@@ -129,8 +127,8 @@ int compare_next(data& a, data& b) {
 }
 
 int compare(data& a, data& b) {
-    save_state s1(a);
-    save_state s2(b);
+    save_state s1(a.object_);
+    save_state s2(b.object_);
     a.decoder().rewind();
     b.decoder().rewind();
     while (a.decoder().more() && b.decoder().more()) {

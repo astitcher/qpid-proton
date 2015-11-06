@@ -56,20 +56,20 @@ blocking_link::blocking_link(blocking_connection &c) : connection_(c) {}
 
 void blocking_link::open(proton::link l) {
     link_ = l;
-    connection_.impl_->wait(link_opened(link_), "opening link " + link_.name());
+    connection_.impl_->wait(link_opened(link_.object_), "opening link " + link_.name());
     check_closed();
 }
 
 blocking_link::~blocking_link() {}
 
 void blocking_link::wait_for_closed() {
-    link_closed link_closed(link_);
+    link_closed link_closed(link_.object_);
     connection_.impl_->wait(link_closed, "closing link " + link_.name());
     check_closed();
 }
 
 void blocking_link::check_closed() {
-    pn_link_t * pn_link = link_;
+    pn_link_t * pn_link = link_.object_;
     if (pn_link_state(pn_link) & PN_REMOTE_CLOSED) {
         link_.close();
         throw error(MSG("Link detached: " << link_.name()));
@@ -78,7 +78,7 @@ void blocking_link::check_closed() {
 
 void blocking_link::close() {
     link_.close();
-    link_not_open link_not_open(link_);
+    link_not_open link_not_open(link_.object_);
     connection_.impl_->wait(link_not_open, "closing link " + link_.name());
 }
 
