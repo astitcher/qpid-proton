@@ -19,6 +19,7 @@
  * under the License.
  */
 
+#include "proton/data.hpp"
 #include "proton/error.hpp"
 #include "proton/type_traits.hpp"
 #include "proton/types.hpp"
@@ -71,7 +72,7 @@ struct rewind{};
 */
 class decoder : public object<pn_data_t> {
   public:
-    decoder(pn_data_t* d) : object(d) {}
+    decoder(const data& d) : object(d.object_) {}
 
     /** Copy AMQP data from a byte buffer into the decoder. */
     PN_CPP_EXTERN decoder(const char* buffer, size_t size);

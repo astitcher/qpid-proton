@@ -19,6 +19,7 @@
 
 #include "proton_bits.hpp"
 #include "proton/data.hpp"
+#include "proton/decoder.hpp"
 
 #include <proton/codec.h>
 
@@ -43,14 +44,11 @@ struct save_state {
 
 std::ostream& operator<<(std::ostream& o, const data& d) {
     save_state s(d.object_);
-    d.decoder().rewind();
+    proton::decoder(d).rewind();
     return o << inspectable(d.object_);
 }
 
 data data::create() { return pn_data(0); }
-
-encoder data::encoder() { return proton::encoder(object_); }
-decoder data::decoder() { return proton::decoder(object_); }
 
 type_id data::type() const { return static_cast<type_id>(pn_data_type(object_)); }
 
@@ -67,7 +65,8 @@ template <class T> int compare(const T& a, const T& b) {
 }
 
 int compare_container(data& a, data& b) {
-    scope sa(a.decoder()), sb(b.decoder());
+    scope sa = decoder(a);
+    scope sb = decoder(b);
     // Compare described vs. not-described.
     int cmp = compare(sa.is_described, sb.is_described);
     if (cmp) return cmp;
@@ -83,8 +82,8 @@ int compare_container(data& a, data& b) {
 template <class T> int compare_simple(data& a, data& b) {
     T va = T();
     T vb = T();
-    a.decoder() >> va;
-    b.decoder() >> vb;
+    decoder(a) >> va;
+    decoder(b) >> vb;
     return compare(va, vb);
 }
 
@@ -129,14 +128,14 @@ int compare_next(data& a, data& b) {
 int compare(data& a, data& b) {
     save_state s1(a.object_);
     save_state s2(b.object_);
-    a.decoder().rewind();
-    b.decoder().rewind();
-    while (a.decoder().more() && b.decoder().more()) {
+    decoder(a).rewind();
+    decoder(b).rewind();
+    while (decoder(a).more() && decoder(b).more()) {
         int cmp = compare_next(a, b);
         if (cmp != 0) return cmp;
     }
-    if (b.decoder().more()) return -1;
-    if (a.decoder().more()) return 1;
+    if (decoder(b).more()) return -1;
+    if (decoder(a).more()) return 1;
     return 0;
 }
 } // namespace

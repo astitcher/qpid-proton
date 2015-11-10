@@ -19,11 +19,9 @@
  * under the License.
  */
 
-#include "proton/decoder.hpp"
-#include "proton/encoder.hpp"
 #include "proton/export.hpp"
 #include "proton/object.hpp"
-#include "proton/pn_unique_ptr.hpp"
+#include "proton/types.hpp"
 
 #include <iosfwd>
 
@@ -44,9 +42,6 @@ class data : public object<pn_data_t> {
     PN_CPP_EXTERN static data create();
 
     PN_CPP_EXTERN data& operator=(const data&);
-    template<class T> data operator=(const T &t) {
-        clear(); encoder() << t; decoder().rewind(); return *this;
-    }
 
     /** Clear the data. */
     PN_CPP_EXTERN void clear();
@@ -54,20 +49,8 @@ class data : public object<pn_data_t> {
     /** True if there are no values. */
     PN_CPP_EXTERN bool empty() const;
 
-    /** Encoder to encode into this value */
-    PN_CPP_EXTERN class encoder encoder();
-
-    /** Decoder to decode from this value */
-    PN_CPP_EXTERN class decoder decoder();
-
     /** Type of the current value*/
     PN_CPP_EXTERN type_id type() const;
-
-    /** Get the first value, don't move the decoder pointer. */
-    template<class T> void get(T &t) const { decoder() >> t; decoder().backup(); }
-
-    /** Get the first value, don't move the decoder pointer. */
-    template<class T> T get() const { T t; get(t); return t; }
 
     PN_CPP_EXTERN bool operator==(const data& x) const;
     PN_CPP_EXTERN bool operator<(const data& x) const;
@@ -77,8 +60,6 @@ class data : public object<pn_data_t> {
     /** Human readable representation of data. */
   friend PN_CPP_EXTERN std::ostream& operator<<(std::ostream&, const data&);
   friend class value;
-  private:
-    class decoder decoder() const { return const_cast<data*>(this)->decoder(); }
 };
 
 }

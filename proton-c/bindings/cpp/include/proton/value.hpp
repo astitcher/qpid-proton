@@ -19,7 +19,7 @@
  * under the License.
  */
 
-#include "proton/data.hpp"
+#include "proton/encoder.hpp"
 #include "proton/decoder.hpp"
 #include "proton/pn_unique_ptr.hpp"
 #include "proton/types.hpp"
@@ -35,11 +35,12 @@ class value : public comparable<value> {
   public:
     PN_CPP_EXTERN value();
     PN_CPP_EXTERN value(const value& x);
-    template <class T> value(const T& x) : data_(data::create()) { data_ = x; }
+    PN_CPP_EXTERN value(const data&);
+    template <class T> value(const T& x) : data_(data::create()) { proton::encoder(data_) << x; }
 
     PN_CPP_EXTERN value& operator=(const value& x);
     PN_CPP_EXTERN value& operator=(const data& x);
-    template <class T> value& operator=(const T& x) { data_ = x; return *this; }
+    template <class T> value& operator=(const T& x) { proton::encoder(data_) << x; return *this; }
 
     PN_CPP_EXTERN void clear();
     PN_CPP_EXTERN bool empty() const;
@@ -69,8 +70,7 @@ class value : public comparable<value> {
   friend PN_CPP_EXTERN std::ostream& operator<<(std::ostream& o, const value& dv);
 
   private:
-    value(const data&);
-    class decoder rewind() const { data_.decoder().rewind(); return data_.decoder(); }
+    class decoder rewind() const { proton::decoder(data_).rewind(); return proton::decoder(data_); }
 
     data data_;
   friend class message;

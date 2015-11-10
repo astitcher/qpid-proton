@@ -59,7 +59,7 @@ class server : public proton::messaging_handler {
         std::string reply_to = e.message().reply_to();
         proton::message reply;
         reply.address(reply_to);
-        reply.body(to_upper(e.message().body().get<std::string>()));
+        reply.body(to_upper(proton::value(e.message().body()).get<std::string>()));
         reply.correlation_id(e.message().correlation_id());
         if (!senders[reply_to])
             senders[reply_to] = connection.open_sender(reply_to);

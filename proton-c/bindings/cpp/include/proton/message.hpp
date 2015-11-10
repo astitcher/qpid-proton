@@ -24,7 +24,7 @@
 #include "proton/export.hpp"
 #include "proton/facade.hpp"
 #include "proton/message_id.hpp"
-#include "proton/data.hpp"
+#include "proton/encoder.hpp"
 #include "proton/pn_unique_ptr.hpp"
 
 #include <string>
@@ -99,7 +99,7 @@ class message
     PN_CPP_EXTERN void body(const data&);
 
     /** Set the body to any type T that can be converted to proton::data */
-    template <class T> void body(const T& v) { body().clear(); body().encoder() << v; }
+    template <class T> void body(const T& v) { body().clear(); encoder(body()) << v; }
 
     /** Get the body values. */
     PN_CPP_EXTERN const data body() const;

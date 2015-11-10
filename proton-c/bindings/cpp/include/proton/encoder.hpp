@@ -19,6 +19,7 @@
  * under the License.
  */
 
+#include "proton/data.hpp"
 #include "proton/error.hpp"
 #include "proton/types.hpp"
 #include "proton/type_traits.hpp"
@@ -61,7 +62,7 @@ struct encode_error : public error { PN_CPP_EXTERN explicit encode_error(const s
  */
 class encoder : public object<pn_data_t> {
   public:
-    encoder(pn_data_t* e) : object(e) {}
+    encoder(const data& e) : object(e.object_) {}
 
     /**
      * Encode the current values into buffer and update size to reflect the number of bytes encoded.

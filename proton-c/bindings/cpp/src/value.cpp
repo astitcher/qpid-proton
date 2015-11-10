@@ -20,6 +20,8 @@
 #include "proton_bits.hpp"
 
 #include "proton/data.hpp"
+#include "proton/decoder.hpp"
+#include "proton/encoder.hpp"
 #include "proton/value.hpp"
 
 #include <ostream>
@@ -40,9 +42,9 @@ void value::clear() { data_.clear(); }
 
 bool value::empty() const { return data_.empty(); }
 
-class encoder value::encoder() { return data_.encoder(); }
+proton::encoder value::encoder() { return proton::encoder(data_); }
 
-class decoder value::decoder() { return data_.decoder(); }
+proton::decoder value::decoder() { return proton::decoder(data_); }
 
 type_id value::type() const { return rewind().type(); }
 

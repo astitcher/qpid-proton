@@ -64,7 +64,7 @@ void check(int err) {
 }
 } // namespace
 
-void message::id(const message_id& id) { data(pn_message_id(message_)) = id.value_; }
+void message::id(const message_id& id) { data(pn_message_id(message_)) << id.value_; }
 
 message_id message::id() const { return message_id(pn_message_id(message_)); }
 
@@ -104,7 +104,7 @@ std::string message::reply_to() const {
 }
 
 void message::correlation_id(const message_id& id) {
-    data(pn_message_correlation_id(message_)) = id.value_;
+    data(pn_message_correlation_id(message_)) << id.value_;
 }
 
 message_id message::correlation_id() const {
