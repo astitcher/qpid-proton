@@ -51,7 +51,7 @@ task reactor::schedule(int delay, pn_handler_t* handler) {
     return pn_reactor_schedule(pn_object(), delay, handler);
 }
 
-connection reactor::pn_connection(pn_handler_t* h) const {
+connection reactor::connection(pn_handler_t* h) const {
     return pn_reactor_connection(pn_object(), h);
 }
 

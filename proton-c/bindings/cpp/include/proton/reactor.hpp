@@ -41,9 +41,6 @@ class reactor : public object<pn_reactor_t> {
     /** Create a new reactor. */
     PN_CPP_EXTERN static reactor create();
 
-    /** Open a connection @see connection::open  */
-    PN_CPP_EXTERN connection connect(const proton::url&, handler *h=0);
-
     /** Open a connection to url and create a receiver with source=url.path() */
     PN_CPP_EXTERN acceptor listen(const proton::url &);
 
@@ -73,7 +70,7 @@ class reactor : public object<pn_reactor_t> {
     
     PN_CPP_EXTERN task schedule(int, pn_handler_t*);
 
-    class connection pn_connection(pn_handler_t*) const;
+    class connection connection(pn_handler_t*) const;
 
     pn_handler_t* pn_handler() const;
 

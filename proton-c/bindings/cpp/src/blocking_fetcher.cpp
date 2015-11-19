@@ -19,6 +19,7 @@
  *
  */
 #include "blocking_fetcher.hpp"
+#include "proton/container.hpp"
 #include "msg.hpp"
 
 #include "proton/event.hpp"

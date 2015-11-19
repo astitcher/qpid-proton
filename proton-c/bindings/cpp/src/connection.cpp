@@ -37,10 +37,6 @@
 
 namespace proton {
 
-owned_object<pn_connection_t> connection::create() {
-    return pn_connection();
-}
-
 connection_context& connection::context() const { return connection_context::get(pn_object()); }
 
 void connection::open() { pn_connection_open(pn_object()); }

@@ -26,6 +26,7 @@
 #include "proton/connection.hpp"
 #include "proton/link.hpp"
 #include "proton/duration.hpp"
+#include "proton/reactor.hpp"
 
 #include "proton/reactor.h"
 
@@ -38,6 +39,8 @@ class connection;
 class connector;
 class acceptor;
 class container;
+class url;
+class task;
 
 class container_impl
 {
