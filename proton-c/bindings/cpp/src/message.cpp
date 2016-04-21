@@ -19,6 +19,8 @@
  *
  */
 
+#include "internal/value_factory.hpp"
+
 #include "proton/delivery.hpp"
 #include "proton/error.hpp"
 #include "proton/link.hpp"
@@ -50,7 +52,8 @@ message::message(message &&m) : pn_msg_(0) { swap(*this, m); }
 message::message(const value& x) : pn_msg_(0) { body() = x; }
 
 message::~message() {
-    body_.data_ = codec::data(0);      // Must release body before pn_message_free
+    // Work around ref-counting bug in proton, drop body ref first.
+    internal::value_factory::reset(body_);
     pn_message_free(pn_msg_);
 }
 
@@ -65,7 +68,7 @@ void swap(message& x, message& y) {
 
 pn_message_t *message::pn_msg() const {
     if (!pn_msg_) pn_msg_ = pn_message();
-    body_.data_ = pn_message_body(pn_msg_);
+    body_ = internal::value_factory::refer(pn_message_body(pn_msg_));
     return pn_msg_;
 }
 

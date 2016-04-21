@@ -19,13 +19,17 @@
  *
  */
 
-#include "proton/link.hpp"
-#include "proton/link.h"
+#include "internal/value_factory.hpp"
+#include <proton/link.hpp>
+#include <proton/link.h>
+
 
 namespace proton {
 
 terminus::terminus(pn_terminus_t* t) :
-    object_(t), properties_(pn_terminus_properties(t)), filter_(pn_terminus_filter(t))
+    object_(t),
+    properties_(internal::value_factory::refer(pn_terminus_properties(t))),
+    filter_(internal::value_factory::refer(pn_terminus_filter(t)))
 {}
 
 enum terminus::type terminus::type() const {

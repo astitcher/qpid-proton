@@ -19,7 +19,11 @@
  *
  */
 #include "proton/error_condition.hpp"
+
 #include "proton/condition.h"
+
+#include "internal/value_factory.hpp"
+
 namespace {
 inline std::string safe_convert(const char* s) {
     return s ? s : std::string();
@@ -31,7 +35,7 @@ namespace proton {
 error_condition::error_condition(pn_condition_t* c) :
     name_(safe_convert(pn_condition_get_name(c))),
     description_(safe_convert(pn_condition_get_description(c))),
-    properties_(pn_condition_info(c))
+    properties_(internal::value_factory::copy(pn_condition_info(c)))
 {}
 
 

@@ -32,7 +32,6 @@ using namespace codec;
 
 value::value() {}
 value::value(const value& x) { *this = x; }
-value::value(const codec::data& x) { if (!x.empty()) data().copy(x); }
 #if PN_CPP_HAS_CPP11
 value::value(value&& x) { swap(*this, x); }
 value& value::operator=(value&& x) { swap(*this, x); return *this; }

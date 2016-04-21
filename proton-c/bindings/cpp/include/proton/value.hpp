@@ -29,6 +29,10 @@
 
 namespace proton {
 
+namespace internal {
+class value_factory;
+}
+
 ///@internal - separate value data from implicit conversion constructors to avoid recursions.
 class value_base {
   public:
@@ -43,7 +47,7 @@ class value_base {
     codec::data& data() const;
     mutable class codec::data data_;
 
-  friend class message;
+  friend class internal::value_factory;
   friend class codec::encoder;
   friend class codec::decoder;
   friend PN_CPP_EXTERN std::ostream& operator<<(std::ostream&, const value_base&);
@@ -100,10 +104,6 @@ class value : public value_base, private comparable<value> {
   friend PN_CPP_EXTERN bool operator==(const value& x, const value& y);
   friend PN_CPP_EXTERN bool operator<(const value& x, const value& y);
     ///@}
-
-    ///@cond INTERNAL
-    PN_CPP_EXTERN explicit value(const codec::data&);
-    ///@endcond
 };
 
 ///@copydoc scalar::get
