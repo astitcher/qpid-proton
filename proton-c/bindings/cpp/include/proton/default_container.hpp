@@ -70,11 +70,13 @@ class PN_CPP_CLASS_EXTERN  default_container : public container {
         const std::string &url,
         const proton::sender_options &o,
         const connection_options &c) PN_CPP_OVERRIDE;
+    using container::open_sender;
 
     PN_CPP_EXTERN returned<receiver> open_receiver(
         const std::string&url,
         const proton::receiver_options &o,
         const connection_options &c) PN_CPP_OVERRIDE;
+    using container::open_receiver;
 
     PN_CPP_EXTERN std::string id() const PN_CPP_OVERRIDE;
 
