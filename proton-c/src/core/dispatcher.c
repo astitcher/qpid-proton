@@ -120,7 +120,7 @@ static int pni_dispatch_frame(pn_transport_t * transport, pn_data_t *args, pn_fr
   return err;
 }
 
-ssize_t pn_dispatcher_input(pn_transport_t *transport, const char *bytes, size_t available, bool batch, bool *halt)
+ssize_t pn_dispatcher_input(pn_transport_t *transport, const char *bytes, size_t available, pn_buffer_t *obuffer, bool batch, bool *halt)
 {
   size_t read = 0;
 
@@ -135,7 +135,7 @@ ssize_t pn_dispatcher_input(pn_transport_t *transport, const char *bytes, size_t
       int e = pni_dispatch_frame(transport, transport->args, frame);
       if (e) return e;
     } else if (n < 0) {
-      pn_do_error(transport, "amqp:connection:framing-error", "malformed frame");
+      pn_do_error(obuffer, transport, "amqp:connection:framing-error", "malformed frame");
       return n;
     } else {
       break;
@@ -145,12 +145,4 @@ ssize_t pn_dispatcher_input(pn_transport_t *transport, const char *bytes, size_t
   }
 
   return read;
-}
-
-ssize_t pn_dispatcher_output(pn_transport_t *transport, char *bytes, size_t size)
-{
-    int n = pn_buffer_get(transport->output_buffer, 0, size, bytes);
-    pn_buffer_trim(transport->output_buffer, n, 0);
-    // XXX: need to check for errors
-    return n;
 }

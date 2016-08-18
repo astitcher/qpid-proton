@@ -26,12 +26,13 @@
 #include <stdbool.h>
 #endif
 
+#include "buffer.h"
+
 #include "proton/codec.h"
 #include "proton/types.h"
 
 typedef int (pn_action_t)(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, pn_data_t *args, const pn_bytes_t *payload);
 
-ssize_t pn_dispatcher_input(pn_transport_t* transport, const char* bytes, size_t available, bool batch, bool* halt);
-ssize_t pn_dispatcher_output(pn_transport_t *transport, char *bytes, size_t size);
+ssize_t pn_dispatcher_input(pn_transport_t* transport, const char* bytes, size_t available, pn_buffer_t *obuffer, bool batch, bool* halt);
 
 #endif /* dispatcher.h */

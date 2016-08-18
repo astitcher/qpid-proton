@@ -56,12 +56,12 @@ void pn_ssl_trace(pn_ssl_t *ssl, pn_trace_t trace)
 {
 }
 
-ssize_t pn_ssl_input(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available)
+ssize_t pn_ssl_input(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available, pn_buffer_t* obuffer)
 {
   return PN_EOS;
 }
 
-ssize_t pn_ssl_output(pn_transport_t *transport, unsigned int layer, char *buffer, size_t max_size)
+ssize_t pn_ssl_output(pn_transport_t *transport, unsigned int layer, pn_buffer_t* obuffer)
 {
   return PN_EOS;
 }
