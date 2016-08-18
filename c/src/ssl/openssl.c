@@ -97,14 +97,12 @@ struct pni_ssl_t {
   BIO *bio_net_io;      // socket-side "half" of network-facing BIO
   // buffers for holding I/O from "applications" above SSL
 #define APP_BUF_SIZE    (4*1024)
-  char *outbuf;
+  pn_buffer_t *outbuf;
   char *inbuf;
 
   ssize_t app_input_closed;   // error code returned by upper layer process input
   ssize_t app_output_closed;  // error code returned by upper layer process output
 
-  size_t out_size;
-  size_t out_count;
   size_t in_size;
   size_t in_count;
 
@@ -136,11 +134,11 @@ static inline pni_ssl_t *get_ssl_internal(pn_ssl_t *ssl)
 
 /* */
 static int keyfile_pw_cb(char *buf, int size, int rwflag, void *userdata);
-static void handle_error_ssl( pn_transport_t *transport, unsigned int layer);
-static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len);
-static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, char *input_data, size_t len);
-static ssize_t process_input_done(pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len);
-static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, char *input_data, size_t len);
+static void handle_error_ssl( pn_transport_t *transport, unsigned int layer, pn_buffer_t *obuffer);
+static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len, pn_buffer_t *obuffer);
+static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, pn_buffer_t *obuffer);
+static ssize_t process_input_done(pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len, pn_buffer_t *obuffer);
+static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, pn_buffer_t *obuffer);
 static int init_ssl_socket(pn_transport_t *, pni_ssl_t *);
 static void release_ssl_socket( pni_ssl_t * );
 static size_t buffered_output( pn_transport_t *transport );
@@ -196,7 +194,7 @@ static void ssl_log_clear_data(pn_transport_t *transport, const char *data, size
 }
 
 // unrecoverable SSL failure occurred, notify transport and generate error code.
-static int ssl_failed(pn_transport_t *transport)
+static int ssl_failed(pn_buffer_t *obuffer, pn_transport_t *transport)
 {
   pni_ssl_t *ssl = transport->ssl;
   SSL_set_shutdown(ssl->ssl, SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN);
@@ -211,7 +209,7 @@ static int ssl_failed(pn_transport_t *transport)
     ERR_error_string_n( ssl_err, buf, sizeof(buf) );
   }
   ssl_log_flush(transport);    // spit out any remaining errors to the log file
-  pn_do_error(transport, "amqp:connection:framing-error", "SSL Failure: %s", buf);
+  pn_do_error(obuffer, transport, "amqp:connection:framing-error", "SSL Failure: %s", buf);
   return PN_EOS;
 }
 
@@ -891,7 +889,7 @@ void pn_ssl_free(pn_transport_t *transport)
   if (ssl->session_id) free((void *)ssl->session_id);
   if (ssl->peer_hostname) free((void *)ssl->peer_hostname);
   if (ssl->inbuf) free((void *)ssl->inbuf);
-  if (ssl->outbuf) free((void *)ssl->outbuf);
+  pn_buffer_free(ssl->outbuf);
   if (ssl->subject) free(ssl->subject);
   if (ssl->peer_certificate) X509_free(ssl->peer_certificate);
   free(ssl);
@@ -904,14 +902,9 @@ pn_ssl_t *pn_ssl(pn_transport_t *transport)
 
   pni_ssl_t *ssl = (pni_ssl_t *) calloc(1, sizeof(pni_ssl_t));
   if (!ssl) return NULL;
-  ssl->out_size = APP_BUF_SIZE;
   uint32_t max_frame = pn_transport_get_max_frame(transport);
   ssl->in_size =  max_frame ? max_frame : APP_BUF_SIZE;
-  ssl->outbuf = (char *)malloc(ssl->out_size);
-  if (!ssl->outbuf) {
-    free(ssl);
-    return NULL;
-  }
+  ssl->outbuf = pn_buffer(APP_BUF_SIZE);
   ssl->inbuf =  (char *)malloc(ssl->in_size);
   if (!ssl->inbuf) {
     free(ssl->outbuf);
@@ -960,7 +953,7 @@ static int start_ssl_shutdown(pn_transport_t *transport)
 
 // take data from the network, and pass it into SSL.  Attempt to read decrypted data from
 // SSL socket and pass it to the application.
-static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer, const char *input_data, size_t available)
+static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer, const char *input_data, size_t available, pn_buffer_t *obuffer)
 {
   pni_ssl_t *ssl = transport->ssl;
   if (ssl->ssl == NULL && init_ssl_socket(transport, ssl)) return PN_EOS;
@@ -1016,7 +1009,7 @@ static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer,
             break;
            default:
             // unexpected error
-            return (ssize_t)ssl_failed(transport);
+            return (ssize_t)ssl_failed(obuffer, transport);
           }
         } else {
           if (BIO_should_write( ssl->bio_ssl )) {
@@ -1035,7 +1028,7 @@ static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer,
 
     if (!ssl->app_input_closed) {
       if (ssl->in_count > 0 || ssl->ssl_closed) {  /* if ssl_closed, send 0 count */
-        ssize_t consumed = transport->io_layers[layer+1]->process_input(transport, layer+1, ssl->inbuf, ssl->in_count);
+        ssize_t consumed = transport->io_layers[layer+1]->process_input(transport, layer+1, ssl->inbuf, ssl->in_count, obuffer);
         if (consumed > 0) {
           ssl->in_count -= consumed;
           if (ssl->in_count)
@@ -1047,7 +1040,7 @@ static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer,
                   (int) consumed, (int)ssl->in_count);
           ssl->in_count = 0;    // discard any pending input
           ssl->app_input_closed = consumed;
-          if (ssl->app_output_closed && ssl->out_count == 0) {
+          if (ssl->app_output_closed && pn_buffer_size(ssl->outbuf) == 0) {
             // both sides of app closed, and no more app output pending:
             start_ssl_shutdown(transport);
           }
@@ -1107,12 +1100,12 @@ static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer,
   return consumed;
 }
 
-static void handle_error_ssl(pn_transport_t *transport, unsigned int layer)
+static void handle_error_ssl(pn_transport_t *transport, unsigned int layer, pn_buffer_t *obuffer)
 {
   transport->io_layers[layer] = &ssl_closed_layer;
 }
 
-static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, char *buffer, size_t max_len)
+static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, pn_buffer_t *obuffer)
 {
   pni_ssl_t *ssl = transport->ssl;
   if (!ssl) return PN_EOS;
@@ -1127,16 +1120,15 @@ static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer
 
     // first, get any pending application output, if possible
 
-    if (!ssl->app_output_closed && ssl->out_count < ssl->out_size) {
-      ssize_t app_bytes = transport->io_layers[layer+1]->process_output(transport, layer+1, &ssl->outbuf[ssl->out_count], ssl->out_size - ssl->out_count);
+    if (!ssl->app_output_closed) {
+      ssize_t app_bytes = transport->io_layers[layer+1]->process_output(transport, layer+1, ssl->outbuf);
       if (app_bytes > 0) {
-        ssl->out_count += app_bytes;
         work_pending = true;
         ssl_log(transport, "Gathered %d bytes from app to send to peer", app_bytes );
       } else {
         if (app_bytes < 0) {
           ssl_log(transport, "Application layer closed its output, error=%d (%d bytes pending send)",
-                  (int) app_bytes, (int) ssl->out_count);
+                  (int) app_bytes, (int) pn_buffer_size(ssl->outbuf));
           ssl->app_output_closed = app_bytes;
         }
       }
@@ -1145,12 +1137,11 @@ static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer
     // now push any pending app data into the socket
 
     if (!ssl->ssl_closed) {
-      char *data = ssl->outbuf;
-      if (ssl->out_count > 0) {
-        int wrote = BIO_write( ssl->bio_ssl, data, ssl->out_count );
+      pn_bytes_t data = pn_buffer_bytes(ssl->outbuf);
+      if (data.size > 0) {
+        int wrote = BIO_write( ssl->bio_ssl, data.start, data.size );
         if (wrote > 0) {
-          data += wrote;
-          ssl->out_count -= wrote;
+          pn_buffer_trim(ssl->outbuf, wrote, 0);
           work_pending = true;
           ssl_log( transport, "Wrote %d bytes from app to socket", wrote );
         } else {
@@ -1161,12 +1152,12 @@ static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer
               // SSL closed cleanly
               ssl_log(transport, "SSL connection has closed");
               start_ssl_shutdown(transport); // KAG: not sure - this may not be necessary
-              ssl->out_count = 0;      // can no longer write to socket, so erase app output data
+              pn_buffer_clear(ssl->outbuf);      // can no longer write to socket, so erase app output data
               ssl->ssl_closed = true;
               break;
              default:
               // unexpected error
-              return (ssize_t)ssl_failed(transport);
+              return (ssize_t)ssl_failed(obuffer, transport);
             }
           } else {
             if (BIO_should_read( ssl->bio_ssl )) {
@@ -1181,26 +1172,23 @@ static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer
         }
       }
 
-      if (ssl->out_count == 0) {
+      if (pn_buffer_size(ssl->outbuf) == 0) {
         if (ssl->app_input_closed && ssl->app_output_closed) {
           // application is done sending/receiving data, and all buffered output data has
           // been written to the SSL socket
           start_ssl_shutdown(transport);
         }
-      } else if (data != ssl->outbuf) {
-        memmove( ssl->outbuf, data, ssl->out_count );
       }
     }
 
     // read from the network bio as much as possible, filling the buffer
-    if (max_len) {
-      int available = BIO_read( ssl->bio_net_io, buffer, max_len );
+    if (pn_buffer_available(ssl->outbuf)>0) {
+      pn_rwbytes_t data = pn_buffer_memory(obuffer);
+      int available = BIO_read( ssl->bio_net_io, data.start, data.size );
       if (available > 0) {
-        max_len -= available;
-        buffer += available;
         written += available;
         ssl->write_blocked = false;
-        work_pending = work_pending || max_len > 0;
+        work_pending = work_pending || pn_buffer_available(ssl->outbuf) > 0;
         ssl_log(transport, "Read %d bytes from BIO Layer", available );
       }
     }
@@ -1503,11 +1491,11 @@ const char* pn_ssl_get_remote_subject_subfield(pn_ssl_t *ssl0, pn_ssl_cert_subje
   return NULL;
 }
 
-static ssize_t process_input_done(pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len)
+static ssize_t process_input_done(pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len, pn_buffer_t *obuffer)
 {
   return PN_EOS;
 }
-static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, char *input_data, size_t len)
+static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, pn_buffer_t *obuffer)
 {
   return PN_EOS;
 }
@@ -1518,7 +1506,7 @@ static size_t buffered_output(pn_transport_t *transport)
   size_t count = 0;
   pni_ssl_t *ssl = transport->ssl;
   if (ssl) {
-    count += ssl->out_count;
+    count += pn_buffer_size(ssl->outbuf);
     if (ssl->bio_net_io) { // pick up any bytes waiting for network io
       count += BIO_ctrl_pending(ssl->bio_net_io);
     }

@@ -100,10 +100,10 @@ typedef struct {
 } pn_session_state_t;
 
 typedef struct pn_io_layer_t {
-  ssize_t (*process_input)(struct pn_transport_t *transport, unsigned int layer, const char *, size_t);
-  ssize_t (*process_output)(struct pn_transport_t *transport, unsigned int layer, char *, size_t);
-  void (*handle_error)(struct pn_transport_t* transport, unsigned int layer);
-  pn_timestamp_t (*process_tick)(struct pn_transport_t *transport, unsigned int layer, pn_timestamp_t);
+  ssize_t (*process_input)(struct pn_transport_t *transport, unsigned int layer, const char *, size_t, struct pn_buffer_t* obuffer);
+  ssize_t (*process_output)(struct pn_transport_t *transport, unsigned int layer, struct pn_buffer_t* obuffer);
+  void (*handle_error)(struct pn_transport_t* transport, unsigned int layer, struct pn_buffer_t* obuffer);
+  pn_timestamp_t (*process_tick)(struct pn_transport_t *transport, unsigned int layer, struct pn_buffer_t* obuffer, pn_timestamp_t);
   size_t (*buffered_output)(struct pn_transport_t *transport);  // how much output is held
 } pn_io_layer_t;
 
@@ -165,9 +165,6 @@ struct pn_transport_t {
   pn_data_t *args;
   pn_data_t *output_args;
 
-  // Temporary - ??
-  pn_buffer_t *output_buffer;
-
   /* statistics */
   uint64_t bytes_input;
   uint64_t bytes_output;
@@ -176,9 +173,7 @@ struct pn_transport_t {
 
   /* output buffered for send */
   #define PN_TRANSPORT_INITIAL_BUFFER_SIZE (16*1024)
-  size_t output_size;
-  size_t output_pending;
-  char *output_buf;
+  pn_buffer_t *output_buffer;
 
   /* input from peer */
   size_t input_size;
@@ -364,14 +359,14 @@ void pn_work_update(pn_connection_t *connection, pn_delivery_t *delivery);
 void pn_clear_modified(pn_connection_t *connection, pn_endpoint_t *endpoint);
 void pn_connection_bound(pn_connection_t *conn);
 void pn_connection_unbound(pn_connection_t *conn);
-int pn_do_error(pn_transport_t *transport, const char *condition, const char *fmt, ...);
+int pn_do_error(pn_buffer_t *buffer, pn_transport_t *transport, const char *condition, const char *fmt, ...);
 void pn_set_error_layer(pn_transport_t *transport);
 void pn_session_unbound(pn_session_t* ssn);
 void pn_link_unbound(pn_link_t* link);
 void pn_ep_incref(pn_endpoint_t *endpoint);
 void pn_ep_decref(pn_endpoint_t *endpoint);
 
-int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const char *fmt, ...);
+int pn_post_frame(pn_buffer_t *buffer, pn_transport_t *transport, uint8_t type, uint16_t ch, const char *fmt, ...);
 
 typedef enum {IN, OUT} pn_dir_t;
 
