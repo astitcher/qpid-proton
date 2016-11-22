@@ -49,7 +49,6 @@ pn_class_t cpp_context_class = PN_CLASS(cpp_context);
 
 // Handles
 PN_HANDLE(CONNECTION_CONTEXT)
-PN_HANDLE(CONTAINER_CONTEXT)
 PN_HANDLE(LISTENER_CONTEXT)
 PN_HANDLE(LINK_CONTEXT)
 
@@ -79,16 +78,6 @@ context::id connection_context::id(pn_connection_t* c) {
 
 context::id connection_context::id(const connection& c) {
     return id(unwrap(c));
-}
-
-void container_context::set(const reactor& r, container& c) {
-    set_context(pn_reactor_attachments(r.pn_object()), CONTAINER_CONTEXT, PN_VOID, &c);
-}
-
-container &container_context::get(pn_reactor_t *pn_reactor) {
-    container *ctx = get_context<container>(pn_reactor_attachments(pn_reactor), CONTAINER_CONTEXT);
-    if (!ctx) throw error(MSG("Reactor has no C++ container context"));
-    return *ctx;
 }
 
 listener_context& listener_context::get(pn_acceptor_t* a) {

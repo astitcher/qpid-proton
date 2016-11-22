@@ -20,6 +20,7 @@
  */
 #include <proton/link.h>
 #include <proton/session.h>
+#include <proton/connection.h>
 
 #include <string>
 #include <iosfwd>
@@ -131,6 +132,7 @@ public:
 template <class T>
 inline pn_record_t* get_attachments(T*);
 
+template <> inline pn_record_t* get_attachments(pn_connection_t* c) { return pn_connection_attachments(c); }
 template <> inline pn_record_t* get_attachments(pn_session_t* s) { return pn_session_attachments(s); }
 template <> inline pn_record_t* get_attachments(pn_link_t* l) { return pn_link_attachments(l); }
 }

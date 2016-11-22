@@ -103,14 +103,6 @@ class connection_context : public context {
     static context::id id(const connection& c);
 };
 
-void container_context(const reactor&, container&);
-
-class container_context {
-  public:
-    static void set(const reactor& r, container& c);
-    static container& get(pn_reactor_t*);
-};
-
 class listener_context : public context {
   public:
     static listener_context& get(pn_acceptor_t* c);

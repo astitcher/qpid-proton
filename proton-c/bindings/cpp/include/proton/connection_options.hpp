@@ -161,7 +161,8 @@ class connection_options {
     internal::pn_unique_ptr<impl> impl_;
 
     /// @cond INTERNAL
-  friend class container_impl;
+  friend class reactor;
+  friend class override_handler;
   friend class connector;
   friend class io::connection_driver;
   friend class connection;

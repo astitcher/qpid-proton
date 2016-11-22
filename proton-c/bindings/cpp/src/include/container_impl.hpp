@@ -34,7 +34,6 @@
 #include "proton_bits.hpp"
 #include "proton_handler.hpp"
 
-#include <list>
 #include <map>
 #include <string>
 
@@ -84,18 +83,14 @@ class container_impl : public standard_container {
     void schedule(duration, void_function0&) PN_CPP_OVERRIDE;
 
     // non-interface functions
-    void configure_server_connection(connection &c);
     static void schedule(container& c, int delay, proton_handler *h);
-    template <class T> static void set_handler(T s, messaging_handler* h);
+    template <class T>
+    static void set_handler(T s, messaging_handler* mh);
 
   private:
-    internal::pn_ptr<pn_handler_t> cpp_handler(proton_handler *h);
-
     typedef std::map<std::string, acceptor> acceptors;
 
     reactor reactor_;
-    // Keep a list of all the handlers used by the container so they last as long as the container
-    std::list<internal::pn_unique_ptr<proton_handler> > handlers_;
     std::string id_;
     connection_options client_connection_options_;
     connection_options server_connection_options_;
@@ -106,15 +101,6 @@ class container_impl : public standard_container {
 
   friend class messaging_adapter;
 };
-
-template <class T>
-void container_impl::set_handler(T s, messaging_handler* mh) {
-    pn_record_t *record = internal::get_attachments(unwrap(s));
-    proton_handler* h = new messaging_adapter(*mh);
-    container_impl& ci = static_cast<container_impl&>(s.container());
-    ci.handlers_.push_back(h);
-    pn_record_set_handler(record, ci.cpp_handler(h).get());
-}
 
 }
 

@@ -23,9 +23,11 @@
 /// @cond INTERNAL
 /// XXX remove
 
-#include "proton/internal/object.hpp"
+#include "proton/internal/pn_unique_ptr.hpp"
 #include "proton/duration.hpp"
 #include "proton/timestamp.hpp"
+
+#include <list>
 
 struct pn_reactor_t;
 struct pn_handler_t;
@@ -34,20 +36,39 @@ struct pn_io_t;
 namespace proton {
 
 class connection;
+class connection_options;
 class container;
 class acceptor;
 class url;
 class messaging_handler;
+class proton_handler;
 
-class reactor : public internal::object<pn_reactor_t> {
+class reactor {
   public:
-    reactor(pn_reactor_t* r = 0) : internal::object<pn_reactor_t>(r) {}
+    reactor(container& c);
+    ~reactor();
+
+#if PN_CPP_HAS_DELETED_FUNCTIONS
+    reactor(const reactor&) = delete;
+    reactor(reactor&&) = delete;
+    reactor& operator=(const reactor&) = delete;
+    reactor& operator=(reactor&&) = delete;
+#endif
 
     /** Create a new reactor. */
-    static reactor create();
+    static reactor create(container& c);
 
     /** Open a connection to url and create a receiver with source=url.path() */
-    acceptor listen(const proton::url &);
+    acceptor listen(const proton::url& url, const connection_options& opts);
+
+    //class connection connection(pn_handler_t*) const;
+    class connection connection_to_host(const proton::url& url, const connection_options& opts);
+
+    void schedule(int, proton_handler*);
+
+    void pn_global_handler();
+    void pn_handler(messaging_handler* mh);
+    void connection_handler(connection& c, messaging_handler* mh);
 
     /** Run the event loop, return when all connections and acceptors are closed. */
     void run();
@@ -73,29 +94,20 @@ class reactor : public internal::object<pn_reactor_t> {
     timestamp mark();
     timestamp now();
 
-    void schedule(int, pn_handler_t*);
-
-    class connection connection(pn_handler_t*) const;
-
-    class connection connection_to_host(const std::string &host, const std::string &port, pn_handler_t*) const;
-
-    pn_handler_t* pn_handler() const;
-
-    void pn_handler(pn_handler_t* );
-
-    pn_handler_t* pn_global_handler() const;
-
-    void pn_global_handler(pn_handler_t* );
-
-    pn_io_t* pn_io() const;
-
     void wakeup();
     bool quiesced();
     void yield();
+    std::string error_text();
+
+private:
+    pn_reactor_t* object_;
+
+    container& container_;
+        // Keep a list of all the handlers used by the container so they last as long as the container
+    std::list<internal::pn_unique_ptr<proton_handler> > handlers_;
 
   friend class container_impl;
   friend class container_context;
-  friend class internal::factory<reactor>;
 };
 
 }
