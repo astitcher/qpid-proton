@@ -88,7 +88,7 @@ class container_impl : public standard_container {
     static void set_handler(T s, messaging_handler* mh);
 
   private:
-    typedef std::map<std::string, acceptor> acceptors;
+    typedef std::map<std::string, listener> listeners;
 
     reactor reactor_;
     std::string id_;
@@ -97,7 +97,7 @@ class container_impl : public standard_container {
     proton::sender_options sender_options_;
     proton::receiver_options receiver_options_;
     bool auto_stop_;
-    acceptors acceptors_;
+    listeners listeners_;
 
   friend class messaging_adapter;
 };

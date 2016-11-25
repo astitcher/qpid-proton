@@ -63,19 +63,20 @@ container_impl::container_impl(const std::string& id, messaging_handler *mh) :
     // the reactor's default globalhandler (pn_iohandler)
 }
 
-namespace {
-void close_acceptor(acceptor a) {
-    listen_handler*& lh = listener_context::get(unwrap(a)).listen_handler_;
+void close_acceptor(listener& l) {
+    listen_handler* lh = l.listen_handler_;
     if (lh) {
         lh->on_close();
-        lh = 0;
+        l.listen_handler_ = 0;
     }
-    a.close();
-}
+    if (l.acceptor_) {
+        l.acceptor_->close();
+        l.acceptor_ = 0;
+    }
 }
 
 container_impl::~container_impl() {
-    for (acceptors::iterator i = acceptors_.begin(); i != acceptors_.end(); ++i)
+    for (listeners::iterator i = listeners_.begin(); i != listeners_.end(); ++i)
         close_acceptor(i->second);
 }
 
@@ -117,7 +118,7 @@ returned<receiver> container_impl::open_receiver(const std::string &url, const p
 }
 
 listener container_impl::listen(const std::string& url, listen_handler& lh) {
-    if (acceptors_.find(url) != acceptors_.end())
+    if (listeners_.find(url) != listeners_.end())
         throw error("already listening on " + url);
     connection_options opts = server_connection_options(); // Defaults
 
@@ -134,13 +135,12 @@ listener container_impl::listen(const std::string& url, listen_handler& lh) {
     listener_context& lc(listener_context::get(unwrap(acptr)));
     lc.listen_handler_ = &lh;
     lc.ssl = u.scheme() == url::AMQPS;
-    acceptors_[url] = acptr;
-    return listener(*this, url);
+    return listeners_[url] = listener(*this, url, lh, acptr);
 }
 
 void container_impl::stop_listening(const std::string& url) {
-    acceptors::iterator i = acceptors_.find(url);
-    if (i != acceptors_.end())
+    listeners::iterator i = listeners_.find(url);
+    if (i != listeners_.end())
         close_acceptor(i->second);
 }
 

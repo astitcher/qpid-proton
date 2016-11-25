@@ -23,7 +23,10 @@
 namespace proton {
 
 listener::listener() : container_(0) {}
-listener::listener(container& c, const std::string& u) : url_(u), container_(&c) {}
+listener::listener(container& c, const std::string& u) :
+    url_(u), container_(&c), listen_handler_(0), acceptor_(0) {}
+listener::listener(container& c, const std::string& u, listen_handler& l, acceptor& a) :
+    url_(u), container_(&c), listen_handler_(&l), acceptor_(&a) {}
 void listener::stop() { if (container_) container_->stop_listening(url_); }
 
 }

@@ -26,7 +26,9 @@
 
 namespace proton {
 
+class acceptor;
 class container;
+class listen_handler;
 
 /// A listener for incoming connections.
 class PN_CPP_CLASS_EXTERN listener {
@@ -36,15 +38,20 @@ class PN_CPP_CLASS_EXTERN listener {
 
     /// @cond INTERNAL
     PN_CPP_EXTERN listener(container&, const std::string&);
+    PN_CPP_EXTERN listener(container&, const std::string&, listen_handler&, acceptor&);
     /// @endcond
 
     /// Stop listening on the address provided to the call to
     /// container::listen that returned this listener.
     PN_CPP_EXTERN void stop();
 
- private:
+  private:
     std::string url_;
     container* container_;
+    listen_handler* listen_handler_;
+    acceptor* acceptor_;
+  // TODO: This class is not exposed externally so this declaration must go away
+  friend void close_acceptor(listener&);
 };
 
 } // proton
