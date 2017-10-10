@@ -49,6 +49,8 @@ namespace proton {
 /// It can be created from a function that takes no parameters and
 /// returns no value.
 namespace v03 {
+
+/// @cond INTERNAL
 struct invocable {
     invocable() {}
     virtual ~invocable() {}
@@ -76,6 +78,7 @@ struct invocable_wrapper {
 
     invocable* wrapped_;
 };
+/// @endcond
 
 class work {
   public:
@@ -95,6 +98,7 @@ class work {
     invocable_wrapper item_;
 };
 
+/// @cond INTERNAL
 // Utilities to make work from functions/member functions (C++03 version)
 // Lots of repetition to handle functions/member functions with up to 3 arguments
 template <class R>
@@ -208,6 +212,7 @@ struct work_pmf3 : public invocable_cloner<work_pmf3<R,T,A,B,C> > {
         (holder_.*fn_)(a_, b_, c_);
     }
 };
+/// @endcond
 
 /// make_work is the equivalent of C++11 std::bind for C++03
 /// It will bind both free functions and pointers to member functions
@@ -260,8 +265,11 @@ class work {
     /// **Unsettled API**
     work() {}
 
-    /// **Unsettled API** - Construct a unit of work from a
-    /// std::function.
+    /// **Unsettled API**
+    /// Construct a unit of work from anything
+    /// function-like that takes no arguments and returns
+    /// no result.
+    ///
     template <class T,
         // Make sure we don't match the copy or move constructors
         class = typename std::enable_if<!std::is_same<typename std::decay<T>::type,work>::value>::type
@@ -269,6 +277,7 @@ class work {
     work(T&& f): item_(std::forward<T>(f)) {}
 
     /// **Unsettled API**
+    /// Execute the piece of work
     void operator()() { item_(); }
 
     ~work() {}
@@ -278,6 +287,10 @@ class work {
 };
 
 /// **Unsettled API**
+/// Make a unit of work from either a function or a member function
+/// and an object pointer.
+///
+/// This C++11 version is just a wrapper for std::bind
 template <class... Rest>
 work make_work(Rest&&... r) {
     return std::bind(std::forward<Rest>(r)...);
