@@ -439,8 +439,8 @@ static void pni_post_sasl_frame(pn_transport_t *transport)
   while (sasl->desired_state > sasl->last_state) {
     switch (desired_state) {
     case SASL_POSTED_INIT:
-      pn_post_frame(transport, SASL_FRAME_TYPE, 0, "DL[sz]", SASL_INIT, sasl->selected_mechanism,
-                    out.size, out.start);
+      pn_post_frame(transport, SASL_FRAME_TYPE, 0, "DL[szS]", SASL_INIT, sasl->selected_mechanism,
+                    out.size, out.start, sasl->remote_fqdn);
       pni_emit(transport);
       break;
     case SASL_POSTED_MECHANISMS: {
