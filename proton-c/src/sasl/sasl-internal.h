@@ -46,7 +46,6 @@ struct pni_sasl_t {
   const char *username;
   char *password;
   const char *remote_fqdn;
-  char *local_fqdn;
   char *external_auth;
   int external_ssf;
   size_t max_encrypt_size;
