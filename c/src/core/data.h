@@ -71,5 +71,6 @@ int pni_data_traverse(pn_data_t *data,
                       int (*enter)(void *ctx, pn_data_t *data, pni_node_t *node),
                       int (*exit)(void *ctx, pn_data_t *data, pni_node_t *node),
                       void *ctx);
+ssize_t pni_data_encode_buffer(pn_data_t *data, pn_buffer_t *buffer, size_t data_size);
 
 #endif /* data.h */

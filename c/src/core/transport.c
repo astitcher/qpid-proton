@@ -417,7 +417,6 @@ static void pn_transport_initialize(void *object)
   transport->scratch = pn_string(NULL);
   transport->args = pn_data(16);
   transport->output_args = pn_data(16);
-  transport->frame = pn_buffer(PN_TRANSPORT_INITIAL_FRAME_SIZE);
   transport->input_frames_ct = 0;
   transport->output_frames_ct = 0;
 
@@ -679,7 +678,6 @@ static void pn_transport_finalize(void *object)
   pn_free(transport->scratch);
   pn_data_free(transport->args);
   pn_data_free(transport->output_args);
-  pn_buffer_free(transport->frame);
   pn_free(transport->context);
   pn_buffer_free(transport->output_buffer);
 }
@@ -911,7 +909,6 @@ void pn_do_trace(pn_transport_t *transport, uint16_t ch, pn_dir_t dir,
 
 int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const char *fmt, ...)
 {
-  pn_buffer_t *frame_buf = transport->frame;
   va_list ap;
   va_start(ap, fmt);
   pn_data_clear(transport->output_args);
@@ -926,33 +923,15 @@ int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const ch
 
   pn_do_trace(transport, ch, OUT, transport->output_args, NULL, 0);
 
- encode_performatives:
-  pn_buffer_clear( frame_buf );
-  pn_rwbytes_t buf = pn_buffer_memory( frame_buf );
-  buf.size = pn_buffer_available( frame_buf );
-
-  ssize_t wr = pn_data_encode( transport->output_args, buf.start, buf.size );
+  int wr = pn_write_frame_performative(transport->output_buffer, type, ch, transport->output_args);
   if (wr < 0) {
-    if (wr == PN_OVERFLOW) {
-      pn_buffer_ensure( frame_buf, pn_buffer_available( frame_buf ) * 2 );
-      goto encode_performatives;
-    }
-    pn_transport_logf(transport,
-                      "error posting frame: %s", pn_code(wr));
+    pn_transport_logf(transport, "error posting frame: %s", pn_code(wr));
     return PN_ERR;
   }
-
-  pn_frame_t frame = {AMQP_FRAME_TYPE};
-  frame.type = type;
-  frame.channel = ch;
-  frame.payload = buf.start;
-  frame.size = wr;
-  pn_buffer_ensure(transport->output_buffer, AMQP_HEADER_SIZE+frame.ex_size+frame.size);
-  pn_write_frame(transport->output_buffer, frame);
   transport->output_frames_ct += 1;
   if (transport->trace & PN_TRACE_RAW) {
     pn_string_set(transport->scratch, "RAW: \"");
-    pn_buffer_quote(transport->output_buffer, transport->scratch, AMQP_HEADER_SIZE+frame.ex_size+frame.size);
+    pn_buffer_quote(transport->output_buffer, transport->scratch, wr);
     pn_string_addf(transport->scratch, "\"");
     pn_transport_log(transport, pn_string_get(transport->scratch));
   }
@@ -977,7 +956,6 @@ static int pni_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
 {
   bool more_flag = more;
   unsigned framecount = 0;
-  pn_buffer_t *frame = transport->frame;
 
   // create preformatives, assuming 'more' flag need not change
 
@@ -1003,27 +981,12 @@ static int pni_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
 
   do { // send as many frames as possible without changing the 'more' flag...
 
-  encode_performatives:
-    pn_buffer_clear( frame );
-    pn_rwbytes_t buf = pn_buffer_memory( frame );
-    buf.size = pn_buffer_available( frame );
-
-    ssize_t wr = pn_data_encode(transport->output_args, buf.start, buf.size);
-    if (wr < 0) {
-      if (wr == PN_OVERFLOW) {
-        pn_buffer_ensure( frame, pn_buffer_available( frame ) * 2 );
-        goto encode_performatives;
-      }
-      pn_transport_logf(transport, "error posting frame: %s", pn_code(wr));
-      return PN_ERR;
-    }
-    buf.size = wr;
-
     // check if we need to break up the outbound frame
     size_t available = payload->size;
+    size_t performative_size = pn_data_encoded_size(transport->output_args);
     if (transport->remote_max_frame) {
-      if ((available + buf.size) > transport->remote_max_frame - 8) {
-        available = transport->remote_max_frame - 8 - buf.size;
+      if ((available + performative_size) > transport->remote_max_frame - 8) {
+        available = transport->remote_max_frame - 8 - performative_size;
         if (more_flag == false) {
           more_flag = true;
           goto compute_performatives;  // deal with flag change
@@ -1035,31 +998,19 @@ static int pni_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
       }
     }
 
-    if (pn_buffer_available( frame ) < (available + buf.size)) {
-      // not enough room for payload - try again...
-      pn_buffer_ensure( frame, available + buf.size );
-      goto encode_performatives;
-    }
+    int wr = pn_write_frame_performative_payload(transport->output_buffer, AMQP_FRAME_TYPE, ch,
+                                                 transport->output_args,
+                                                 payload->start, available);
+    payload->start += available;
+    payload->size -= available;
 
     pn_do_trace(transport, ch, OUT, transport->output_args, payload->start, available);
 
-    memmove( buf.start + buf.size, payload->start, available);
-    payload->start += available;
-    payload->size -= available;
-    buf.size += available;
-
-    pn_frame_t frame = {AMQP_FRAME_TYPE};
-    frame.channel = ch;
-    frame.payload = buf.start;
-    frame.size = buf.size;
-
-    pn_buffer_ensure(transport->output_buffer, AMQP_HEADER_SIZE+frame.ex_size+frame.size);
-    pn_write_frame(transport->output_buffer, frame);
     transport->output_frames_ct += 1;
     framecount++;
     if (transport->trace & PN_TRACE_RAW) {
       pn_string_set(transport->scratch, "RAW: \"");
-      pn_buffer_quote(transport->output_buffer, transport->scratch, AMQP_HEADER_SIZE+frame.ex_size+frame.size);
+      pn_buffer_quote(transport->output_buffer, transport->scratch, wr);
       pn_string_addf(transport->scratch, "\"");
       pn_transport_log(transport, pn_string_get(transport->scratch));
     }

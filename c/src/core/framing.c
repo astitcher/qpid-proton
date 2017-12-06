@@ -24,6 +24,10 @@
 
 #include "framing.h"
 
+#include "data.h"
+#include "dispatch_actions.h"
+#include "proton/codec.h"
+
 // TODO: These are near duplicates of code in codec.c - they should be
 // deduplicated.
 static inline void pn_i_write16(char *bytes, uint16_t value)
@@ -83,24 +87,39 @@ ssize_t pn_read_frame(pn_frame_t *frame, const char *bytes, size_t available, ui
   return size;
 }
 
-size_t pn_write_frame(pn_buffer_t* buffer, pn_frame_t frame)
+// This encodes a frame with just a performative and no extended data or extra payload
+ssize_t pn_write_frame_performative(pn_buffer_t* buffer, uint8_t type, uint16_t ch, pn_data_t *data)
 {
-  size_t size = AMQP_HEADER_SIZE + frame.ex_size + frame.size;
+  return pn_write_frame_performative_payload(buffer, type, ch, data, NULL, 0);
+}
+
+// This encodes a frame with just a performative and a payload and no extended data
+ssize_t pn_write_frame_performative_payload(pn_buffer_t *buffer, uint8_t type, uint16_t ch, pn_data_t *data,
+                                            const char *payload, size_t payload_size)
+{
+  size_t performative_size = pn_data_encoded_size(data);
+  size_t frame_exsize = 0;
+  size_t frame_size = performative_size + payload_size;
+
+  size_t size = AMQP_HEADER_SIZE + frame_exsize + frame_size;
+
+  // Prepare header
+  char bytes[8] = {0};
+
+  pn_i_write32(&bytes[0], size);
+  int doff = (frame_exsize + AMQP_HEADER_SIZE - 1)/4 + 1;
+  bytes[4] = doff;
+  bytes[5] = type;
+  pn_i_write16(&bytes[6], ch);
+
+  pn_buffer_ensure(buffer, size);
+
   if (size <= pn_buffer_available(buffer))
   {
-    // Prepare header
-    char bytes[8];
-    pn_i_write32(&bytes[0], size);
-    int doff = (frame.ex_size + AMQP_HEADER_SIZE - 1)/4 + 1;
-    bytes[4] = doff;
-    bytes[5] = frame.type;
-    pn_i_write16(&bytes[6], frame.channel);
-
     // Write header then rest of frame
     pn_buffer_append(buffer, bytes, 8);
-    if (frame.extended)
-        pn_buffer_append(buffer, frame.extended, frame.ex_size);
-    pn_buffer_append(buffer, frame.payload, frame.size);
+    pni_data_encode_buffer(data, buffer, performative_size);
+    pn_buffer_append(buffer, payload, payload_size);
     return size;
   } else {
     return 0;

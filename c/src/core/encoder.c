@@ -62,7 +62,7 @@ pn_encoder_t *pn_encoder()
   return (pn_encoder_t *) pn_class_new(&clazz, sizeof(pn_encoder_t));
 }
 
-static uint8_t pn_type2code(pn_encoder_t *encoder, pn_type_t type)
+static uint8_t pn_type2code(pn_error_t *error, pn_type_t type)
 {
   switch (type)
   {
@@ -92,11 +92,11 @@ static uint8_t pn_type2code(pn_encoder_t *encoder, pn_type_t type)
   case PN_MAP: return PNE_MAP32;
   case PN_DESCRIBED: return PNE_DESCRIPTOR;
   default:
-    return pn_error_format(encoder->error, PN_ERR, "not a value type: %u\n", type);
+    return pn_error_format(error, PN_ERR, "not a value type: %u\n", type);
   }
 }
 
-static uint8_t pn_node2code(pn_encoder_t *encoder, pni_node_t *node)
+static uint8_t pn_node2code(pn_error_t *error, pni_node_t *node)
 {
   switch (node->atom.type) {
   case PN_LONG:
@@ -148,7 +148,7 @@ static uint8_t pn_node2code(pn_encoder_t *encoder, pni_node_t *node)
       return PNE_VBIN32;
     }
   default:
-    return pn_type2code(encoder, node->atom.type);
+    return pn_type2code(error, node->atom.type);
   }
 }
 
@@ -264,12 +264,12 @@ static int pni_encoder_enter(void *ctx, pn_data_t *data, pni_node_t *node)
 
   /** In an array we don't write the code before each element, only the first. */
   if (pn_is_in_array(data, parent, node)) {
-    code = pn_type2code(encoder, parent->type);
+    code = pn_type2code(encoder->error, parent->type);
     if (pn_is_first_in_array(data, parent, node)) {
       pn_encoder_writef8(encoder, code);
     }
   } else {
-    code = pn_node2code(encoder, node);
+    code = pn_node2code(encoder->error, node);
     // Omit trailing nulls for described lists
     if (pn_is_in_described_list(data, parent, node)) {
       if (code==PNE_NULL) {
@@ -342,7 +342,87 @@ static int pni_encoder_enter(void *ctx, pn_data_t *data, pni_node_t *node)
   }
 }
 
-#include <stdio.h>
+static int pni_encoder_enter_size(void *ctx, pn_data_t *data, pni_node_t *node)
+{
+  pn_encoder_t *encoder = (pn_encoder_t *) ctx;
+  pni_node_t *parent = pn_data_node(data, node->parent);
+  pn_atom_t *atom = &node->atom;
+  uint8_t code;
+
+  /** In an array we don't write the code before each element, only the first. */
+  if (pn_is_in_array(data, parent, node)) {
+    code = pn_type2code(encoder->error, parent->type);
+    if (pn_is_first_in_array(data, parent, node)) {
+      encoder->position++;
+    }
+  } else {
+    code = pn_node2code(encoder->error, node);
+    // Omit trailing nulls for described lists
+    if (pn_is_in_described_list(data, parent, node)) {
+      if (code==PNE_NULL) {
+        encoder->null_count++;
+      } else {
+        // Output pending nulls, then the nodes code
+        encoder->position += encoder->null_count+1;
+        encoder->null_count = 0;
+      }
+    } else {
+      encoder->position++;
+    }
+  }
+
+  switch (code) {
+  case PNE_DESCRIPTOR:
+  case PNE_NULL:
+  case PNE_TRUE:
+  case PNE_FALSE: return 0;
+  case PNE_BOOLEAN: encoder->position++; return 0;
+  case PNE_UBYTE: encoder->position++; return 0;
+  case PNE_BYTE: encoder->position++; return 0;
+  case PNE_USHORT: encoder->position += 2; return 0;
+  case PNE_SHORT: encoder->position += 2; return 0;
+  case PNE_UINT0: return 0;
+  case PNE_SMALLUINT: encoder->position++; return 0;
+  case PNE_UINT: encoder->position += 4; return 0;
+  case PNE_SMALLINT: encoder->position++; return 0;
+  case PNE_INT: encoder->position += 4; return 0;
+  case PNE_UTF32: encoder->position += 4; return 0;
+  case PNE_ULONG: encoder->position += 8; return 0;
+  case PNE_SMALLULONG: encoder->position++; return 0;
+  case PNE_LONG: encoder->position += 8; return 0;
+  case PNE_SMALLLONG: encoder->position++; return 0;
+  case PNE_MS64: encoder->position += 8; return 0;
+  case PNE_FLOAT: encoder->position += 4; return 0;
+  case PNE_DOUBLE: encoder->position += 8; return 0;
+  case PNE_DECIMAL32: encoder->position += 4; return 0;
+  case PNE_DECIMAL64: encoder->position += 8; return 0;
+  case PNE_DECIMAL128: encoder->position += 16; return 0;
+  case PNE_UUID: encoder->position += 16; return 0;
+  case PNE_VBIN8: encoder->position ++; encoder->position += (&atom->u.as_bytes)->size; return 0;
+  case PNE_VBIN32: encoder->position += 4; encoder->position += (&atom->u.as_bytes)->size; return 0;
+  case PNE_STR8_UTF8: encoder->position ++; encoder->position += (&atom->u.as_bytes)->size; return 0;
+  case PNE_STR32_UTF8: encoder->position += 4; encoder->position += (&atom->u.as_bytes)->size; return 0;
+  case PNE_SYM8: encoder->position ++; encoder->position += (&atom->u.as_bytes)->size; return 0;
+  case PNE_SYM32: encoder->position += 4; encoder->position += (&atom->u.as_bytes)->size; return 0;
+  case PNE_ARRAY32:
+    // we'll backfill the size on exit
+    node->start = encoder->position;
+    encoder->position += 4;
+    encoder->position += 4;
+    if (node->described)
+      encoder->position++;
+    return 0;
+  case PNE_LIST32:
+  case PNE_MAP32:
+    // we'll backfill the size later
+    node->start = encoder->position;
+    encoder->position += 4;
+    encoder->position += 4;
+    return 0;
+  default:
+    return pn_error_format(data->error, PN_ERR, "unrecognized encoding: %u", code);
+  }
+}
 
 static int pni_encoder_exit(void *ctx, pn_data_t *data, pni_node_t *node)
 {
@@ -360,7 +440,7 @@ static int pni_encoder_exit(void *ctx, pn_data_t *data, pni_node_t *node)
   switch (node->atom.type) {
   case PN_ARRAY:
     if ((node->described && node->children == 1) || (!node->described && node->children == 0)) {
-      pn_encoder_writef8(encoder, pn_type2code(encoder, node->type));
+      pn_encoder_writef8(encoder, pn_type2code(encoder->error, node->type));
     }
   // Fallthrough
   case PN_LIST:
@@ -392,6 +472,30 @@ static int pni_encoder_exit(void *ctx, pn_data_t *data, pni_node_t *node)
   }
 }
 
+static int pni_encoder_exit_size(void *ctx, pn_data_t *data, pni_node_t *node)
+{
+  pn_encoder_t *encoder = (pn_encoder_t *) ctx;
+
+  // Special case 0 length list
+  switch (node->atom.type) {
+  case PN_LIST:
+    if (node->children-encoder->null_count==0) {
+      encoder->position = node->start; // position after list opcode
+    }
+    encoder->null_count = 0;
+    return 0;
+
+  case PN_ARRAY:
+    if ((node->described && node->children == 1) || (!node->described && node->children == 0)) {
+      encoder->position++;
+    }
+    return 0;
+
+  default:
+    return 0;
+  }
+}
+
 ssize_t pn_encoder_encode(pn_encoder_t *encoder, pn_data_t *src, char *dst, size_t size)
 {
   encoder->output = dst;
@@ -408,6 +512,23 @@ ssize_t pn_encoder_encode(pn_encoder_t *encoder, pn_data_t *src, char *dst, size
   return (ssize_t)encoded;
 }
 
+ssize_t pn_encoder_encode_buffer(pn_encoder_t *encoder, pn_data_t *src, pn_buffer_t *buffer, size_t data_size)
+{
+  pn_rwbytes_t bytes = pn_buffer_get_tail_memory(buffer, data_size);
+  encoder->output = bytes.start;
+  encoder->position = bytes.start;
+  encoder->size = bytes.size;
+
+  int err = pni_data_traverse(src, pni_encoder_enter, pni_encoder_exit, encoder);
+  if (err) return err;
+  size_t encoded = encoder->position - encoder->output;
+  if (encoded > bytes.size) {
+      pn_error_format(pn_data_error(src), PN_OVERFLOW, "not enough space to encode");
+      return PN_OVERFLOW;
+  }
+  return (ssize_t)encoded;
+}
+
 ssize_t pn_encoder_size(pn_encoder_t *encoder, pn_data_t *src)
 {
   encoder->output = 0;
@@ -415,7 +536,7 @@ ssize_t pn_encoder_size(pn_encoder_t *encoder, pn_data_t *src)
   encoder->size = 0;
 
   pn_handle_t save = pn_data_point(src);
-  int err = pni_data_traverse(src, pni_encoder_enter, pni_encoder_exit, encoder);
+  int err = pni_data_traverse(src, pni_encoder_enter_size, pni_encoder_exit_size, encoder);
   pn_data_restore(src, save);
 
   if (err) return err;

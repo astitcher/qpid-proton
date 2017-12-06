@@ -277,7 +277,7 @@ static void pn_buffer_rotate (pn_buffer_t *buf, size_t sz) {
   }
 }
 
-int pn_buffer_defrag(pn_buffer_t *buf)
+static int pn_buffer_defrag(pn_buffer_t *buf)
 {
   pn_buffer_rotate(buf, buf->start);
   buf->start = 0;
@@ -304,6 +304,18 @@ pn_rwbytes_t pn_buffer_memory(pn_buffer_t *buf)
     pn_rwbytes_t r = {0, NULL};
     return r;
   }
+}
+
+pn_rwbytes_t pn_buffer_get_tail_memory(pn_buffer_t *buf, size_t data_size)
+{
+  pn_buffer_ensure(buf, data_size);
+
+  if (pni_buffer_head_size(buf) < data_size) {
+    pn_buffer_defrag(buf);
+  }
+  pn_rwbytes_t r = {pn_buffer_available(buf), buf->bytes+pni_buffer_tail(buf)};
+  buf->size += data_size;
+  return r;
 }
 
 int pn_buffer_quote(pn_buffer_t *buf, pn_string_t *str, size_t n)

@@ -22,10 +22,13 @@
  *
  */
 
+#include "buffer.h"
+
 typedef struct pn_encoder_t pn_encoder_t;
 
 pn_encoder_t *pn_encoder(void);
 ssize_t pn_encoder_encode(pn_encoder_t *encoder, pn_data_t *src, char *dst, size_t size);
+ssize_t pn_encoder_encode_buffer(pn_encoder_t *encoder, pn_data_t *src, pn_buffer_t *buffer, size_t data_size);
 ssize_t pn_encoder_size(pn_encoder_t *encoder, pn_data_t *src);
 
 #endif /* encoder.h */
