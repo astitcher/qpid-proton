@@ -277,7 +277,7 @@ static void pn_buffer_rotate (pn_buffer_t *buf, size_t sz) {
   }
 }
 
-int pn_buffer_defrag(pn_buffer_t *buf)
+static int pn_buffer_defrag(pn_buffer_t *buf)
 {
   pn_buffer_rotate(buf, buf->start);
   buf->start = 0;

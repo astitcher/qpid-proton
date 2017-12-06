@@ -1442,6 +1442,11 @@ ssize_t pn_data_encoded_size(pn_data_t *data)
   return pn_encoder_size(data->encoder, data);
 }
 
+ssize_t pni_data_encode_buffer(pn_data_t *data, pn_buffer_t *buffer)
+{
+  return pn_encoder_encode_buffer(data->encoder, data, buffer);
+}
+
 ssize_t pn_data_decode(pn_data_t *data, const char *bytes, size_t size)
 {
   return pn_decoder_decode(data->decoder, bytes, size, data);

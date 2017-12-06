@@ -25,6 +25,7 @@
 #include "buffer.h"
 
 #include <proton/import_export.h>
+#include <proton/codec.h>
 #include <proton/type_compat.h>
 #include <proton/error.h>
 
@@ -42,5 +43,6 @@ typedef struct {
 
 ssize_t pn_read_frame(pn_frame_t *frame, const char *bytes, size_t available, uint32_t max);
 size_t pn_write_frame(pn_buffer_t* buffer, pn_frame_t frame);
+ssize_t pn_write_frame_performative(pn_buffer_t *buffer, uint8_t type, uint16_t ch, pn_data_t *data);
 
 #endif /* framing.h */

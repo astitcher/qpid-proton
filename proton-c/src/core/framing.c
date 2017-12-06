@@ -24,6 +24,10 @@
 
 #include "framing.h"
 
+#include "data.h"
+#include "dispatch_actions.h"
+#include "proton/codec.h"
+
 // TODO: These are near duplicates of code in codec.c - they should be
 // deduplicated.
 static inline void pn_i_write16(char *bytes, uint16_t value)
@@ -101,6 +105,39 @@ size_t pn_write_frame(pn_buffer_t* buffer, pn_frame_t frame)
     if (frame.extended)
         pn_buffer_append(buffer, frame.extended, frame.ex_size);
     pn_buffer_append(buffer, frame.payload, frame.size);
+    return size;
+  } else {
+    return 0;
+  }
+}
+
+// This encodes a frame with just a performative and no extended data or extra payload
+ssize_t pn_write_frame_performative(pn_buffer_t* buffer, uint8_t type, uint16_t ch, pn_data_t *data)
+{
+
+  pn_frame_t frame = {AMQP_FRAME_TYPE};
+  frame.type = type;
+  frame.channel = ch;
+  frame.size = pn_data_encoded_size(data);
+
+  size_t size = AMQP_HEADER_SIZE + frame.ex_size + frame.size;
+
+  // Prepare header
+  char bytes[8] = {0};
+
+  pn_i_write32(&bytes[0], size);
+  int doff = (frame.ex_size + AMQP_HEADER_SIZE - 1)/4 + 1;
+  bytes[4] = doff;
+  bytes[5] = frame.type;
+  pn_i_write16(&bytes[6], frame.channel);
+
+  pn_buffer_ensure(buffer, AMQP_HEADER_SIZE+frame.ex_size+frame.size);
+  
+  if (size <= pn_buffer_available(buffer))
+  {
+    // Write header then rest of frame
+    pn_buffer_append(buffer, bytes, 8);
+    pni_data_encode_buffer(data, buffer);
     return size;
   } else {
     return 0;
