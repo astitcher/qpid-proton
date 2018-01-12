@@ -48,6 +48,16 @@ set_target_properties (
   COMPILE_DEFINITIONS "${PLATFORM_DEFINITIONS}"
 )
 
+add_executable(microbench microbench.c)
+target_link_libraries(microbench qpid-proton-core)
+set_target_properties (
+  microbench
+  PROPERTIES
+  COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${COMPILE_LANGUAGE_FLAGS}"
+  COMPILE_DEFINITIONS "${PLATFORM_DEFINITIONS}"
+)
+
+
 if (BUILD_WITH_CXX)
   set_source_files_properties (msgr-recv.c msgr-send.c msgr-common.c reactor-recv.c reactor-send.c PROPERTIES LANGUAGE CXX)
 endif (BUILD_WITH_CXX)
