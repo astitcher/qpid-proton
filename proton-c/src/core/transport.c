@@ -406,9 +406,9 @@ static void pn_transport_initialize(void *object)
   pn_transport_t *transport = (pn_transport_t *)object;
   transport->freed = false;
   transport->output_buf = NULL;
-  transport->output_size = PN_DEFAULT_MAX_FRAME_SIZE ? PN_DEFAULT_MAX_FRAME_SIZE : 16 * 1024;
+  transport->output_size = PN_TRANSPORT_INITIAL_BUFFER_SIZE;
   transport->input_buf = NULL;
-  transport->input_size =  PN_DEFAULT_MAX_FRAME_SIZE ? PN_DEFAULT_MAX_FRAME_SIZE : 16 * 1024;
+  transport->input_size =  PN_TRANSPORT_INITIAL_BUFFER_SIZE;
   transport->tracer = pni_default_tracer;
   transport->sasl = NULL;
   transport->ssl = NULL;
@@ -441,8 +441,8 @@ static void pn_transport_initialize(void *object)
   transport->head_closed = false;
   transport->remote_container = NULL;
   transport->remote_hostname = NULL;
-  transport->local_max_frame = PN_DEFAULT_MAX_FRAME_SIZE;
-  transport->remote_max_frame = (uint32_t) 0xffffffff;
+  transport->local_max_frame = OPEN_MAX_FRAME_SIZE_DEFAULT;
+  transport->remote_max_frame = OPEN_MAX_FRAME_SIZE_DEFAULT;
 
   /*
    * We set the local limit on channels to 2^15, because
@@ -456,7 +456,7 @@ static void pn_transport_initialize(void *object)
    */
   // There is no constraint yet from remote peer,
   // so set to max possible.
-  transport->remote_channel_max = 65535;
+  transport->remote_channel_max = OPEN_CHANNEL_MAX_DEFAULT;
   transport->local_channel_max  = PN_IMPL_CHANNEL_MAX;
   transport->channel_max        = transport->local_channel_max;
 
@@ -1180,13 +1180,8 @@ int pn_do_open(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, 
    * find them in the args, so don't give the variable
    * directly to the scanner.
    */
-  if (remote_channel_max_q) {
-    transport->remote_channel_max = remote_channel_max;
-  }
-
-  if (remote_max_frame_q) {
-    transport->remote_max_frame = remote_max_frame;
-  }
+  transport->remote_channel_max = remote_channel_max_q ? remote_channel_max : OPEN_CHANNEL_MAX_DEFAULT;
+  transport->remote_max_frame = remote_max_frame_q ? remote_max_frame : OPEN_MAX_FRAME_SIZE_DEFAULT;
 
   if (transport->remote_max_frame > 0) {
     if (transport->remote_max_frame < AMQP_MIN_MAX_FRAME_SIZE) {
@@ -1862,8 +1857,8 @@ static int pni_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endp
                               cid ? cid : "",
                               pn_string_get(connection->hostname),
                               // if not zero, advertise our max frame size and idle timeout
-                              (bool)transport->local_max_frame, transport->local_max_frame,
-                              (bool)transport->channel_max, transport->channel_max,
+                              transport->local_max_frame!=OPEN_MAX_FRAME_SIZE_DEFAULT, transport->local_max_frame,
+                              transport->channel_max!=OPEN_CHANNEL_MAX_DEFAULT, transport->channel_max,
                               (bool)idle_timeout, idle_timeout,
                               connection->offered_capabilities,
                               connection->desired_capabilities,
@@ -1897,7 +1892,7 @@ static size_t pni_session_outgoing_window(pn_session_t *ssn)
 static size_t pni_session_incoming_window(pn_session_t *ssn)
 {
   uint32_t size = ssn->connection->transport->local_max_frame;
-  if (!size) {
+  if (!size || size==OPEN_MAX_FRAME_SIZE_DEFAULT) {
     return 2147483647; // biggest legal value
   } else {
     return (ssn->incoming_capacity - ssn->incoming_bytes)/size;
@@ -2826,8 +2821,7 @@ uint32_t pn_transport_get_max_frame(pn_transport_t *transport)
 void pn_transport_set_max_frame(pn_transport_t *transport, uint32_t size)
 {
   // if size == 0, no advertised limit to input frame size.
-  if (size && size < AMQP_MIN_MAX_FRAME_SIZE)
-    size = AMQP_MIN_MAX_FRAME_SIZE;
+  if (size && size < AMQP_MIN_MAX_FRAME_SIZE) size = AMQP_MIN_MAX_FRAME_SIZE;
   transport->local_max_frame = size;
 }
 
