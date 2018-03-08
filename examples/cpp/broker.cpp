@@ -83,8 +83,10 @@ bool verbose;
 
 class Queue;
 class Sender;
+class Receiver;
 
 typedef std::map<proton::sender, Sender*> senders;
+typedef std::map<proton::receiver, Receiver*> receivers;
 
 class Sender : public proton::messaging_handler {
     friend class connection_handler;
@@ -95,6 +97,7 @@ class Sender : public proton::messaging_handler {
     std::string queue_name_;
     Queue* queue_;
     int pending_credit_;
+    int sent_msgs_;
 
     // Messaging handlers
     void on_sendable(proton::sender &sender) OVERRIDE;
@@ -102,7 +105,8 @@ class Sender : public proton::messaging_handler {
 
 public:
     Sender(proton::sender s, senders& ss) :
-        sender_(s), senders_(ss), work_queue_(s.work_queue()), queue_(0), pending_credit_(0)
+        sender_(s), senders_(ss), work_queue_(s.work_queue()),
+        queue_(0), pending_credit_(0), sent_msgs_(0)
     {}
 
     bool add(proton::work f) {
@@ -114,6 +118,7 @@ public:
     void sendMsg(proton::message m) {
         DOUT(std::cerr << "Sender:   " << this << " sending\n";);
         sender_.send(m);
+        ++sent_msgs_;
     }
     void unsubscribed() {
         DOUT(std::cerr << "Sender:   " << this << " deleting\n";);
@@ -205,6 +210,7 @@ void Sender::on_sender_close(proton::sender &sender) {
         // If so, we should have a way to mark the sender deleted, so we can delete
         // on queue binding
     }
+    std::cout << "closing sender for " << queue_name_ << " (" << sent_msgs_ << " msgs sent)" << std::endl;
     senders_.erase(sender);
 }
 
@@ -227,17 +233,27 @@ class Receiver : public proton::messaging_handler {
     friend class connection_handler;
 
     proton::receiver receiver_;
+    receivers& receivers_;
     proton::work_queue& work_queue_;
+    std::string queue_name_;
     Queue* queue_;
     std::deque<proton::message> messages_;
+    int recvd_msgs_;
 
     // A message is received.
     void on_message(proton::delivery &, proton::message &m) OVERRIDE {
         messages_.push_back(m);
+        ++recvd_msgs_;
 
         if (queue_) {
             queueMsgs();
         }
+    }
+
+    // Receiver is closed
+    void on_receiver_close(proton::receiver& receiver) OVERRIDE {
+        std::cout << "closing receiver for " << queue_name_ << " (" << recvd_msgs_ << " msgs received)" << std::endl;
+        receivers_.erase(receiver);
     }
 
     void queueMsgs() {
@@ -249,8 +265,9 @@ class Receiver : public proton::messaging_handler {
     }
 
 public:
-    Receiver(proton::receiver r) :
-        receiver_(r), work_queue_(r.work_queue()), queue_(0)
+    Receiver(proton::receiver r, receivers& rs) :
+        receiver_(r), receivers_(rs), work_queue_(r.work_queue()),
+        queue_(0), recvd_msgs_(0)
     {}
 
     bool add(proton::work f) {
@@ -259,6 +276,7 @@ public:
 
     void boundQueue(Queue* q, std::string qn) {
         DOUT(std::cerr << "Receiver: " << this << " bound to Queue: " << q << "(" << qn << ")\n";);
+        queue_name_ = qn;
         queue_ = q;
         receiver_.open(proton::receiver_options()
             .source((proton::source_options().address(qn)))
@@ -316,6 +334,7 @@ public:
 class connection_handler : public proton::messaging_handler {
     QueueManager& queue_manager_;
     senders senders_;
+    receivers receivers_;
 
 public:
     connection_handler(QueueManager& qm) :
@@ -346,7 +365,8 @@ public:
             if (qname.empty()) {
                 DOUT(std::cerr << "ODD - trying to attach to a empty address\n";);
             }
-            Receiver* r = new Receiver(receiver);
+            Receiver* r = new Receiver(receiver, receivers_);
+            receivers_[receiver] = r;
             queue_manager_.add(make_work(&QueueManager::findQueueReceiver, &queue_manager_, r, qname));
         }
     }
@@ -360,7 +380,15 @@ public:
             if (s->queue_) {
                 s->queue_->add(make_work(&Queue::unsubscribe, s->queue_, s));
             }
+            std::cout << "session closing sender for " << s->queue_name_ << " (" << s->sent_msgs_ << " msgs sent)" << std::endl;
             senders_.erase(j);
+        }
+        for (proton::receiver_iterator i = session.receivers().begin(); i != session.receivers().end(); ++i) {
+            receivers::iterator j = receivers_.find(*i);
+            if (j == receivers_.end()) continue;
+            Receiver* r = j->second;
+            std::cout << "session closing receiver for " << r->queue_name_ << " (" << r->recvd_msgs_ << " msgs received)" << std::endl;
+            receivers_.erase(j);
         }
     }
 
@@ -378,6 +406,13 @@ public:
             if (s->queue_) {
                 s->queue_->add(make_work(&Queue::unsubscribe, s->queue_, s));
             }
+            std::cout << "transport closing sender for " << s->queue_name_ << " (" << s->sent_msgs_ << " msgs sent)" << std::endl;
+        }
+        for (proton::receiver_iterator i = t.connection().receivers().begin(); i != t.connection().receivers().end(); ++i) {
+            receivers::iterator j = receivers_.find(*i);
+            if (j == receivers_.end()) continue;
+            Receiver* r = j->second;
+            std::cout << "transport closing receiver for " << r->queue_name_ << " (" << r->recvd_msgs_ << " msgs received)" << std::endl;
         }
         delete this;            // All done.
     }
