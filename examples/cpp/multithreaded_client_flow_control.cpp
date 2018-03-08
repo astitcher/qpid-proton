@@ -137,13 +137,15 @@ class sender : private proton::messaging_handler {
     }
 };
 
+std::atomic<int> received(0);
+
 // A thread safe receiving connection that blocks receiving threads when there
 // are no messages available, and maintains a bounded buffer of incoming
 // messages by issuing AMQP credit only when there is space in the buffer.
 class receiver : private proton::messaging_handler {
-    static const size_t MAX_BUFFER = 100; // Max number of buffered messages
 
     // Used in proton threads only
+    int total_count_; // Max number of unaccepted messages
     proton::receiver receiver_;
 
     // Used in proton and user threads, protected by lock_
@@ -155,8 +157,8 @@ class receiver : private proton::messaging_handler {
   public:
 
     // Connect to url
-    receiver(proton::container& cont, const std::string& url, const std::string& address)
-        : work_queue_()
+    receiver(proton::container& cont, const std::string& url, const std::string& address, int count)
+        : total_count_(count), work_queue_()
     {
         // NOTE:credit_window(0) disables automatic flow control.
         // We will use flow control to match AMQP credit to buffer capacity.
@@ -168,8 +170,8 @@ class receiver : private proton::messaging_handler {
     proton::message receive() {
         std::unique_lock<std::mutex> l(lock_);
         // Wait for buffered messages
-        while (!work_queue_ || buffer_.empty())
-            can_receive_.wait(l);
+        while (!work_queue_ || buffer_.empty()) can_receive_.wait(l);
+
         proton::message m = std::move(buffer_.front());
         buffer_.pop();
         // Add a lambda to the work queue to call receive_done().
@@ -190,20 +192,20 @@ class receiver : private proton::messaging_handler {
         receiver_ = r;
         std::lock_guard<std::mutex> l(lock_);
         work_queue_ = &receiver_.work_queue();
-        receiver_.add_credit(MAX_BUFFER); // Buffer is empty, initial credit is the limit
+        receiver_.add_credit(1); // Buffer is empty, initial credit is the limit
     }
 
     void on_message(proton::delivery &d, proton::message &m) override {
         // Proton automatically reduces credit by 1 before calling on_message
         std::lock_guard<std::mutex> l(lock_);
         buffer_.push(m);
-        can_receive_.notify_all();
+        can_receive_.notify_one();
     }
 
     // called via work_queue
     void receive_done() {
         // Add 1 credit, a receiver has taken a message out of the buffer.
-        receiver_.add_credit(1);
+        if ( ++received<total_count_ ) receiver_.add_credit(1);
     }
 
     void on_error(const proton::error_condition& e) override {
@@ -226,17 +228,13 @@ void send_thread(sender& s, int n) {
     OUT(std::cout << id << " sent " << n << std::endl);
 }
 
-// Receive messages till atomic remaining count is 0.
-// remaining is shared among all receiving threads
-void receive_thread(receiver& r, std::atomic_int& remaining) {
+// Receive n messages
+void receive_thread(receiver& r, int n) {
     auto id = std::this_thread::get_id();
-    int n = 0;
-    // atomically check and decrement remaining *before* receiving.
-    // If it is 0 or less then return, as there are no more
-    // messages to receive so calling r.receive() would block forever.
-    while (remaining-- > 0) {
+    int i = 0;
+    while (i < n) {
         auto m = r.receive();
-        ++n;
+        ++i;
         OUT(std::cout << id << " received \"" << m.body() << '"' << std::endl);
     }
     OUT(std::cout << id << " received " << n << " messages" << std::endl);
@@ -260,24 +258,20 @@ int main(int argc, const char **argv) {
         int n_threads = atoi(argv[4]);
         int count = n_messages * n_threads;
 
-        // Total messages to be received, multiple receiver threads will decrement this.
-        std::atomic_int remaining;
-        remaining.store(count);
-
         // Run the proton container
         proton::container container;
         auto container_thread = std::thread([&]() { container.run(); });
 
         // A single sender and receiver to be shared by all the threads
         sender send(container, url, address);
-        receiver recv(container, url, address);
+        receiver recv(container, url, address, count);
 
         // Start receiver threads, then sender threads.
         // Starting receivers first gives all receivers a chance to compete for messages.
         std::vector<std::thread> threads;
         threads.reserve(n_threads*2); // Avoid re-allocation once threads are started
         for (int i = 0; i < n_threads; ++i)
-            threads.push_back(std::thread([&]() { receive_thread(recv, remaining); }));
+            threads.push_back(std::thread([&]() { receive_thread(recv, n_messages); }));
         for (int i = 0; i < n_threads; ++i)
             threads.push_back(std::thread([&]() { send_thread(send, n_messages); }));
 
@@ -286,9 +280,13 @@ int main(int argc, const char **argv) {
         send.close();
         recv.close();
         container_thread.join();
-        if (remaining > 0)
-            throw std::runtime_error("not all messages were received");
-        std::cout << count << " messages sent and received" << std::endl;
+
+
+        if (received != count) {
+            std::cout << "Oops: " << count << "messages sent; " << received << " messages received" << std::endl;
+        } else {
+            std::cout << count << " messages sent and received" << std::endl;
+        }
 
         return 0;
     } catch (const std::exception& e) {
