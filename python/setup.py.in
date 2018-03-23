@@ -148,10 +148,15 @@ class Configure(build_ext):
                   'snprintf.c']
 
         stripdirs = ['proactor',
-                     'msvc',
-                     'windows']
+                     'messenger',
+                     'compiler',
+                     #'extra',
+                     #'reactor',
+                     #'handlers',
+                     'io']
 
         for root, dirs, files in os.walk(proton_src):
+            # This is altering the directories we walk as we go
             for dir_ in stripdirs:
                 if dir_ in dirs:
                     dirs.remove(dir_)
@@ -164,11 +169,35 @@ class Configure(build_ext):
         # source list and compile flags as necessary.
         libraries = []
         includes = []
+        macros = []
 
         # -D flags (None means no value, just define)
-        macros=[('qpid_proton_EXPORTS', None),
-                ('USE_ATOLL', None),
-                ('USE_STRERROR_R', None)]
+        macros += [('qpid_proton_EXPORTS', None)]
+
+        if self.compiler_type=='msvc':
+            macros += [('WIN32', None),
+                       ('_WINDOWS', None),
+                       ('_WINDLL', None),
+                       ('USE_WIN_FILETIME', None),
+                       ('USE_STRERROR_S', None),
+                       ('USE_ATOI64', None),
+		       ('PN_WINAPI', None)]
+        else:
+            macros += [('USE_ATOLL', None),
+                       ('USE_STRERROR_R', None)]
+
+        if self.compiler_type=='msvc':
+            sources.append(os.path.join(proton_src, 'compiler' , 'msvc', 'snprintf.c'))
+
+        if os.name=='nt':
+            io_type = 'windows'
+        else:
+            io_type = os.name
+
+        io_dir = os.path.join(proton_src, 'reactor', 'io', io_type)
+        for file in os.listdir(io_dir):
+            if file.endswith('.c'):
+                sources.append(os.path.join(io_dir, file))
 
         # Check whether openssl is installed by poking
         # pkg-config for a minimum version 0. If it's installed, it should
@@ -216,13 +245,18 @@ class Configure(build_ext):
         cc = new_compiler(compiler=self.compiler_type)
         ds_sys.customize_compiler(cc)
 
+        extra = []
+        if self.compiler_type=='unix':
+            extra.append('-std=gnu99')
+        elif self.compiler_type=='msvc':
+            extra += ['/TP']
         objects = cc.compile(sources,
                              macros=macros,
                              include_dirs=[build_include,
                                            proton_include,
                                            proton_src]+includes,
                              # compiler command line options:
-                             extra_postargs=['-std=gnu99'],
+                             extra_preargs=extra,
                              output_dir=self.build_temp)
 
         #
