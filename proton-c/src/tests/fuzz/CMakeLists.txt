@@ -31,14 +31,18 @@ endif ()
 add_library (StandaloneFuzzTargetMain STATIC StandaloneFuzzTargetMain.c StandaloneFuzzTargetInit.c)
 
 macro (pn_add_fuzz_test test)
-  add_executable (${test} ${ARGN})
-  target_link_libraries (${test} qpid-proton-core ${FUZZING_LIBRARY})
-
   if (FUZZ_REGRESSION_TESTS)
+    add_executable (${test} ${ARGN})
+    target_link_libraries (${test} qpid-proton-core ${FUZZING_LIBRARY})
+
     # StandaloneFuzzTargetMain cannot walk directory trees
     file(GLOB_RECURSE files ${CMAKE_CURRENT_SOURCE_DIR}/${test}/*)
     add_test (${test} ${memcheck-cmd} ${CMAKE_CURRENT_BINARY_DIR}/${test} ${files})
   else ()
+    add_executable (${test} ${ARGN})
+    target_compile_options(${test} PUBLIC "-fsanitize=fuzzer,address")
+    target_link_libraries (${test} "-fsanitize=fuzzer,address" qpid-proton-core)
+
     add_test (${test} ${CMAKE_CURRENT_BINARY_DIR}/${test} -runs=1 ${CMAKE_CURRENT_SOURCE_DIR}/${test})
   endif ()
 endmacro(pn_add_fuzz_test)
