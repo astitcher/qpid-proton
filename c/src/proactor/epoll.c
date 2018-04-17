@@ -1233,8 +1233,10 @@ static void pconnection_start(pconnection_t *pc) {
   lock(&ee->mutex);
   if (ee->polling) {     /* This is not the first attempt, stop polling and close the old FD */
     int fd = ee->fd;     /* Save fd, it will be set to -1 by stop_polling */
+    unlock(&ee->mutex);
     stop_polling(ee, efd);
     pclosefd(pc->psocket.proactor, fd);
+    lock(&ee->mutex);
   }
   ee->fd = pc->psocket.sockfd;
   pc->current_arm = ee->wanted = EPOLLIN | EPOLLOUT;
