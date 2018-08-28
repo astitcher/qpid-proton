@@ -1,0 +1,38 @@
+abstract_server.py
+------------------
+
+Doesn't use proton directly, only proton_server.
+
+proton_server.py
+----------------
+from proton import Message
+from proton.reactor import Container
+from proton.handlers import MessagingHandler
+
+Container(self:MessageHandler)
+Container::connect(host) # host:string?
+Container::create_receiver(connection, address) # connection: ?? , address: string?
+Container::create_sender(connection, None)
+Container::run()
+
+Event::message # late bound so not clear what type this really is - probably proton.Event
+
+Message(body=str:string)
+Message::body
+Message::reply_to
+Message::address
+
+Sender::send(msg:Message)
+
+proton.Connection::close()
+
+broker.py
+---------
+
+from proton import Endpoint, generate_uuid
+from proton.handlers import MessagingHandler
+from proton.reactor import Container
+
+Event::container
+
+Container::listen(url:string)
