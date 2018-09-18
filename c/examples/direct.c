@@ -27,6 +27,7 @@
 #include <proton/netaddr.h>
 #include <proton/message.h>
 #include <proton/proactor.h>
+#include <proton/object.h>
 #include <proton/sasl.h>
 #include <proton/session.h>
 #include <proton/transport.h>

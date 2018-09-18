@@ -20,10 +20,11 @@
  */
 
 #include <proton/connection.h>
-#include <proton/event.h>
-#include <proton/session.h>
-#include <proton/link.h>
 #include <proton/delivery.h>
+#include <proton/event.h>
+#include <proton/link.h>
+#include <proton/object.h>
+#include <proton/session.h>
 #include <proton/transport.h>
 #include <stdio.h>
 #include <stdlib.h>

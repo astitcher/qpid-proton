@@ -438,6 +438,18 @@ typedef struct pn_transport_t pn_transport_t;
 typedef struct pn_proactor_t pn_proactor_t;
 
 /**
+ * An opaque handle
+ *
+ * @ingroup api_types
+ */
+typedef const void* pn_handle_t;
+
+typedef struct pn_record_t pn_record_t;
+
+typedef struct pn_class_t pn_class_t;
+
+
+/**
  * @cond INTERNAL
  *
  * An event handler

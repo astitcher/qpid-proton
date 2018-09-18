@@ -26,6 +26,8 @@
 #include "proton/message.hpp"
 #include "proton/internal/pn_unique_ptr.hpp"
 
+#include <proton/object.h>
+
 struct pn_record_t;
 struct pn_link_t;
 struct pn_session_t;

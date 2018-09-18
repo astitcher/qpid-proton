@@ -24,7 +24,7 @@
 
 #include <proton/import_export.h>
 #include <proton/type_compat.h>
-#include <proton/object.h>
+#include <proton/types.h>
 #include <stddef.h>
 
 #ifdef __cplusplus

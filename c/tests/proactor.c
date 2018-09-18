@@ -28,6 +28,7 @@
 #include <proton/listener.h>
 #include <proton/session.h>
 #include <proton/netaddr.h>
+#include <proton/object.h>
 #include <proton/proactor.h>
 #include <proton/ssl.h>
 #include <proton/transport.h>

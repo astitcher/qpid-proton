@@ -28,6 +28,7 @@
 #include "proton/engine.h"
 #include "proton/log.h"
 #include "proton/message.h"
+#include "proton/object.h"
 
 #include "libFuzzingEngine.h"
 
