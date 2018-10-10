@@ -23,10 +23,7 @@
 
 #include <proton/connection_driver.h>
 #include <proton/engine.h>
-#include <proton/handlers.h>
 #include <proton/message.h>
-#include <proton/messenger.h>
-#include <proton/reactor.h>
 #include <proton/sasl.h>
 #include <proton/ssl.h>
 #include <proton/types.h>
@@ -329,161 +326,6 @@ bool pn_ssl_get_cipher_name(pn_ssl_t *ssl, char *OUTPUT, size_t MAX_OUTPUT_SIZE)
 bool pn_ssl_get_protocol_name(pn_ssl_t *ssl, char *OUTPUT, size_t MAX_OUTPUT_SIZE);
 %ignore pn_ssl_get_protocol_name;
 
-/* TODO aconway 2018-02-14: Remove RB_BLOCKING_CALL once messenger is deprecated */
-
-/* Don't use %inline sections for #define */
-%{
-#if defined(RUBY_USE_rb_thread_call_without_gvl)
-
-  #include <ruby/thread.h>
-  typedef void *non_blocking_return_t;
-  #define RB_BLOCKING_CALL (VALUE)rb_thread_call_without_gvl
-
-#elif defined(RUBY_USE_rb_thread_blocking_region)
-
-  typedef VALUE non_blocking_return_t;
-  #define RB_BLOCKING_CALL rb_thread_blocking_region
-
-#endif
-%}
-
-%rename(pn_messenger_send) wrap_pn_messenger_send;
-%rename(pn_messenger_recv) wrap_pn_messenger_recv;
-%rename(pn_messenger_work) wrap_pn_messenger_work;
-
-%inline %{
-
-#if defined(RB_BLOCKING_CALL)
-
-    static non_blocking_return_t pn_messenger_send_no_gvl(void *args) {
-    VALUE result = Qnil;
-    pn_messenger_t *messenger = (pn_messenger_t *)((void **)args)[0];
-    int *limit = (int *)((void **)args)[1];
-
-    int rc = pn_messenger_send(messenger, *limit);
-
-    result = INT2NUM(rc);
-    return (non_blocking_return_t )result;
-    }
-
-    static non_blocking_return_t pn_messenger_recv_no_gvl(void *args) {
-    VALUE result = Qnil;
-    pn_messenger_t *messenger = (pn_messenger_t *)((void **)args)[0];
-    int *limit = (int *)((void **)args)[1];
-
-    int rc = pn_messenger_recv(messenger, *limit);
-
-    result = INT2NUM(rc);
-    return (non_blocking_return_t )result;
-  }
-
-    static non_blocking_return_t pn_messenger_work_no_gvl(void *args) {
-      VALUE result = Qnil;
-      pn_messenger_t *messenger = (pn_messenger_t *)((void **)args)[0];
-      int *timeout = (int *)((void **)args)[1];
-
-      int rc = pn_messenger_work(messenger, *timeout);
-
-      result = INT2NUM(rc);
-      return (non_blocking_return_t )result;
-    }
-
-#endif
-
-  int wrap_pn_messenger_send(pn_messenger_t *messenger, int limit) {
-    int result = 0;
-
-#if defined(RB_BLOCKING_CALL)
-
-    // only release the gil if we're blocking
-    if(pn_messenger_is_blocking(messenger)) {
-      VALUE rc;
-      void* args[2];
-
-      args[0] = messenger;
-      args[1] = &limit;
-
-      rc = RB_BLOCKING_CALL(pn_messenger_send_no_gvl,
-                            &args, RUBY_UBF_PROCESS, NULL);
-
-      if(RTEST(rc))
-        {
-          result = FIX2INT(rc);
-        }
-    }
-
-#else // !defined(RB_BLOCKING_CALL)
-    result = pn_messenger_send(messenger, limit);
-#endif // defined(RB_BLOCKING_CALL)
-
-    return result;
-  }
-
-  int wrap_pn_messenger_recv(pn_messenger_t *messenger, int limit) {
-    int result = 0;
-
-#if defined(RB_BLOCKING_CALL)
-    // only release the gil if we're blocking
-    if(pn_messenger_is_blocking(messenger)) {
-      VALUE rc;
-      void* args[2];
-
-      args[0] = messenger;
-      args[1] = &limit;
-
-      rc = RB_BLOCKING_CALL(pn_messenger_recv_no_gvl,
-                            &args, RUBY_UBF_PROCESS, NULL);
-
-      if(RTEST(rc))
-        {
-          result = FIX2INT(rc);
-        }
-
-    } else {
-      result = pn_messenger_recv(messenger, limit);
-    }
-#else // !defined(RB_BLOCKING_CALL)
-    result = pn_messenger_recv(messenger, limit);
-#endif // defined(RB_BLOCKING_CALL)
-
-      return result;
-  }
-
-  int wrap_pn_messenger_work(pn_messenger_t *messenger, int timeout) {
-    int result = 0;
-
-#if defined(RB_BLOCKING_CALL)
-    // only release the gil if we're blocking
-    if(timeout) {
-      VALUE rc;
-      void* args[2];
-
-      args[0] = messenger;
-      args[1] = &timeout;
-
-      rc = RB_BLOCKING_CALL(pn_messenger_work_no_gvl,
-                            &args, RUBY_UBF_PROCESS, NULL);
-
-      if(RTEST(rc))
-        {
-          result = FIX2INT(rc);
-        }
-    } else {
-      result = pn_messenger_work(messenger, timeout);
-    }
-#else
-    result = pn_messenger_work(messenger, timeout);
-#endif
-
-    return result;
-  }
-
-%}
-
-%ignore pn_messenger_send;
-%ignore pn_messenger_recv;
-%ignore pn_messenger_work;
-
 %{
 typedef struct Pn_rbkey_t {
   void *registry;
@@ -604,37 +446,6 @@ int pn_ssl_get_peer_hostname(pn_ssl_t *ssl, char *OUTPUT, size_t *OUTPUT_SIZE);
     rb_funcall(pni_ruby_get_proton_module(), rb_intern("delete_from_registry"), 1, stored_key);
   }
 
-  typedef struct {
-    VALUE handler_key;
-  } Pni_rbhandler_t;
-
-  static Pni_rbhandler_t *pni_rbhandler(pn_handler_t *handler) {
-    return (Pni_rbhandler_t *) pn_handler_mem(handler);
-  }
-
-  static void pni_rbdispatch(pn_handler_t *handler, pn_event_t *event, pn_event_type_t type) {
-    Pni_rbhandler_t *rbh = pni_rbhandler(handler);
-    VALUE rbhandler = pni_ruby_get_from_registry(rbh->handler_key);
-
-    rb_funcall(rbhandler, rb_intern("dispatch"), 2, SWIG_NewPointerObj(event, SWIGTYPE_p_pn_event_t, 0), INT2FIX(type));
-  }
-
-  static void pni_rbhandler_finalize(pn_handler_t *handler) {
-    Pni_rbhandler_t *rbh = pni_rbhandler(handler);
-    pni_ruby_delete_from_registry(rbh->handler_key);
-  }
-
-  pn_handler_t *pn_rbhandler(VALUE handler) {
-    pn_handler_t *chandler = pn_handler_new(pni_rbdispatch, sizeof(Pni_rbhandler_t), pni_rbhandler_finalize);
-    Pni_rbhandler_t *rhy = pni_rbhandler(chandler);
-
-    VALUE ruby_key = rb_class_new_instance(0, NULL, rb_cObject);
-    pni_ruby_add_to_registry(ruby_key, handler);
-
-    rhy->handler_key = ruby_key;
-
-    return chandler;
-  }
 
 
   /* Helpers for working with pn_connection_driver_t */
