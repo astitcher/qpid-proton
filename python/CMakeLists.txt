@@ -93,6 +93,7 @@ set (pysrc
 set(py_dist_files
     cproton.i
     MANIFEST.in
+    setup.py
     setuputils/__init__.py
     setuputils/log.py
     setuputils/misc.py
@@ -166,10 +167,6 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/README.rst.in
                ${CMAKE_CURRENT_BINARY_DIR}/README.rst
 )
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in
-               ${CMAKE_CURRENT_BINARY_DIR}/setup.py
-)
-
 add_custom_command(TARGET py_src_dist
                    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PN_C_INCLUDE_DIR} "${py_dist_dir}/include")
 
@@ -196,9 +193,6 @@ add_custom_command(TARGET py_src_dist
 
 add_custom_command(TARGET py_src_dist
                    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/README.rst "${py_dist_dir}")
-
-add_custom_command(TARGET py_src_dist
-                   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/setup.py "${py_dist_dir}")
 
 foreach(file IN LISTS py_dist_files pysrc)
 add_custom_command(TARGET py_src_dist

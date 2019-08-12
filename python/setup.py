@@ -43,6 +43,7 @@ of monkey patching.
 """
 
 import os
+import re
 import shutil
 
 from setuptools import setup, Extension
@@ -57,10 +58,23 @@ from setuputils import log
 from setuputils import misc
 
 
-_PROTON_VERSION=(@PN_VERSION_MAJOR@,
-                 @PN_VERSION_MINOR@,
-                 @PN_VERSION_POINT@)
-_PROTON_VERSION_STR = "%d.%d.%d" % _PROTON_VERSION
+def read_version(file):
+    comp = {'MAJOR': '0', 'MINOR': '0', 'POINT': '0'}
+    try:
+        with open(file) as f:
+            for l in f:
+                m = re.match("#define PN_VERSION_(.*) (.*)", l)
+                if m:
+                    comp[m[1]] = m[2]
+    # If file not found or other problem leave version as x.x.x
+    except:
+        pass
+
+    version_str = "%s.%s.%s" % (comp['MAJOR'], comp['MINOR'], comp['POINT'])
+    return version_str
+
+
+_PROTON_VERSION_STR = read_version('include/proton/version.h')
 
 
 class Swig(build_ext):
@@ -177,7 +191,7 @@ class Configure(build_ext):
             try:
                 os.mkdir(target_base)
             except FileExistsError:
-	            pass
+                pass
 
             for f in sources:
                 # We know each file ends in '.c' as we filtered on that above so just add 'pp' to end
