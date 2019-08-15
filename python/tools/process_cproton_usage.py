@@ -1,9 +1,11 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-import yaml
 import ast
 import os
+import re
+import sys
+import yaml
 
 def read_imports_yaml(filename: str):
     """
@@ -42,4 +44,18 @@ def parse_all(dir: str):
                 for x in parse_usage(os.path.join(d,f)):
                     yield x
 
+def main():
+    d = sys.argv[1]
+    syms = {}
+    for sym, (file, line, char) in parse_all(d):
+        file = os.path.abspath(file)
+        finfo = syms.get(sym, {})
+        linfo = finfo.get(file, [])
+        linfo.append((line, char))
+        finfo.update({file: linfo})
+        syms.update({sym: finfo})
+    print(sorted(syms.keys()))
 
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())
