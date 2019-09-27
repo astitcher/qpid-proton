@@ -1,8 +1,10 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
+import argparse
 import ast
 import os
+from pycparser import parse_file, c_ast, c_generator
 import re
 import sys
 import yaml
@@ -44,8 +46,42 @@ def parse_all(dir: str):
                 for x in parse_usage(os.path.join(d,f)):
                     yield x
 
+def parse_include(file: str, include: str):
+    return parse_file(file, use_cpp=True, cpp_args=f'-I{os.path.abspath(include)}')
+
+class FuncDefVisitor(c_ast.NodeVisitor):
+    def __init__(self, syms):
+        self.syms = syms
+        self.generator = c_generator.CGenerator()
+        super(FuncDefVisitor, self).__init__()
+
+    def visit_Decl(self, node):
+        if isinstance(node.type, c_ast.FuncDecl) and node.name in self.syms:
+            print(self.generator.visit(node))
+
+class DeclVisitor(c_ast.NodeVisitor):
+    def __init__(self):
+        self.decls = {}
+        super(DeclVisitor, self).__init__()
+
+    def visit_Decl(self, node):
+        self.decls[node.name] = node
+
+def parse_include_decls(file, include):
+    ast = parse_include(file, include)
+    v = DeclVisitor()
+    v.visit(ast)
+    return v.decls
+
 def main():
-    d = sys.argv[1]
+    argparser = argparse.ArgumentParser(description='Parse python looking for proton "pn_" & "PN_" symbols')
+    argparser.add_argument('dir', help='Root directory to parse', type=str)
+    argparser.add_argument('-i', '--include', help='root include file (needs to include all other include files)', type=str)
+    argparser.add_argument('-p', '--proton-includes', help='include directory for proton includes', type=str)
+    args = argparser.parse_args()
+    d = args.dir
+    i = args.include
+    p = args.proton_includes
     syms = {}
     for sym, (file, line, char) in parse_all(d):
         file = os.path.abspath(file)
@@ -54,7 +90,25 @@ def main():
         linfo.append((line, char))
         finfo.update({file: linfo})
         syms.update({sym: finfo})
-    print(sorted(syms.keys()))
+
+    syms = set(syms.keys())
+
+    if i:
+        decls = parse_include_decls(i, p)
+        #print(decls)
+
+        generator = c_generator.CGenerator()
+        nondecls = []
+        for s in syms:
+            try:
+                print(generator.visit(decls[s]))
+            except KeyError:
+                nondecls.append(s)
+        print(sorted(nondecls))
+
+        #ast = parse_include(i, p)
+        #v = FuncDefVisitor(syms)
+        #v.visit(ast)
 
 if __name__ == '__main__':
     sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
