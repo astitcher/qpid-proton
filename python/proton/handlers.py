@@ -22,7 +22,7 @@ from __future__ import absolute_import
 from ._handlers import MessagingHandler, IncomingMessageHandler, OutgoingMessageHandler, \
     EndpointStateHandler, TransactionHandler, TransactionalClientHandler,\
     Reject, Release,\
-    Handshaker, FlowController, IOHandler, PythonIO
+    Handshaker, FlowController, IOHandler
 
 __all__ = [
     'MessagingHandler',
@@ -35,6 +35,5 @@ __all__ = [
     'Release',
     'Handshaker',
     'FlowController',
-    'IOHandler',
-    'PythonIO'
+    'IOHandler'
 ]

@@ -25,7 +25,6 @@ import json
 import logging
 import re
 import os
-import time
 import traceback
 import uuid
 
@@ -56,9 +55,6 @@ _logger = logging.getLogger("proton")
 def _generate_uuid():
     return uuid.uuid4()
 
-
-def _now():
-    return time.time()
 
 #@total_ordering
 class Task(object):
@@ -155,7 +151,7 @@ class Reactor(object):
 
     def mark(self):
         """ This sets the reactor now instant to the current time """
-        self._now = _now()
+        self._now = IOHandler.now()
         return self._now
 
     @property

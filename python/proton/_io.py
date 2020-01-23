@@ -29,6 +29,9 @@ from ._compat import socket_errno
 PN_INVALID_SOCKET = -1
 
 class IO(object):
+    @staticmethod
+    def time():
+        return time.time()
 
     @staticmethod
     def _setupsocket(s):
@@ -72,7 +75,6 @@ class IO(object):
     @staticmethod
     def sleep(t):
         time.sleep(t)
-        return
 
     class Selector(object):
 

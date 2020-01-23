@@ -22,8 +22,12 @@ from __future__ import absolute_import
 import errno
 import logging
 import socket
-import time
 import weakref
+
+try:
+    import asyncio
+except ImportError:
+    asyncio = None
 
 from ._condition import Condition
 from ._delivery import Delivery
@@ -35,6 +39,7 @@ from ._message import Message
 from ._selectable import Selectable
 from ._transport import Transport
 from ._url import Url
+
 
 log = logging.getLogger("proton")
 
@@ -1116,6 +1121,9 @@ class Handshaker(Handler):
 CFlowController = FlowController
 CHandshaker = Handshaker
 
+"""
+This is no longer needed or helpful:
+Delete it.
 
 class PythonIO:
 
@@ -1177,49 +1185,10 @@ class PythonIO:
                 s.expired()
 
         reactor.yield_()
+"""
 
 
-# For C style IO handler need to implement Selector
-class IOHandler(Handler):
-
-    def __init__(self):
-        self._selector = IO.Selector()
-
-    def on_selectable_init(self, event):
-        s = event.selectable
-        self._selector.add(s)
-        s._reactor._selectables += 1
-
-    def on_selectable_updated(self, event):
-        s = event.selectable
-        self._selector.update(s)
-
-    def on_selectable_final(self, event):
-        s = event.selectable
-        self._selector.remove(s)
-        s._reactor._selectables -= 1
-        s.close()
-
-    def on_reactor_quiesced(self, event):
-        r = event.reactor
-
-        if not r.quiesced:
-            return
-
-        d = r.timer_deadline
-        readable, writable, expired = self._selector.select(r.timeout)
-
-        now = r.mark()
-
-        for s in readable:
-            s.readable()
-        for s in writable:
-            s.writable()
-        for s in expired:
-            s.expired()
-
-        r.yield_()
-
+class BaseIOHandler(Handler):
     def on_selectable_readable(self, event):
         s = event.selectable
         t = s._transport
@@ -1381,6 +1350,122 @@ class IOHandler(Handler):
             r.update(s)
         t.unbind()
 
+
+# For C style IO handler need to implement Selector
+class PythonIOHandler(BaseIOHandler):
+    @staticmethod
+    def now():
+        return IO.time()
+
+    def __init__(self):
+        self._selector = IO.Selector()
+
+    def on_selectable_init(self, event):
+        s = event.selectable
+        self._selector.add(s)
+        s._reactor._selectables += 1
+
+    def on_selectable_updated(self, event):
+        s = event.selectable
+        self._selector.update(s)
+
+    def on_selectable_final(self, event):
+        s = event.selectable
+        self._selector.remove(s)
+        s._reactor._selectables -= 1
+        s.close()
+
+    def on_reactor_quiesced(self, event):
+        r = event.reactor
+
+        if not r.quiesced:
+            return
+
+        d = r.timer_deadline
+        readable, writable, expired = self._selector.select(r.timeout)
+
+        now = r.mark()
+
+        for s in readable:
+            s.readable()
+        for s in writable:
+            s.writable()
+        for s in expired:
+            s.expired()
+
+        r.yield_()
+
+
+if asyncio:
+    class AsynchIOHandler(BaseIOHandler):
+        @staticmethod
+        def now():
+            return asyncio.get_event_loop().time()
+
+        def __init__(self):
+            self._ioloop = asyncio.get_event_loop()
+            self._deadline = None
+
+        def _readable(self, s):
+            s.readable()
+            self._ioloop.stop()
+
+        def _writable(self, s):
+            s.writable()
+            self._ioloop.stop()
+
+        def _expired(self, s):
+            now = self._ioloop.time()
+            if now >= s.deadline:
+                s._reactor.mark()
+                s.expired()
+                self._ioloop.stop()
+
+        def on_selectable_init(self, event):
+            s = event.selectable
+            s._reactor._selectables += 1
+            if s.fileno() >= 0:
+                if s.reading:
+                    self._ioloop.add_reader(s, self._readable, s)
+                if s.writing:
+                    self._ioloop.add_writer(s, self._writable, s)
+            if s.deadline:
+                if self._deadline is None or s.deadline < self._deadline:
+                    self._deadline = s.deadline
+                self._ioloop.call_at(s.deadline, self._expired, s)
+
+        def on_selectable_updated(self, event):
+            s = event.selectable
+            if s.fileno() >= 0:
+                if s.reading:
+                    self._ioloop.add_reader(s, self._readable, s)
+                else:
+                    self._ioloop.remove_reader(s)
+                if s.writing:
+                    self._ioloop.add_writer(s, self._writable, s)
+                else:
+                    self._ioloop.remove_writer(s)
+            if s.deadline:
+                if self._deadline is None or s.deadline < self._deadline:
+                    self._deadline = s.deadline
+                self._ioloop.call_at(s.deadline, self._expired, s)
+
+        def on_selectable_final(self, event):
+            s = event.selectable
+            s._reactor._selectables -= 1
+            if s.fileno() >= 0:
+                self._ioloop.remove_reader(s)
+                self._ioloop.remove_writer(s)
+
+        def on_reactor_quiesced(self, event):
+            if self._deadline is not None:
+                self._ioloop.call_at(self._deadline, self._ioloop.stop)
+            self._ioloop.run_forever()
+
+
+    IOHandler = AsynchIOHandler
+else:
+    IOHandler = PythonIOHandler
 
 class ConnectSelectable(Selectable):
     def __init__(self, sock, reactor, addrs, transport, iohandler):
