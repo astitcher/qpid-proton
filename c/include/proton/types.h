@@ -437,6 +437,13 @@ typedef struct pn_transport_t pn_transport_t;
  */
 typedef struct pn_proactor_t pn_proactor_t;
 
+/*
+ * A raw network connection
+ *
+ * @ingroup proactor
+ */
+typedef struct pn_raw_connection_t pn_raw_connection_t;
+
 /**
  * A batch of events that must be handled in sequence.
  *
