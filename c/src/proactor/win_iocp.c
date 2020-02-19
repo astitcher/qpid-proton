@@ -24,6 +24,7 @@
 #include <proton/engine.h>
 #include <proton/message.h>
 #include <proton/object.h>
+#include <proton/netaddr.h>
 #include <proton/proactor.h>
 #include <proton/transport.h>
 #include <proton/listener.h>
@@ -3419,3 +3420,7 @@ pn_millis_t pn_proactor_now(void) {
 int64_t pn_proactor_now_64(void) {
   return GetTickCount64();
 }
+
+// Empty stubs for raw connection code
+void pn_proactor_raw_connect(pn_proactor_t *p, pn_raw_connection_t *rc, const char *addr) {}
+void pn_listener_raw_accept(pn_listener_t *l, pn_raw_connection_t *rc) {}

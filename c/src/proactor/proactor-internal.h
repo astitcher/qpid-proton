@@ -71,6 +71,16 @@ static inline pn_event_t *pni_log_event(void* p, pn_event_t *e) {
   }
   return e;
 }
+/*
+ * Raw connection internal API
+ */
+bool pni_raw_validate(pn_raw_connection_t *conn);
+void pni_raw_connected(pn_raw_connection_t *conn);
+void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, size_t));
+void pni_raw_write(pn_raw_connection_t *conn, int sock, long (*send)(int, const void*, size_t));
+bool pni_raw_can_read(pn_raw_connection_t *conn);
+bool pni_raw_can_write(pn_raw_connection_t *conn);
+pn_event_t *pni_raw_event_next(pn_raw_connection_t *conn);
 
 #ifdef __cplusplus
 }

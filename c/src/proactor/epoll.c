@@ -3028,3 +3028,12 @@ int64_t pn_proactor_now_64(void) {
   clock_gettime(CLOCK_MONOTONIC, &t);
   return t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
+
+//
+// Raw socket API
+//
+void pn_proactor_raw_connect(pn_proactor_t *proactor, pn_raw_connection_t *raw_connection, const char *addr) {
+}
+
+void pn_listener_raw_accept(pn_listener_t *listener, pn_raw_connection_t *raw_connection) {
+}
