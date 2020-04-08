@@ -184,7 +184,7 @@ struct pn_proactor_t {
   pcontext_t **warm_runnables;
   pcontext_t **runnables;
   tslot_t **resume_list;
-  pn_hash_t *tslot_map;
+  pn_list_t *tslot_list;
   struct epoll_event *kevents;
   int epollfd;
   int thread_count;

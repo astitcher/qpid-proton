@@ -2132,7 +2132,7 @@ pn_proactor_t *pn_proactor() {
             p->timer_armed = true;
             epoll_wake_init(&p->epoll_wake, p->eventfd, p->epollfd, true);
             epoll_wake_init(&p->epoll_interrupt, p->interruptfd, p->epollfd, false);
-            p->tslot_map = pn_hash(PN_VOID, 0, 0.75);
+            p->tslot_list = pn_list(PN_VOID, 16);
             grow_poller_bufs(p);
             return p;
           }
@@ -2182,12 +2182,15 @@ void pn_proactor_free(pn_proactor_t *p) {
   pmutex_finalize(&p->sched_mutex);
   pmutex_finalize(&p->eventfd_mutex);
   pcontext_finalize(&p->context);
-  for (pn_handle_t entry = pn_hash_head(p->tslot_map); entry; entry = pn_hash_next(p->tslot_map, entry)) {
-    tslot_t *ts = (tslot_t *) pn_hash_value(p->tslot_map, entry);
+  for (size_t i = 0; i < pn_list_size(p->tslot_list); i++) {
+    tslot_t *ts = (tslot_t*) pn_list_get(p->tslot_list, i);
     pmutex_finalize(&ts->mutex);
-    free(ts);
+    // In case another proactor comes along on this thread set up tslot as if unused
+    memset(ts, 0, sizeof(tslot_t));
+    ts->state = NEW;
+    pmutex_init(&ts->mutex);
   }
-  pn_free(p->tslot_map);
+  pn_free(p->tslot_list);
   free(p->kevents);
   free(p->runnables);
   free(p->warm_runnables);
@@ -2299,8 +2302,8 @@ static bool proactor_remove(pcontext_t *ctx) {
   if (!p->shutting_down) {
     lock(&p->sched_mutex);
     ctx->runner->state = DELETING;
-    for (pn_handle_t entry = pn_hash_head(p->tslot_map); entry; entry = pn_hash_next(p->tslot_map, entry)) {
-      tslot_t *ts = (tslot_t *) pn_hash_value(p->tslot_map, entry);
+    for (size_t i = 0; i < pn_list_size(p->tslot_list); i++) {
+      tslot_t *ts = (tslot_t *) pn_list_get(p->tslot_list, i);
       if (ts->context == ctx)
         ts->context = NULL;
       if (ts->prev_context == ctx)
@@ -2340,21 +2343,16 @@ static bool proactor_remove(pcontext_t *ctx) {
   return can_free;
 }
 
+static __thread tslot_t tslot = {.state = NEW, .mutex = PTHREAD_MUTEX_INITIALIZER};
 static tslot_t *find_tslot(pn_proactor_t *p) {
-  pthread_t tid = pthread_self();
-  void *v = pn_hash_get(p->tslot_map, (uintptr_t) tid);
-  if (v)
-    return (tslot_t *) v;
-  tslot_t *ts = (tslot_t *) calloc(1, sizeof(tslot_t));
-  ts->state = NEW;
-  pmutex_init(&ts->mutex);
+  if (tslot.state != NEW) return &tslot;
 
   lock(&p->sched_mutex);
   // keep important tslot related info thread-safe when holding either the sched or tslot mutex
+  pn_list_add(p->tslot_list, &tslot);
   p->thread_count++;
-  pn_hash_put(p->tslot_map, (uintptr_t) tid, ts);
   unlock(&p->sched_mutex);
-  return ts;
+  return &tslot;
 }
 
 // Call with shed_lock held
@@ -2510,8 +2508,8 @@ static pcontext_t *next_drain(pn_proactor_t *p, tslot_t *ts) {
   // This should be called seldomly, best case once per thread removal on shutdown.
   // TODO: how to reduce?  Instrumented near 5 percent of earmarks, 1 in 2000 calls to do_epoll().
 
-  for (pn_handle_t entry = pn_hash_head(p->tslot_map); entry; entry = pn_hash_next(p->tslot_map, entry)) {
-    tslot_t *ts2 = (tslot_t *) pn_hash_value(p->tslot_map, entry);
+  for (size_t i = 0; i < pn_list_size(p->tslot_list); i++) {
+    tslot_t *ts2 = (tslot_t *) pn_list_get(p->tslot_list, i);
     if (ts2->earmarked) {
       // undo the old assign thread and earmark.  ts2 may never come back
       pcontext_t *switch_ctx = ts2->context;
