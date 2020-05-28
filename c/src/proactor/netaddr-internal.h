@@ -20,7 +20,7 @@
  * under the License.
  */
 
-//#include <proton/netaddr.h>
+#include <stdint.h>
 
 struct pn_netaddr_t {
   union {

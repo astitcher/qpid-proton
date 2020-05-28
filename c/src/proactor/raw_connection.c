@@ -43,60 +43,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "raw_connection-internal.h"
+
 PN_STRUCT_CLASSDEF(pn_raw_connection)
-
-enum {
-  read_buffer_count = 16,
-  write_buffer_count = 16
-};
-
-typedef enum  __attribute__((packed)) {
-  buff_rempty    = 0,
-  buff_unread    = 1,
-  buff_read      = 2,
-  buff_wempty    = 4,
-  buff_unwritten = 5,
-  buff_written   = 6
-} buff_type;
-
-typedef uint16_t buff_ptr; // This is always the index+1 so that 0 can be special
-
-typedef struct pbuffer_t {
-  char *bytes;
-  uint32_t capacity;
-  uint32_t size;
-  uint32_t offset;
-  buff_ptr next;
-  buff_type type; // For debugging
-} pbuffer_t;
-
-struct pn_raw_connection_t {
-  pbuffer_t rbuffers[read_buffer_count];
-  pbuffer_t wbuffers[write_buffer_count];
-  pn_condition_t *condition;
-  pn_collector_t *collector;
-  pn_record_t *context;
-  uint16_t rbuffer_count;
-  uint16_t wbuffer_count;
-
-  buff_ptr rbuffer_first_empty;
-  buff_ptr rbuffer_first_unused;
-  buff_ptr rbuffer_last_unused;
-  buff_ptr rbuffer_first_read;
-  buff_ptr rbuffer_last_read;
-
-  buff_ptr wbuffer_first_empty;
-  buff_ptr wbuffer_first_towrite;
-  buff_ptr wbuffer_last_towrite;
-  buff_ptr wbuffer_first_written;
-  buff_ptr wbuffer_last_written;
-  bool rneedbufferevent;
-  bool wneedbufferevent;
-  bool rpending;
-  bool wpending;
-  bool rclosed;
-  bool wclosed;
-};
 
 pn_raw_connection_t *pn_raw_connection(void) {
   pn_raw_connection_t *conn = (pn_raw_connection_t*) calloc(1, sizeof(pn_raw_connection_t));
@@ -109,13 +58,15 @@ pn_raw_connection_t *pn_raw_connection(void) {
     conn->wbuffers[i-1].type = buff_wempty;
   }
 
+  //conn->batch.next_event = pni_raw_batch_next;
   conn->condition = pn_condition();
   conn->collector = pn_collector();
-  conn->context = pn_record();
+  conn->attachments = pn_record();
 
   conn->rbuffer_first_empty = 1;
   conn->wbuffer_first_empty = 1;
 
+  conn->freeable = true; // We are freeable until pn_proactor_raw_connect()/pn_listener_raw_accept()
   return conn;
 }
 
@@ -160,20 +111,20 @@ bool pni_raw_validate(pn_raw_connection_t *conn) {
   return true;
 }
 
-void pn_raw_connection_close(pn_raw_connection_t *conn) {
-  // TODO: Do we need different flags here?
-  // TODO: What is the precise semantics for close?
-  conn->rclosed = true;
-  conn->wclosed = true;
+void pni_raw_finalize(pn_raw_connection_t *conn) {
+  pn_condition_free(conn->condition);
+  pn_collector_free(conn->collector);
+  pn_free(conn->attachments);
+  free(conn);
 }
 
 void pn_raw_connection_free(pn_raw_connection_t *conn) {
   if (!conn) return;
-
-  pn_condition_free(conn->condition);
-  pn_collector_free(conn->collector);
-  pn_free(conn->context);
-  free(conn);
+  if (conn->freeable) {
+    pni_raw_finalize(conn);
+  } else {
+    conn->freed = true;
+  }
 }
 
 size_t pn_raw_connection_read_buffers_capacity(pn_raw_connection_t *conn) {
@@ -323,30 +274,46 @@ static inline void pni_raw_put_event(pn_raw_connection_t *conn, pn_event_type_t 
 }
 
 static inline void pni_raw_release_buffers(pn_raw_connection_t *conn) {
-  if (!conn->rpending) {
-    pni_raw_put_event(conn, PN_RAW_CONNECTION_READ);
-    conn->rpending = true;
+  for(;conn->rbuffer_first_unused;) {
+    buff_ptr p = conn->rbuffer_first_unused;
+    assert(conn->rbuffers[p-1].type == buff_unread);
+    conn->rbuffers[p-1].size = 0;
+    if (!conn->rbuffer_first_read) {
+      conn->rbuffer_first_read = p;
+    }
+    if (conn->rbuffer_last_read) {
+      conn->rbuffers[conn->rbuffer_last_read-1].next = p;
+    }
+    conn->rbuffer_last_read = p;
+    conn->rbuffer_first_unused = conn->rbuffers[p-1].next;
+
+    conn->rbuffers[p-1].next = 0;
+    conn->rbuffers[p-1].type = buff_read;
   }
-  if (!conn->wpending) {
-    pni_raw_put_event(conn, PN_RAW_CONNECTION_WRITTEN);
-    conn->wpending = true;
+  for(;conn->wbuffer_first_towrite;) {
+    buff_ptr p = conn->wbuffer_first_towrite;
+    assert(conn->wbuffers[p-1].type == buff_unwritten);
+    if (!conn->wbuffer_first_written) {
+      conn->wbuffer_first_written = p;
+    }
+    if (conn->wbuffer_last_written) {
+      conn->wbuffers[conn->wbuffer_last_written-1].next = p;
+    }
+    conn->wbuffer_last_written = p;
+    conn->wbuffer_first_towrite = conn->wbuffers[p-1].next;
+
+    conn->wbuffers[p-1].next = 0;
+    conn->wbuffers[p-1].type = buff_written;
   }
 }
 
 static inline void pni_raw_disconnect(pn_raw_connection_t *conn) {
   pni_raw_release_buffers(conn);
-  pni_raw_put_event(conn, PN_RAW_CONNECTION_DISCONNECTED);
-}
-
-static void  pni_raw_set_error(pn_raw_connection_t *conn, const char *msg, int err) {
-  char what[100];
-  char host[100];
-  char port[10];
-  strerror_r(err, what, sizeof(what));
-  pni_proactor_set_cond(conn->condition, what, host, port, msg);
+  conn->disconnectpending = true;
 }
 
 void pni_raw_connected(pn_raw_connection_t *conn) {
+  pn_condition_clear(conn->condition);
   pni_raw_put_event(conn, PN_RAW_CONNECTION_CONNECTED);
 }
 
@@ -354,7 +321,7 @@ void pni_raw_wake(pn_raw_connection_t *conn) {
   pni_raw_put_event(conn, PN_RAW_CONNECTION_WAKE);
 }
 
-void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, size_t)) {
+void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, size_t), void(*set_error)(pn_raw_connection_t *, const char *, int)) {
   assert(conn);
   bool closed = false;
   for(;conn->rbuffer_first_unused;) {
@@ -373,8 +340,8 @@ void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, 
 
         // Detected an error
         default:
-          pni_raw_set_error(conn, "recv error", errno);
-          pni_raw_disconnect(conn);
+          set_error(conn, "recv error", errno);
+          pn_raw_connection_close(conn);
           return;
       }
     }
@@ -401,23 +368,22 @@ void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, 
 finished_reading:
   // Read something - we are now either out of buffers; end of stream; or blocked for read
   if (conn->rbuffer_first_read && !conn->rpending) {
-    pni_raw_put_event(conn, PN_RAW_CONNECTION_READ);
     conn->rpending = true;
   }
   // Socket closed for read
   if (closed) {
     if (!conn->rclosed) {
       conn->rclosed = true;
-      pni_raw_put_event(conn, PN_RAW_CONNECTION_CLOSED_READ);
-    }
-    if (conn->wclosed) {
-      pni_raw_disconnect(conn);
+      conn->rclosedpending = true;
+      if (conn->wclosed) {
+        pni_raw_disconnect(conn);
+      }
     }
   }
   return;
 }
 
-void pni_raw_write(pn_raw_connection_t *conn, int sock, long (*send)(int, const void*, size_t)) {
+void pni_raw_write(pn_raw_connection_t *conn, int sock, long (*send)(int, const void*, size_t), void(*set_error)(pn_raw_connection_t *, const char *, int)) {
   assert(conn);
   bool closed = false;
   for(;conn->wbuffer_first_towrite;) {
@@ -439,8 +405,8 @@ void pni_raw_write(pn_raw_connection_t *conn, int sock, long (*send)(int, const 
           goto finished_writing;
 
         default:
-          pni_raw_set_error(conn, "send error", errno);
-          pni_raw_disconnect(conn);
+          set_error(conn, "send error", errno);
+          pn_raw_connection_close(conn);
           return;
       }
     }
@@ -475,27 +441,26 @@ finished_writing:
   // Wrote something; end of stream; out of buffers; or blocked for write
   if (conn->wbuffer_first_written && !conn->wpending) {
     conn->wpending = true;
-    pni_raw_put_event(conn, PN_RAW_CONNECTION_WRITTEN);
   }
   // Socket closed for write
   if (closed) {
     if (!conn->wclosed) {
       conn->wclosed = true;
-      pni_raw_put_event(conn, PN_RAW_CONNECTION_CLOSED_WRITE);
-    }
-    if (conn->rclosed) {
-      pni_raw_disconnect(conn);
+      conn->wclosedpending = true;
+      if (conn->rclosed) {
+        pni_raw_disconnect(conn);;
+      }
     }
   }
   return;
 }
 
 bool pni_raw_can_read(pn_raw_connection_t *conn) {
-  return !conn->rclosed && conn->rbuffer_first_unused;
+  return !conn->freed && !conn->rclosed && conn->rbuffer_first_unused;
 }
 
 bool pni_raw_can_write(pn_raw_connection_t *conn) {
-  return !conn->wclosed && conn->wbuffer_first_towrite;
+  return !conn->freed && !conn->wclosed && conn->wbuffer_first_towrite;
 }
 
 pn_event_t *pni_raw_event_next(pn_raw_connection_t *conn) {
@@ -505,23 +470,65 @@ pn_event_t *pni_raw_event_next(pn_raw_connection_t *conn) {
     if (event) {
       pn_event_type_t type = pn_event_type(event);
       switch (type) {
-        case PN_RAW_CONNECTION_READ: conn->rpending = false; break;
-        case PN_RAW_CONNECTION_WRITTEN: conn->wpending = false; break;
         default: break;
       }
-    } else if (!conn->wbuffer_first_towrite && !conn->wneedbufferevent) {
+    } else if (conn->rpending) {
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_READ);
+      conn->rpending = false;
+      continue;
+    } else if (conn->wpending) {
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_WRITTEN);
+      conn->wpending = false;
+      continue;
+    } else if (conn->rclosedpending) {
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_CLOSED_READ);
+      conn->rclosedpending = false;
+      continue;
+    } else if (conn->wclosedpending) {
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_CLOSED_WRITE);
+      conn->wclosedpending = false;
+      continue;
+    } else if (conn->disconnectpending) {
+      if (conn->rbuffer_first_read) {
+        pni_raw_put_event(conn, PN_RAW_CONNECTION_READ);
+      }
+      if (conn->wbuffer_first_written) {
+        pni_raw_put_event(conn, PN_RAW_CONNECTION_WRITTEN);
+      }
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_DISCONNECTED);
+      conn->disconnectpending = false;
+      continue;
+    } else if (!conn->wclosed && !conn->wbuffer_first_towrite && !conn->wneedbufferevent) {
       // Ran out of write buffers
       pni_raw_put_event(conn, PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
       conn->wneedbufferevent = true;
       continue;
-    } else if (!conn->rbuffer_first_unused && !conn->rneedbufferevent) {
+    } else if (!conn->rclosed && !conn->rbuffer_first_unused && !conn->rneedbufferevent) {
       // Ran out of read buffers
       pni_raw_put_event(conn, PN_RAW_CONNECTION_NEED_READ_BUFFERS);
       conn->rneedbufferevent = true;
       continue;
     }
-    return event;
+    return pni_log_event(conn, event);
   } while (true);
+}
+
+void pn_raw_connection_close(pn_raw_connection_t *conn) {
+  // TODO: Do we need different flags here?
+  // TODO: What is the precise semantics for close?
+  bool rclosed = conn->rclosed;
+  if (!rclosed) {
+    conn->rclosed = true;
+    conn->rclosedpending = true;
+  }
+  bool wclosed = conn->wclosed;
+  if (!wclosed) {
+    conn->wclosed = true;
+    conn->wclosedpending = true;
+  }
+  if (!rclosed || !wclosed) {
+    pni_raw_disconnect(conn);
+  }
 }
 
 bool pn_raw_connection_is_read_closed(pn_raw_connection_t *conn) {
@@ -545,17 +552,17 @@ pn_condition_t *pn_raw_connection_condition(pn_raw_connection_t *conn) {
 
 void *pn_raw_connection_get_context(pn_raw_connection_t *conn) {
   assert(conn);
-  return pn_record_get(conn->context, PN_LEGCTX);
+  return pn_record_get(conn->attachments, PN_LEGCTX);
 }
 
 void pn_raw_connection_set_context(pn_raw_connection_t *conn, void *context) {
   assert(conn);
-  pn_record_set(conn->context, PN_LEGCTX, context);
+  pn_record_set(conn->attachments, PN_LEGCTX, context);
 }
 
 pn_record_t *pn_raw_connection_attachments(pn_raw_connection_t *conn) {
   assert(conn);
-  return conn->context;
+  return conn->attachments;
 }
 
 pn_raw_connection_t *pn_event_raw_connection(pn_event_t *event) {
