@@ -37,21 +37,37 @@ extern "C" {
  */
 
 /**
- * pn_raw_buffer_t is used to represent a single raw buffer in memory. It
- * holds the start of the  underlying memory in bytes and the length of the
- * full buffer in capacity. offset is the first byte in the buffer
- * that is to be written, size is used to represent the actual number of
- * bytes that are read/written in the buffer. If bytes is zero then no buffer is represented.
+ * pn_raw_buffer_t is used to represent a single raw buffer in memory.
+ *
+ * It holds the start of the  underlying memory in bytes and the length of the
+ * full buffer in capacity. offset is the first byte in the buffer that is to
+ * be written or read. size is used to represent the actual number of
+ * bytes that are read/written in the buffer.
+ *
+ * context is used to associate arbitrary application data with this raw buffer.
+ *
+ * If bytes is zero then no buffer is represented.
  *
  * @note The intent of the offset is to allow the actual bytes being read/written to be at a variable
  * location relative to the head of the buffer because of other data or structures that are important to the application
  * associated with the data to be written but not themselves read/written to the connection.
+ *
+ * @note For read buffers: for every read into a buffer size will be incremented by the number of bytes read, and so will
+ * offset. Applications will usually want to set size to zero when they pass in read buffers, but may have specialised
+ * reasons for not doing this. When read buffers are returned to the application offset will have been adjusted so that it
+ * represents one past the last used byte in the buffer.
+ *
+ * @note For write buffers for every individual write size and offset will be adjusted to take account of any unwritten bytes.
+ * Write operations will not modify the bytes of the buffer passed in at all.
+ *
+ * @note Neither read nor write operations will change the context, bytes or capacity members of the structure.
  */
 typedef struct pn_raw_buffer_t {
-    char *bytes;
-    uint32_t capacity;
-    uint32_t size;
-    uint32_t offset;
+  uintptr_t context;
+  char *bytes;
+  uint32_t capacity;
+  uint32_t size;
+  uint32_t offset;
 } pn_raw_buffer_t;
 
 /**

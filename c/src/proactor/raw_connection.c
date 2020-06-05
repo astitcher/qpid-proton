@@ -149,6 +149,7 @@ size_t pn_raw_connection_give_read_buffers(pn_raw_connection_t *conn, pn_raw_buf
   for (size_t i = 0; i < can_take; i++) {
     // Get next free
     assert(conn->rbuffers[current-1].type == buff_rempty);
+    conn->rbuffers[current-1].context = buffers[i].context;
     conn->rbuffers[current-1].bytes = buffers[i].bytes;
     conn->rbuffers[current-1].capacity = buffers[i].capacity;
     conn->rbuffers[current-1].size = buffers[i].size;
@@ -181,6 +182,7 @@ size_t pn_raw_connection_take_read_buffers(pn_raw_connection_t *conn, pn_raw_buf
   buff_ptr previous;
   for (; current && count < num; count++) {
     assert(conn->rbuffers[current-1].type == buff_read);
+    buffers[count].context = conn->rbuffers[current-1].context;
     buffers[count].bytes = conn->rbuffers[current-1].bytes;
     buffers[count].capacity = conn->rbuffers[current-1].capacity;
     buffers[count].size = conn->rbuffers[current-1].size;
@@ -215,6 +217,7 @@ size_t pn_raw_connection_write_buffers(pn_raw_connection_t *conn, pn_raw_buffer_
   for (size_t i = 0; i < can_take; i++) {
     // Get next free
     assert(conn->wbuffers[current-1].type == buff_wempty);
+    conn->wbuffers[current-1].context = buffers[i].context;
     conn->wbuffers[current-1].bytes = buffers[i].bytes;
     conn->wbuffers[current-1].capacity = buffers[i].capacity;
     conn->wbuffers[current-1].size = buffers[i].size;
@@ -247,6 +250,7 @@ size_t pn_raw_connection_take_written_buffers(pn_raw_connection_t *conn, pn_raw_
   buff_ptr previous;
   for (; current && count < num; count++) {
     assert(conn->wbuffers[current-1].type == buff_written);
+    buffers[count].context = conn->wbuffers[current-1].context;
     buffers[count].bytes = conn->wbuffers[current-1].bytes;
     buffers[count].capacity = conn->wbuffers[current-1].capacity;
     buffers[count].size = conn->wbuffers[current-1].size;
@@ -328,7 +332,7 @@ void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, 
     buff_ptr p = conn->rbuffer_first_unused;
     assert(conn->rbuffers[p-1].type == buff_unread);
     char *bytes = conn->rbuffers[p-1].bytes+conn->rbuffers[p-1].offset;
-    size_t s = conn->rbuffers[p-1].capacity;
+    size_t s = conn->rbuffers[p-1].capacity-conn->rbuffers[p-1].offset;
     int r = recv(sock, bytes, s);
     if (r < 0) {
       switch (errno) {
@@ -345,7 +349,8 @@ void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, 
           return;
       }
     }
-    conn->rbuffers[p-1].size = r;
+    conn->rbuffers[p-1].size += r;
+    conn->rbuffers[p-1].offset += r;
 
     if (!conn->rbuffer_first_read) {
       conn->rbuffer_first_read = p;

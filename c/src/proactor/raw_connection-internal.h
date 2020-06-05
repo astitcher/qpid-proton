@@ -38,6 +38,7 @@ typedef enum {
 typedef uint16_t buff_ptr; // This is always the index+1 so that 0 can be special
 
 typedef struct pbuffer_t {
+  uintptr_t context;
   char *bytes;
   uint32_t capacity;
   uint32_t size;

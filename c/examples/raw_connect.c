@@ -104,7 +104,7 @@ static void handle_receive(app_data_t *app, pn_event_t* event) {
 
     case PN_RAW_CONNECTION_CONNECTED: {
       pn_raw_connection_t *c = pn_event_raw_connection(event);
-      pn_raw_buffer_t buffers[READ_BUFFERS] = {{NULL}};
+      pn_raw_buffer_t buffers[READ_BUFFERS] = {{0}};
       int i = READ_BUFFERS;
       for (; i; --i) {
         pn_raw_buffer_t *buff = &buffers[READ_BUFFERS-i];
