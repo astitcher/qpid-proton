@@ -3424,3 +3424,4 @@ int64_t pn_proactor_now_64(void) {
 // Empty stubs for raw connection code
 void pn_proactor_raw_connect(pn_proactor_t *p, pn_raw_connection_t *rc, const char *addr) {}
 void pn_listener_raw_accept(pn_listener_t *l, pn_raw_connection_t *rc) {}
+void pn_raw_connection_wake(pn_raw_connection_t *conn) {}

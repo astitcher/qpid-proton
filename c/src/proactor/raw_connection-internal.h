@@ -53,6 +53,7 @@ struct pn_raw_connection_t {
   pn_condition_t *condition;
   pn_collector_t *collector;
   pn_record_t *attachments;
+  struct praw_connection_t *impl;
   uint16_t rbuffer_count;
   uint16_t wbuffer_count;
 
@@ -78,8 +79,8 @@ struct pn_raw_connection_t {
   bool rdrainpending;
   bool wdrainpending;
   bool disconnectpending;
+  bool wakepending;
   bool freed;
-  bool freeable;
 };
 
 #endif // PROACTOR_RAW_CONNECTION_INTERNAL_H

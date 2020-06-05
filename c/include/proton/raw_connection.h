@@ -200,11 +200,9 @@ PNP_EXTERN bool pn_raw_connection_is_write_closed(pn_raw_connection_t *connectio
  * Return a @ref PN_RAW_CONNECTION_WAKE event for @p connection as soon as possible.
  *
  * At least one wake event will be returned, serialized with other @ref proactor_events
- * for the same connection.  Wakes can be "coalesced" - if several
+ * for the same raw connection.  Wakes can be "coalesced" - if several
  * @ref pn_raw_connection_wake() calls happen close together, there may be only one
  * @ref PN_RAW_CONNECTION_WAKE event that occurs after all of them.
- *
- * @note If @p connection does not belong to a proactor, this call does nothing.
  *
  * @note Thread-safe
  */

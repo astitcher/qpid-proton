@@ -27,6 +27,8 @@
 
 #include <proton/proactor.h>
 #include <proton/listener.h>
+#include <proton/netaddr.h>
+#include <proton/raw_connection.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -63,6 +65,7 @@ static void psocket_gai_error(praw_connection_t *rc, int gai_err, const char* wh
 }
 
 static void praw_connection_connected_lh(praw_connection_t *prc) {
+  // Need to check socket for connection error
   prc->connected = true;
   if (prc->addrinfo) {
     freeaddrinfo(prc->addrinfo);
@@ -100,12 +103,12 @@ static void praw_connection_maybe_connect_lh(praw_connection_t *prc) {
   if (!prc->connected) {         /* Not yet connected */
     while (prc->ai) {            /* Have an address */
       struct addrinfo *ai = prc->ai;
-            prc->ai = prc->ai->ai_next; /* Move to next address in case this fails */
+      prc->ai = prc->ai->ai_next; /* Move to next address in case this fails */
       int fd = socket(ai->ai_family, SOCK_STREAM, 0);
       if (fd >= 0) {
         configure_socket(fd);
         if (!connect(fd, ai->ai_addr, ai->ai_addrlen) || errno == EINPROGRESS) {
-                  praw_connection_start(prc, fd);
+          praw_connection_start(prc, fd);
           return;               /* Async connection started */
         } else {
           close(fd);
@@ -121,7 +124,7 @@ static void praw_connection_maybe_connect_lh(praw_connection_t *prc) {
       psocket_error(prc, errno ? errno : ENOTCONN, "on connect");
     }
   }
-    prc->disconnected = true;
+  prc->disconnected = true;
 }
 
 //
@@ -144,7 +147,7 @@ static void praw_connection_init(praw_connection_t *prc, pn_proactor_t *p, pn_ra
   pmutex_init(&prc->rearm_mutex);
 
   prc->raw_connection = rc;
-  rc->freeable = false;
+  rc->impl = prc;
 }
 
 static void praw_connection_cleanup(praw_connection_t *prc) {
@@ -158,7 +161,7 @@ static void praw_connection_cleanup(praw_connection_t *prc) {
   bool can_free = proactor_remove(&prc->context);
   unlock(&prc->context.mutex);
   if (can_free) {
-    prc->raw_connection->freeable = true;
+    prc->raw_connection->impl = NULL;
     free(prc);
   }
   // else proactor_disconnect logic owns prc and its final free
@@ -236,6 +239,20 @@ void pn_listener_raw_accept(pn_listener_t *l, pn_raw_connection_t *rc) {
   if (notify) wake_notify(&l->context);
 }
 
+void pn_raw_connection_wake(pn_raw_connection_t *rc) {
+  bool notify = false;
+  praw_connection_t *prc = rc->impl;
+  if (prc) {
+    lock(&prc->context.mutex);
+    if (!prc->context.closing) {
+      //prc->wake_count++;
+      notify = wake(&prc->context);
+    }
+    unlock(&prc->context.mutex);
+  }
+  if (notify) wake_notify(&prc->context);
+}
+
 static pn_event_t *pni_raw_batch_next(pn_event_batch_t *batch) {
   pn_raw_connection_t *raw = containerof(batch, praw_connection_t, batch)->raw_connection;
   return pni_raw_event_next(raw);
@@ -264,21 +281,28 @@ static long rcv(int fd, void* b, size_t s) {
 
 static void  set_error(pn_raw_connection_t *conn, const char *msg, int err) {
   char what[100];
+  char addr[PN_MAX_ADDR];
+  const praw_connection_t *prc = conn->impl;
   strerror_r(err, what, sizeof(what));
-  pni_proactor_set_cond(conn->condition, what, NULL, NULL, msg);
+  pn_netaddr_str(&prc->remote, addr, sizeof(addr));
+  if (!pn_condition_is_set(conn->condition)) { /* Preserve older error information */
+    pn_condition_format(conn->condition, PNI_IO_CONDITION, "%s - %s %s",
+                        msg, what, addr);
+  }
 }
 
 
 pn_event_batch_t *pni_raw_connection_process(pcontext_t *c, bool sched_wake) {
-  praw_connection_t *raw = containerof(c, praw_connection_t, context);
-  int events = raw->psocket.sched_io_events;
-  int fd = raw->psocket.epoll_io.fd;
-  if (!raw->connected) {
-      praw_connection_connected_lh(raw);
+  praw_connection_t *rc = containerof(c, praw_connection_t, context);
+  int events = rc->psocket.sched_io_events;
+  int fd = rc->psocket.epoll_io.fd;
+  if (!rc->connected) {
+    praw_connection_connected_lh(rc);
   }
-  if (events & EPOLLIN) pni_raw_read(raw->raw_connection, fd, rcv, set_error);
-  if (events & EPOLLOUT) pni_raw_write(raw->raw_connection, fd, snd, set_error);
-  return &raw->batch;
+  if (sched_wake) pni_raw_wake(rc->raw_connection);
+  if (events & EPOLLIN) pni_raw_read(rc->raw_connection, fd, rcv, set_error);
+  if (events & EPOLLOUT) pni_raw_write(rc->raw_connection, fd, snd, set_error);
+  return &rc->batch;
 }
 
 void pni_raw_connection_done(praw_connection_t *rc) {

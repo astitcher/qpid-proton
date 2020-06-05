@@ -58,7 +58,6 @@ pn_raw_connection_t *pn_raw_connection(void) {
     conn->wbuffers[i-1].type = buff_wempty;
   }
 
-  //conn->batch.next_event = pni_raw_batch_next;
   conn->condition = pn_condition();
   conn->collector = pn_collector();
   conn->attachments = pn_record();
@@ -66,7 +65,6 @@ pn_raw_connection_t *pn_raw_connection(void) {
   conn->rbuffer_first_empty = 1;
   conn->wbuffer_first_empty = 1;
 
-  conn->freeable = true; // We are freeable until pn_proactor_raw_connect()/pn_listener_raw_accept()
   return conn;
 }
 
@@ -120,7 +118,7 @@ void pni_raw_finalize(pn_raw_connection_t *conn) {
 
 void pn_raw_connection_free(pn_raw_connection_t *conn) {
   if (!conn) return;
-  if (conn->freeable) {
+  if (!conn->impl) {
     pni_raw_finalize(conn);
   } else {
     conn->freed = true;
@@ -324,7 +322,7 @@ void pni_raw_connected(pn_raw_connection_t *conn) {
 }
 
 void pni_raw_wake(pn_raw_connection_t *conn) {
-  pni_raw_put_event(conn, PN_RAW_CONNECTION_WAKE);
+  conn->wakepending = true;
 }
 
 void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, size_t), void(*set_error)(pn_raw_connection_t *, const char *, int)) {
@@ -479,6 +477,10 @@ pn_event_t *pni_raw_event_next(pn_raw_connection_t *conn) {
       switch (type) {
         default: break;
       }
+    } else if (conn->wakepending) {
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_WAKE);
+      conn->wakepending = false;
+      continue;
     } else if (conn->rpending) {
       pni_raw_put_event(conn, PN_RAW_CONNECTION_READ);
       conn->rpending = false;
@@ -548,10 +550,6 @@ bool pn_raw_connection_is_read_closed(pn_raw_connection_t *conn) {
 bool pn_raw_connection_is_write_closed(pn_raw_connection_t *conn) {
   assert(conn);
   return conn->wclosed;
-}
-
-void pn_raw_connection_wake(pn_raw_connection_t *conn) {
-  assert(conn);
 }
 
 pn_condition_t *pn_raw_connection_condition(pn_raw_connection_t *conn) {

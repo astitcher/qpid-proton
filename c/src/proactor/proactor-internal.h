@@ -78,6 +78,7 @@ static inline pn_event_t *pni_log_event(void* p, pn_event_t *e) {
 bool pni_raw_validate(pn_raw_connection_t *conn);
 void pni_raw_connected(pn_raw_connection_t *conn);
 void pni_raw_process(pn_raw_connection_t *conn, int events, bool wake);
+void pni_raw_wake(pn_raw_connection_t *conn);
 void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, size_t), void (*set_error)(pn_raw_connection_t *, const char *, int));
 void pni_raw_write(pn_raw_connection_t *conn, int sock, long (*send)(int, const void*, size_t), void (*set_error)(pn_raw_connection_t *, const char *, int));
 bool pni_raw_can_read(pn_raw_connection_t *conn);
