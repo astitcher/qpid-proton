@@ -75,6 +75,8 @@ struct pn_raw_connection_t {
   bool wclosed;
   bool rclosedpending;
   bool wclosedpending;
+  bool rdrainpending;
+  bool wdrainpending;
   bool disconnectpending;
   bool freed;
   bool freeable;

@@ -309,6 +309,8 @@ static inline void pni_raw_release_buffers(pn_raw_connection_t *conn) {
     conn->wbuffers[p-1].next = 0;
     conn->wbuffers[p-1].type = buff_written;
   }
+  conn->rdrainpending = (bool)(conn->rbuffer_first_read);
+  conn->wdrainpending = (bool)(conn->wbuffer_first_written);
 }
 
 static inline void pni_raw_disconnect(pn_raw_connection_t *conn) {
@@ -493,13 +495,15 @@ pn_event_t *pni_raw_event_next(pn_raw_connection_t *conn) {
       pni_raw_put_event(conn, PN_RAW_CONNECTION_CLOSED_WRITE);
       conn->wclosedpending = false;
       continue;
+    } else if (conn->rdrainpending) {
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_READ);
+      conn->rdrainpending = false;
+      continue;
+    } else if (conn->wdrainpending) {
+      pni_raw_put_event(conn, PN_RAW_CONNECTION_WRITTEN);
+      conn->wdrainpending = false;
+      continue;
     } else if (conn->disconnectpending) {
-      if (conn->rbuffer_first_read) {
-        pni_raw_put_event(conn, PN_RAW_CONNECTION_READ);
-      }
-      if (conn->wbuffer_first_written) {
-        pni_raw_put_event(conn, PN_RAW_CONNECTION_WRITTEN);
-      }
       pni_raw_put_event(conn, PN_RAW_CONNECTION_DISCONNECTED);
       conn->disconnectpending = false;
       continue;
