@@ -116,6 +116,9 @@ namespace {
   pn_raw_buffer_t rbuffs[RBUFFCOUNT];
   pn_raw_buffer_t wbuffs[WBUFFCOUNT];
 
+  class ReadBuffer {};
+  class WriteBuffer {};
+
   class BufferAllocator {
     char* buffer;
     uint32_t size;
@@ -133,10 +136,10 @@ namespace {
     }
 
     template <class B>
-    B next_buffer(uint32_t s);
+    pn_raw_buffer_t next_buffer(uint32_t s, const B* dummy = 0);
 
     template <class B, int N>
-    void split_buffers(B (&buffers)[N]) {
+    void split_buffers(pn_raw_buffer_t (&buffers)[N]) {
       uint32_t buffsize  = (size-brk)/N;
       uint32_t remainder = (size-brk)%N;
       for (int i = 0; i<N; ++i) {
@@ -146,7 +149,15 @@ namespace {
   };
 
   template <>
-  pn_raw_buffer_t BufferAllocator::next_buffer(uint32_t s) {
+  pn_raw_buffer_t BufferAllocator::next_buffer(uint32_t s, const ReadBuffer*) {
+    pn_raw_buffer_t b = {};
+    b.bytes = next(s);
+    if (b.bytes) {b.capacity = s; b.size = 0;}
+    return b;
+  }
+
+  template <>
+  pn_raw_buffer_t BufferAllocator::next_buffer(uint32_t s, const WriteBuffer*) {
     pn_raw_buffer_t b = {};
     b.bytes = next(s);
     if (b.bytes) {b.capacity = s; b.size = s;}
@@ -210,8 +221,8 @@ TEST_CASE("raw connection") {
   BufferAllocator rb(rbuffer_memory, sizeof(rbuffer_memory));
   BufferAllocator wb(message, sizeof(message));
 
-  rb.split_buffers(rbuffs);
-  wb.split_buffers(wbuffs);
+  rb.split_buffers<ReadBuffer>(rbuffs);
+  wb.split_buffers<WriteBuffer>(wbuffs);
 
   int rtaken = pn_raw_connection_give_read_buffers(p, rbuffs, RBUFFCOUNT);
   REQUIRE(pni_raw_validate(p));
