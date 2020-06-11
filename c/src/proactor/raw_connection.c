@@ -152,7 +152,7 @@ size_t pn_raw_connection_give_read_buffers(pn_raw_connection_t *conn, pn_raw_buf
     conn->rbuffers[current-1].context = buffers[i].context;
     conn->rbuffers[current-1].bytes = buffers[i].bytes;
     conn->rbuffers[current-1].capacity = buffers[i].capacity;
-    conn->rbuffers[current-1].size = buffers[i].size;
+    conn->rbuffers[current-1].size = 0;
     conn->rbuffers[current-1].offset = buffers[i].offset;
     conn->rbuffers[current-1].type = buff_unread;
 
@@ -186,7 +186,7 @@ size_t pn_raw_connection_take_read_buffers(pn_raw_connection_t *conn, pn_raw_buf
     buffers[count].bytes = conn->rbuffers[current-1].bytes;
     buffers[count].capacity = conn->rbuffers[current-1].capacity;
     buffers[count].size = conn->rbuffers[current-1].size;
-    buffers[count].offset = conn->rbuffers[current-1].offset;
+    buffers[count].offset = conn->rbuffers[current-1].offset - conn->rbuffers[current-1].size;
     conn->rbuffers[current-1].type = buff_rempty;
 
     previous = current;

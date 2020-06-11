@@ -52,10 +52,7 @@ extern "C" {
  * location relative to the head of the buffer because of other data or structures that are important to the application
  * associated with the data to be written but not themselves read/written to the connection.
  *
- * @note For read buffers: for every read into a buffer size will be incremented by the number of bytes read, and so will
- * offset. Applications will usually want to set size to zero when they pass in read buffers, but may have specialised
- * reasons for not doing this. When read buffers are returned to the application offset will have been adjusted so that it
- * represents one past the last used byte in the buffer.
+ * @note For read buffers: When read buffers are returned to the application size will be the number of bytes read.
  *
  * @note For write buffers for every individual write size and offset will be adjusted to take account of any unwritten bytes.
  * Write operations will not modify the bytes of the buffer passed in at all.
