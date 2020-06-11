@@ -239,6 +239,18 @@ void pn_listener_raw_accept(pn_listener_t *l, pn_raw_connection_t *rc) {
   if (notify) wake_notify(&l->context);
 }
 
+const pn_netaddr_t *pn_raw_connection_local_addr(pn_raw_connection_t *rc) {
+  praw_connection_t *prc = rc->impl;
+  if (!prc) return NULL;
+  return &prc->local;
+}
+
+const pn_netaddr_t *pn_raw_connection_remote_addr(pn_raw_connection_t *rc) {
+  praw_connection_t *prc = rc->impl;
+  if (!prc) return NULL;
+  return &prc->remote;
+}
+
 void pn_raw_connection_wake(pn_raw_connection_t *rc) {
   bool notify = false;
   praw_connection_t *prc = rc->impl;

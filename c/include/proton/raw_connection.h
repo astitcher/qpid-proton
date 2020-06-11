@@ -80,6 +80,18 @@ typedef struct pn_raw_buffer_t {
 PNP_EXTERN pn_raw_connection_t *pn_raw_connection(void);
 
 /**
+ * Get the local address of a raw connection. Return `NULL` if not available.
+ * Pointer is invalid after the transport closes (@ref PN_RAW_CONNECTION_DISCONNECTED event is handled)
+ */
+PNP_EXTERN const struct pn_netaddr_t *pn_raw_connection_local_addr(pn_raw_connection_t *connection);
+
+/**
+ * Get the local address of a raw connection. Return `NULL` if not available.
+ * Pointer is invalid after the transport closes (@ref PN_RAW_CONNECTION_DISCONNECTED event is handled)
+ */
+PNP_EXTERN const struct pn_netaddr_t *pn_raw_connection_remote_addr(pn_raw_connection_t *connection);
+
+/**
  * Close a raw connection.
  * This will close the underlying socket and release all buffers held by the raw connection.
  * It will cause @ref PN_RAW_BUFFERS_READ and @ref PN_RAW_BUFFERS_WRITTEN to be emitted so
