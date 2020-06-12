@@ -439,7 +439,7 @@ void wake_notify(pcontext_t *ctx) {
 }
 
 // call with owner lock held, once for each pop from the wake list
-static inline void wake_done(pcontext_t *ctx) {
+void wake_done(pcontext_t *ctx) {
 //  assert(ctx->wake_pending > 0);
   ctx->wake_pending = false;
 }

@@ -335,6 +335,7 @@ bool unassign_thread(tslot_t *ts, tslot_state new_state);
 void pcontext_init(pcontext_t *ctx, pcontext_type_t t, pn_proactor_t *p);
 bool wake(pcontext_t *ctx);
 void wake_notify(pcontext_t *ctx);
+void wake_done(pcontext_t *ctx);
 
 void psocket_init(psocket_t* ps, pn_proactor_t* p, epoll_type_t type);
 bool start_polling(epoll_extended_t *ee, int epollfd);

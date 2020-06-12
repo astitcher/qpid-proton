@@ -311,6 +311,12 @@ pn_event_batch_t *pni_raw_connection_process(pcontext_t *c, bool sched_wake) {
   if (!rc->connected) {
     praw_connection_connected_lh(rc);
   }
+
+  lock(&c->mutex);
+  c->working = true;
+  if (sched_wake) wake_done(c);
+  unlock(&c->mutex);
+
   if (sched_wake) pni_raw_wake(rc->raw_connection);
   if (events & EPOLLIN) pni_raw_read(rc->raw_connection, fd, rcv, set_error);
   if (events & EPOLLOUT) pni_raw_write(rc->raw_connection, fd, snd, set_error);
@@ -318,8 +324,12 @@ pn_event_batch_t *pni_raw_connection_process(pcontext_t *c, bool sched_wake) {
 }
 
 void pni_raw_connection_done(praw_connection_t *rc) {
+  lock(&rc->context.mutex);
   pn_proactor_t *p = rc->context.proactor;
   tslot_t *ts = rc->context.runner;
+  rc->context.working = false;
+  unlock(&rc->context.mutex);
+
   pn_raw_connection_t *raw = rc->raw_connection;
   int wanted =
     (pni_raw_can_read(raw)  ? EPOLLIN : 0) |
