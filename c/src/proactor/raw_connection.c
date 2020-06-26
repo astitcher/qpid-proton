@@ -85,8 +85,12 @@ bool pni_raw_validate(pn_raw_connection_t *conn) {
     rread_count++;
   }
   if (rempty_count+runused_count+rread_count != read_buffer_count) return false;
-  if (conn->rbuffer_first_unused && conn->rbuffers[conn->rbuffer_last_unused-1].next != 0) return false;
-  if (conn->rbuffer_first_read && conn->rbuffers[conn->rbuffer_last_read-1].next != 0) return false;
+  if (!conn->rbuffer_first_unused && conn->rbuffer_last_unused) return false;
+  if (conn->rbuffer_last_unused &&
+    (conn->rbuffers[conn->rbuffer_last_unused-1].type != buff_unread || conn->rbuffers[conn->rbuffer_last_unused-1].next != 0)) return false;
+  if (!conn->rbuffer_first_read && conn->rbuffer_last_read) return false;
+  if (conn->rbuffer_last_read &&
+    (conn->rbuffers[conn->rbuffer_last_read-1].type != buff_read || conn->rbuffers[conn->rbuffer_last_read-1].next != 0)) return false;
 
   int wempty_count = 0;
   for (buff_ptr i = conn->wbuffer_first_empty; i; i = conn->wbuffers[i-1].next) {
@@ -104,8 +108,12 @@ bool pni_raw_validate(pn_raw_connection_t *conn) {
     wwritten_count++;
   }
   if (wempty_count+wunwritten_count+wwritten_count != write_buffer_count) return false;
-  if (conn->wbuffer_first_towrite && conn->wbuffers[conn->wbuffer_last_towrite-1].next != 0) return false;
-  if (conn->wbuffer_first_written && conn->wbuffers[conn->wbuffer_last_written-1].next != 0) return false;
+  if (!conn->wbuffer_first_towrite && conn->wbuffer_last_towrite) return false;
+  if (conn->wbuffer_last_towrite &&
+    (conn->wbuffers[conn->wbuffer_last_towrite-1].type != buff_unwritten || conn->wbuffers[conn->wbuffer_last_towrite-1].next != 0)) return false;
+  if (!conn->wbuffer_first_written && conn->wbuffer_last_written) return false;
+  if (conn->wbuffer_last_written &&
+    (conn->wbuffers[conn->wbuffer_last_written-1].type != buff_written || conn->wbuffers[conn->wbuffer_last_written-1].next != 0)) return false;
   return true;
 }
 
@@ -225,12 +233,16 @@ size_t pn_raw_connection_write_buffers(pn_raw_connection_t *conn, pn_raw_buffer_
     previous = current;
     current = conn->wbuffers[current-1].next;
   }
-  if (!conn->wbuffer_last_towrite) {
-    conn->wbuffer_last_towrite = previous;
+
+  if (!conn->wbuffer_first_towrite) {
+    conn->wbuffer_first_towrite = conn->wbuffer_first_empty;
+  }
+  if (conn->wbuffer_last_towrite) {
+    conn->wbuffers[conn->wbuffer_last_towrite-1].next = conn->wbuffer_first_empty;
   }
 
-  conn->wbuffers[previous-1].next = conn->wbuffer_first_towrite;
-  conn->wbuffer_first_towrite = conn->wbuffer_first_empty;
+  conn->wbuffer_last_towrite = previous;
+  conn->wbuffers[previous-1].next = 0;
   conn->wbuffer_first_empty = current;
 
   conn->wbuffer_count += can_take;
@@ -292,6 +304,7 @@ static inline void pni_raw_release_buffers(pn_raw_connection_t *conn) {
     conn->rbuffers[p-1].next = 0;
     conn->rbuffers[p-1].type = buff_read;
   }
+  conn->rbuffer_last_unused = 0;
   for(;conn->wbuffer_first_towrite;) {
     buff_ptr p = conn->wbuffer_first_towrite;
     assert(conn->wbuffers[p-1].type == buff_unwritten);
@@ -307,6 +320,7 @@ static inline void pni_raw_release_buffers(pn_raw_connection_t *conn) {
     conn->wbuffers[p-1].next = 0;
     conn->wbuffers[p-1].type = buff_written;
   }
+  conn->wbuffer_last_towrite = 0;
   conn->rdrainpending = (bool)(conn->rbuffer_first_read);
   conn->wdrainpending = (bool)(conn->wbuffer_first_written);
 }
@@ -371,6 +385,9 @@ void pni_raw_read(pn_raw_connection_t *conn, int sock, long (*recv)(int, void*, 
     }
   }
 finished_reading:
+  if (!conn->rbuffer_first_unused) {
+    conn->rbuffer_last_unused = 0;
+  }
   // Read something - we are now either out of buffers; end of stream; or blocked for read
   if (conn->rbuffer_first_read && !conn->rpending) {
     conn->rpending = true;
@@ -443,6 +460,9 @@ void pni_raw_write(pn_raw_connection_t *conn, int sock, long (*send)(int, const 
     conn->wbuffers[p-1].type = buff_written;
   }
 finished_writing:
+  if (!conn->wbuffer_first_towrite) {
+    conn->wbuffer_last_towrite = 0;
+  }
   // Wrote something; end of stream; out of buffers; or blocked for write
   if (conn->wbuffer_first_written && !conn->wpending) {
     conn->wpending = true;
