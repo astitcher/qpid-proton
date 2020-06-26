@@ -38,10 +38,17 @@ using Catch::Matchers::Contains;
 using Catch::Matchers::Equals;
 
 namespace {
-  void set_error(pn_raw_connection_t*, const char*, int) {
+  int read_err;
+  void set_read_error(pn_raw_connection_t*, const char*, int err) {
+    read_err = err;
+  }
+  int write_err;
+  void set_write_error(pn_raw_connection_t*, const char*, int err) {
+    write_err = err;
   }
 #ifdef MSG_DONTWAIT
   long rcv(int fd, void* b, size_t s) {
+    read_err = 0;
     return ::recv(fd, b, s, MSG_DONTWAIT);
   }
 
@@ -60,6 +67,7 @@ namespace {
 
 #ifdef MSG_NOSIGNAL
   long snd(int fd, const void* b, size_t s) {
+    write_err = 0;
     return ::send(fd, b, s, MSG_NOSIGNAL | MSG_DONTWAIT);
   }
 
@@ -68,6 +76,7 @@ namespace {
   }
 #elif defined(SO_NOSIGPIPE)
   long snd(int fd, const void* b, size_t s) {
+    write_err = 0;
     return ::send(fd, b, s, MSG_DONTWAIT);
   }
 
@@ -84,10 +93,12 @@ namespace {
 #else
 // Dummy functions for compile under windows, but test will fail
   long rcv(int fd, void*, size_t){
+    read_err = 0;
     return 0;
   }
 
   long snd(int fd, const void*, size_t){
+    write_err = 0;
     return 0;
   }
 
@@ -228,215 +239,313 @@ TEST_CASE("raw connection") {
   REQUIRE(pni_raw_validate(p));
   REQUIRE(rtaken==rbuff_count);
 
-  int wtaken = pn_raw_connection_write_buffers(p, wbuffs, WBUFFCOUNT);
-  REQUIRE(pni_raw_validate(p));
-  REQUIRE(wtaken==wbuff_count);
+  SECTION("Write multiple per event loop") {
+    int wtaken = 0;
+    for (size_t i = 0; i < WBUFFCOUNT; ++i) {
+      int taken = pn_raw_connection_write_buffers(p, &wbuffs[i], 1);
+      if (taken==0) break;
+      REQUIRE(pni_raw_validate(p));
+      REQUIRE(taken==1);
+      wtaken += taken;
+    }
 
-  REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
-  REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
+    REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
+    REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
 
-  std::vector<pn_raw_buffer_t> read(rtaken);
-  std::vector<pn_raw_buffer_t> written(wtaken);
+    std::vector<pn_raw_buffer_t> read(rtaken);
+    std::vector<pn_raw_buffer_t> written(wtaken);
 
-  SECTION("Check no change in buffer use without read/write") {
+    SECTION("Simple tests using a looped back socketpair") {
+      int fds[2];
+      REQUIRE(makepair(fds) == 0);
+      pni_raw_connected(p);
 
-    int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], rtaken);
-    REQUIRE(pni_raw_validate(p));
-    REQUIRE(rgiven==0);
-    int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], wtaken);
-    REQUIRE(pni_raw_validate(p));
-    REQUIRE(wgiven==0);
+      // First event is always connected
+      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CONNECTED);
+      // Mo need buffers event as we already gave buffers
+      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+
+      SECTION("Write then read") {
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
+        int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(wgiven==wtaken);
+
+        // Write more
+        for (size_t i = wtaken; i < WBUFFCOUNT; ++i) {
+          int taken = pn_raw_connection_write_buffers(p, &wbuffs[i], 1);
+          if (taken==0) break;
+          REQUIRE(pni_raw_validate(p));
+          REQUIRE(taken==1);
+          wtaken += taken;
+        }
+
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
+        wgiven += pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+        REQUIRE(wgiven==wtaken);
+
+        // At this point we've written every buffer
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
+
+        pni_raw_read(p, fds[1], rcv, set_read_error);
+        REQUIRE(read_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
+        int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], read.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(rgiven > 0);
+
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
+
+        // At this point we should have read everything - make sure it matches
+        char* start = message;
+        for (int i = 0; i < rgiven; ++i) {
+          REQUIRE(read[i].size > 0);
+          REQUIRE(std::string(read[i].bytes, read[i].size) == std::string(start, read[i].size));
+          start += read[i].size;
+        }
+        REQUIRE(start-message == sizeof(message));
+      }
+
+    }
   }
 
-  SECTION("Simple tests using a looped back socketpair") {
-    int fds[2];
-    REQUIRE(makepair(fds) == 0);
-    pni_raw_connected(p);
+  SECTION("Write once per event loop") {
+    int wtaken = pn_raw_connection_write_buffers(p, wbuffs, WBUFFCOUNT);
+    REQUIRE(pni_raw_validate(p));
+    REQUIRE(wtaken==wbuff_count);
 
-    // First event is always connected
-    REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CONNECTED);
-    // Mo need buffers event as we already gave buffers
-    REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+    REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
+    REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
 
-    SECTION("Ensure nothing is read if nothing is written") {
-      pni_raw_read(p, fds[1], rcv, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
-      REQUIRE(pn_raw_connection_take_read_buffers(p, &read[0], read.size()) == 0);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pni_raw_event_next(p) == NULL);
+    std::vector<pn_raw_buffer_t> read(rtaken);
+    std::vector<pn_raw_buffer_t> written(wtaken);
 
-      snd_stop(fds[0]);
-      pni_raw_read(p, fds[1], rcv, set_error);
+    SECTION("Check no change in buffer use without read/write") {
+
+      int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], rtaken);
       REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_raw_connection_is_read_closed(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CLOSED_READ);
-      rcv_stop(fds[1]);
-      pni_raw_write(p, fds[0], snd, set_error);
+      REQUIRE(rgiven==0);
+      int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], wtaken);
       REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_raw_connection_is_write_closed(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CLOSED_WRITE);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_DISCONNECTED);
+      REQUIRE(wgiven==0);
     }
 
-    SECTION("Read/Write interleaved") {
-      pni_raw_write(p, fds[0], snd, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
-      int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], written.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
-      REQUIRE(wgiven==wtaken);
-      REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
+    SECTION("Simple tests using a looped back socketpair") {
+      int fds[2];
+      REQUIRE(makepair(fds) == 0);
+      pni_raw_connected(p);
 
-      pni_raw_read(p, fds[1], rcv, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
-      int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], read.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(rgiven > 0);
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
-
-      // Write more
-      wtaken += pn_raw_connection_write_buffers(p, &wbuffs[wtaken], WBUFFCOUNT-wtaken);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(wtaken==WBUFFCOUNT);
+      // First event is always connected
+      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CONNECTED);
+      // Mo need buffers event as we already gave buffers
       REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
 
-      pni_raw_write(p, fds[0], snd, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
-      wgiven += pn_raw_connection_take_written_buffers(p, &written[0], written.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
-      REQUIRE(wgiven==wtaken);
+      SECTION("Ensure nothing is read if nothing is written") {
+        pni_raw_read(p, fds[1], rcv, set_read_error);
+        REQUIRE(read_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
+        REQUIRE(pn_raw_connection_take_read_buffers(p, &read[0], read.size()) == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pni_raw_event_next(p) == NULL);
 
-      // At this point we've written every buffer
-
-      pni_raw_read(p, fds[1], rcv, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
-      int rgiven_before = rgiven;
-      rgiven += pn_raw_connection_take_read_buffers(p, &read[rgiven], read.size()-rgiven);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(rgiven > rgiven_before);
-
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
-      REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
-
-      // At this point we should have read everything - make sure it matches
-      char* start = message;
-      for (int i = 0; i < rgiven; ++i) {
-        REQUIRE(read[i].size > 0);
-        REQUIRE(std::string(read[i].bytes, read[i].size) == std::string(start, read[i].size));
-        start += read[i].size;
+        snd_stop(fds[0]);
+        pni_raw_read(p, fds[1], rcv, set_read_error);
+        REQUIRE(read_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_raw_connection_is_read_closed(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CLOSED_READ);
+        rcv_stop(fds[1]);
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == EPIPE);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_raw_connection_is_write_closed(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CLOSED_WRITE);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_DISCONNECTED);
       }
-      REQUIRE(start-message == sizeof(message));
-    }
 
-    SECTION("Write then read") {
-      pni_raw_write(p, fds[0], snd, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
-      REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
-      int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], written.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(wgiven==wtaken);
+      SECTION("Read/Write interleaved") {
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+        REQUIRE(wgiven==wtaken);
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
 
-      // Write more
-      wtaken += pn_raw_connection_write_buffers(p, &wbuffs[wtaken], WBUFFCOUNT-wtaken);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(wtaken==WBUFFCOUNT);
+        pni_raw_read(p, fds[1], rcv, set_read_error);
+        REQUIRE(read_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
+        int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], read.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(rgiven > 0);
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
 
-      pni_raw_write(p, fds[0], snd, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
-      wgiven += pn_raw_connection_take_written_buffers(p, &written[0], written.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
-      REQUIRE(wgiven==wtaken);
+        // Write more
+        wtaken += pn_raw_connection_write_buffers(p, &wbuffs[wtaken], WBUFFCOUNT-wtaken);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(wtaken==WBUFFCOUNT);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
 
-      // At this point we've written every buffer
-      REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        wgiven += pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
+        REQUIRE(wgiven==wtaken);
 
-      pni_raw_read(p, fds[1], rcv, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
-      int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], read.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(rgiven > 0);
+        // At this point we've written every buffer
 
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
+        pni_raw_read(p, fds[1], rcv, set_read_error);
+        REQUIRE(read_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
+        int rgiven_before = rgiven;
+        rgiven += pn_raw_connection_take_read_buffers(p, &read[rgiven], read.size()-rgiven);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(rgiven > rgiven_before);
 
-      // At this point we should have read everything - make sure it matches
-      char* start = message;
-      for (int i = 0; i < rgiven; ++i) {
-        REQUIRE(read[i].size > 0);
-        REQUIRE(std::string(read[i].bytes, read[i].size) == std::string(start, read[i].size));
-        start += read[i].size;
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
+
+        // At this point we should have read everything - make sure it matches
+        char* start = message;
+        for (int i = 0; i < rgiven; ++i) {
+          REQUIRE(read[i].size > 0);
+          REQUIRE(std::string(read[i].bytes, read[i].size) == std::string(start, read[i].size));
+          start += read[i].size;
+        }
+        REQUIRE(start-message == sizeof(message));
       }
-      REQUIRE(start-message == sizeof(message));
-    }
 
-    SECTION("Write, close, then read") {
-      pni_raw_write(p, fds[0], snd, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
-      REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
-      int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], written.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(wgiven==wtaken);
+      SECTION("Write then read") {
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
+        int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(wgiven==wtaken);
 
-      // Write more
-      wtaken += pn_raw_connection_write_buffers(p, &wbuffs[wtaken], WBUFFCOUNT-wtaken);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(wtaken==WBUFFCOUNT);
+        // Write more
+        wtaken += pn_raw_connection_write_buffers(p, &wbuffs[wtaken], WBUFFCOUNT-wtaken);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(wtaken==WBUFFCOUNT);
 
-      pni_raw_write(p, fds[0], snd, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
-      wgiven += pn_raw_connection_take_written_buffers(p, &written[0], written.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
-      REQUIRE(wgiven==wtaken);
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
+        wgiven += pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+        REQUIRE(wgiven==wtaken);
 
-      // At this point we've written every buffer
-      REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
+        // At this point we've written every buffer
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
 
-      snd_stop(fds[0]);
-      pni_raw_read(p, fds[1], rcv, set_error);
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CLOSED_READ);
-      REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
-      int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], read.size());
-      REQUIRE(pni_raw_validate(p));
-      REQUIRE(rgiven > 0);
+        pni_raw_read(p, fds[1], rcv, set_read_error);
+        REQUIRE(read_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
+        int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], read.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(rgiven > 0);
 
-      REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
-      REQUIRE(read[rgiven-1].size == 0);
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
 
-      // At this point we should have read everything - make sure it matches
-      char* start = message;
-      for (int i = 0; i < rgiven-1; ++i) {
-        REQUIRE(read[i].size > 0);
-        REQUIRE(std::string(read[i].bytes, read[i].size) == std::string(start, read[i].size));
-        start += read[i].size;
+        // At this point we should have read everything - make sure it matches
+        char* start = message;
+        for (int i = 0; i < rgiven; ++i) {
+          REQUIRE(read[i].size > 0);
+          REQUIRE(std::string(read[i].bytes, read[i].size) == std::string(start, read[i].size));
+          start += read[i].size;
+        }
+        REQUIRE(start-message == sizeof(message));
       }
-      REQUIRE(start-message == sizeof(message));
-    }
 
-    freepair(fds);
+      SECTION("Write, close, then read") {
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == 0);
+        int wgiven = pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(wgiven==wtaken);
+
+        // Write more
+        wtaken += pn_raw_connection_write_buffers(p, &wbuffs[wtaken], WBUFFCOUNT-wtaken);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(wtaken==WBUFFCOUNT);
+
+        pni_raw_write(p, fds[0], snd, set_write_error);
+        REQUIRE(write_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_WRITTEN);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_NEED_WRITE_BUFFERS);
+        wgiven += pn_raw_connection_take_written_buffers(p, &written[0], written.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+        REQUIRE(wgiven==wtaken);
+
+        // At this point we've written every buffer
+        REQUIRE(pn_raw_connection_write_buffers_capacity(p) == wbuff_count);
+
+        snd_stop(fds[0]);
+        pni_raw_read(p, fds[1], rcv, set_read_error);
+        REQUIRE(read_err == 0);
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_READ);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_RAW_CONNECTION_CLOSED_READ);
+        REQUIRE(pn_event_type(pni_raw_event_next(p)) == PN_EVENT_NONE);
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == 0);
+        int rgiven = pn_raw_connection_take_read_buffers(p, &read[0], read.size());
+        REQUIRE(pni_raw_validate(p));
+        REQUIRE(rgiven > 0);
+
+        REQUIRE(pn_raw_connection_read_buffers_capacity(p) == rgiven);
+        REQUIRE(read[rgiven-1].size == 0);
+
+        // At this point we should have read everything - make sure it matches
+        char* start = message;
+        for (int i = 0; i < rgiven-1; ++i) {
+          REQUIRE(read[i].size > 0);
+          REQUIRE(std::string(read[i].bytes, read[i].size) == std::string(start, read[i].size));
+          start += read[i].size;
+        }
+        REQUIRE(start-message == sizeof(message));
+      }
+
+      freepair(fds);
+    }
   }
 }
