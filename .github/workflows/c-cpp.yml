@@ -73,12 +73,12 @@ jobs:
         path: ${{env.BuildDir}}/python/pkgs
     - name: Upload Python & C build directories on failure
       uses: actions/upload-artifact@v2
+      if: failure()
       with:
-        if: failure()
         name: Debug-python-C-BLD_${{matrix.os}}_${{matrix.buildType}}
         path: |
-          c
-          python
+          ${{env.BuildDir}}/c
+          ${{env.BuildDir}}/python
     - name: ctest
       continue-on-error: true
       working-directory: ${{env.BuildDir}}
