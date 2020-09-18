@@ -449,6 +449,13 @@ typedef struct pn_proactor_t pn_proactor_t;
 typedef struct pn_raw_connection_t pn_raw_connection_t;
 
 /**
+ * A raw datagram handle used with the proactor.
+ *
+ * @ingroup raw_connection
+ */
+typedef struct pn_raw_datagram_t pn_raw_datagram_t;
+
+/**
  * A batch of events that must be handled in sequence.
  *
  * A pn_event_batch_t encapsulates potentially multiple events that relate
