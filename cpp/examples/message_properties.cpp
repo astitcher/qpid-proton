@@ -22,7 +22,7 @@
 #include <iostream>
 #include <map>
 
-int main(int argc, char **argv) {
+int main(int, char **) {
     try {
         proton::message m;
 

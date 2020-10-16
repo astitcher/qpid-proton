@@ -127,7 +127,7 @@ static inline int pn_create_socket(int af, int protocol);
 pn_socket_t pn_listen(pn_io_t *io, const char *host, const char *port)
 {
   struct addrinfo *addr;
-  struct addrinfo hints = {0, AF_UNSPEC, SOCK_STREAM};
+  struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
   int code = getaddrinfo(host, port, &hints, &addr);
   if (code) {
     pn_error_format(io->error, PN_ERR, "getaddrinfo(%s, %s): %s\n", host, port, gai_strerror(code));
@@ -170,7 +170,7 @@ pn_socket_t pn_listen(pn_io_t *io, const char *host, const char *port)
 pn_socket_t pn_connect(pn_io_t *io, const char *host, const char *port)
 {
   struct addrinfo *addr;
-  struct addrinfo hints = {0, AF_UNSPEC, SOCK_STREAM};
+  struct addrinfo hints = {.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM};
   int code = getaddrinfo(host, port, &hints, &addr);
   if (code) {
     pn_error_format(io->error, PN_ERR, "getaddrinfo(%s, %s): %s", host, port, gai_strerror(code));

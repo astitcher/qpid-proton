@@ -939,11 +939,7 @@ int pn_post_frame(pn_transport_t *transport, uint8_t type, uint16_t ch, const ch
     return PN_ERR;
   }
 
-  pn_frame_t frame = {AMQP_FRAME_TYPE};
-  frame.type = type;
-  frame.channel = ch;
-  frame.payload = buf.start;
-  frame.size = wr;
+  pn_frame_t frame = {.type = type, .channel = ch, .payload = buf.start, .size = wr};
   pn_buffer_ensure(transport->output_buffer, AMQP_HEADER_SIZE+frame.ex_size+frame.size);
   pn_write_frame(transport->output_buffer, frame);
   transport->output_frames_ct += 1;
@@ -1045,10 +1041,7 @@ static int pni_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
     payload->size -= available;
     buf.size += available;
 
-    pn_frame_t frame = {AMQP_FRAME_TYPE};
-    frame.channel = ch;
-    frame.payload = buf.start;
-    frame.size = buf.size;
+    pn_frame_t frame = {.type = AMQP_FRAME_TYPE, .channel = ch, .payload = buf.start, .size = buf.size};
 
     pn_buffer_ensure(transport->output_buffer, AMQP_HEADER_SIZE+frame.ex_size+frame.size);
     pn_write_frame(transport->output_buffer, frame);

@@ -172,7 +172,7 @@ class test_handler : public messaging_handler,  public listen_handler {
         on_listener_start(l.container());
     }
 
-    connection_options on_accept(listener& l) PN_CPP_OVERRIDE {
+    connection_options on_accept(listener&) PN_CPP_OVERRIDE {
         return connection_options_;
     }
 
@@ -197,7 +197,7 @@ class test_handler : public messaging_handler,  public listen_handler {
         FAIL("unexpected listen error " << s);
     }
 
-    virtual void check_connection(connection& c) {}
+    virtual void check_connection(connection&) {}
     virtual void on_listener_start(container& c) = 0;
 
   protected:

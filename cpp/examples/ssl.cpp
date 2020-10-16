@@ -69,7 +69,7 @@ struct server_handler : public proton::messaging_handler {
         messaging_handler::on_connection_open(c);
     }
 
-    void on_transport_error(proton::transport &t) OVERRIDE {
+    void on_transport_error(proton::transport &) OVERRIDE {
         listener.stop();
     }
 

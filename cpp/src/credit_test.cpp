@@ -178,7 +178,7 @@ class tester : public proton::messaging_handler, public waiter {
         r.add_credit(initial_credit_);
     }
 
-    void on_message(proton::delivery &d, proton::message &m) PN_CPP_OVERRIDE {
+    void on_message(proton::delivery &d, proton::message &) PN_CPP_OVERRIDE {
         received_++;
         d.accept();
     }
@@ -204,7 +204,7 @@ class tester : public proton::messaging_handler, public waiter {
         receiver_.connection().close();
     }
 
-    void on_connection_close(proton::connection& c) PN_CPP_OVERRIDE {
+    void on_connection_close(proton::connection&) PN_CPP_OVERRIDE {
         if (!fail_msg_.empty())
             FAIL(fail_msg_);
     }
@@ -269,7 +269,7 @@ class drain_credit_tester : public tester {
   public:
     drain_credit_tester() : drain_finishes_(0) { initial_credit_ = 10; }
 
-    void on_receiver_drain_finish(proton::receiver &r) PN_CPP_OVERRIDE {
+    void on_receiver_drain_finish(proton::receiver &) PN_CPP_OVERRIDE {
         drain_finishes_++;
     }
 

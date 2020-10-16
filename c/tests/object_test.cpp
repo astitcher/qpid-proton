@@ -85,8 +85,8 @@ static pn_map_t *build_map(float load_factor, size_t capacity, ...) {
   return result;
 }
 
-static void noop(void *o) {}
-static uintptr_t zero(void *o) { return 0; }
+static void noop(void *) {}
+static uintptr_t zero(void *) { return 0; }
 static intptr_t delta(void *a, void *b) { return (uintptr_t)b - (uintptr_t)a; }
 
 #define CID_noop CID_pn_object
@@ -533,7 +533,7 @@ static intptr_t collider_compare(void *a, void *b) {
   return (a > b) ? 1 : -1;
 }
 
-static uintptr_t collider_hashcode(void *obj) { return 23; }
+static uintptr_t collider_hashcode(void *) { return 23; }
 
 #define CID_collider CID_pn_object
 #define collider_initialize NULL

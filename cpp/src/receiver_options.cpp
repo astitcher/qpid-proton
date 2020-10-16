@@ -134,6 +134,6 @@ const std::string* receiver_options::get_name() const {
 }
 
 // No-op, kept for binary compat but auto_settle is not relevant to receiver only sender.
-receiver_options& receiver_options::auto_settle(bool b) { return *this; }
+receiver_options& receiver_options::auto_settle(bool) { return *this; }
 
 } // namespace proton

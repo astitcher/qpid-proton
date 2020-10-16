@@ -115,7 +115,7 @@ protected:
   //
   // Return true to stop dispatching and return control to the test function,
   // false to continue processing.
-  virtual bool handle(pn_event_t *e) { return false; }
+  virtual bool handle(pn_event_t *) { return false; }
 };
 
 // A pn_connection_driver_t that dispatches to a pn_test::handler

@@ -232,7 +232,7 @@ void on_connection_remote_close(messaging_handler& handler, pn_event_t* event) {
     pn_connection_close(conn);
 }
 
-void on_connection_bound(messaging_handler& handler, pn_event_t* event) {
+void on_connection_bound(messaging_handler&, pn_event_t* event) {
     connection c(make_wrapper(pn_event_connection(event)));
 }
 

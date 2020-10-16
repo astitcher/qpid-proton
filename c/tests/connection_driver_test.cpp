@@ -145,7 +145,7 @@ TEST_CASE("driver_message_transfer") {
   pn_delivery_t *dlv = server.delivery;
   REQUIRE(dlv);
   auto_free<pn_message_t, pn_message_free> m2(pn_message());
-  pn_rwbytes_t buf2 = {0};
+  pn_rwbytes_t buf2 = {0, NULL};
   message_decode(m2, dlv, &buf2);
   pn_data_t *body = pn_message_body(m2);
   pn_data_rewind(body);
@@ -201,13 +201,13 @@ TEST_CASE("driver_message_stream") {
   auto_free<pn_message_t, pn_message_free> m(pn_message());
   char body[1024] = {0};
   pn_data_put_binary(pn_message_body(m), pn_bytes(sizeof(body), body));
-  pn_rwbytes_t buf = {0};
+  pn_rwbytes_t buf = {0, NULL};
   ssize_t size = pn_message_encode2(m, &buf);
 
   /* Send and receive the message in chunks */
   static const ssize_t CHUNK = 100;
   pn_delivery(snd, pn_bytes("x"));
-  pn_rwbytes_t buf2 = {0};
+  pn_rwbytes_t buf2 = {0, NULL};
   ssize_t received = 0;
   for (ssize_t i = 0; i < size; i += CHUNK) {
     /* Send a chunk */
@@ -425,7 +425,7 @@ TEST_CASE("driver_session_flow_control") {
   pn_test::driver_pair d(client, server);
 
   auto_free<pn_message_t, pn_message_free> m(pn_message());
-  pn_rwbytes_t buf = {0};
+  pn_rwbytes_t buf = {0, NULL};
 
   /* Capacity equal to frame size OK */
   set_capacity_and_max_frame(1234, 1234, d, "foo");

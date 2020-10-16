@@ -70,7 +70,7 @@ void millisleep(long ms) { Sleep(ms); }
 #include <unistd.h>             /* For sleep() */
 
 void millisleep(long ms) {
-  struct timespec delay = {0};
+  struct timespec delay;
   delay.tv_sec  = ms / 1000;
   delay.tv_nsec = (ms % 1000) * 1000000;
   nanosleep(&delay, NULL);

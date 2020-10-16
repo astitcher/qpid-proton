@@ -61,7 +61,7 @@ void devnull(intptr_t context, pn_log_subsystem_t sub,  pn_log_level_t sev, cons
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   if (VERBOSE)
     printf("BEGIN LLVMFuzzerTestOneInput\n");
-  app_data_t app = {{0}};
+  app_data_t app = {.container_id={0}};
   sprintf(app.container_id, "%s:%06x",
            "fuzz_connection_driver", rand() & 0xffffff);
 

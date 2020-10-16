@@ -123,7 +123,7 @@ class client : public proton::messaging_handler {
         sender_ready_.notify_all();
     }
 
-    void on_message(proton::delivery& dlv, proton::message& msg) override {
+    void on_message(proton::delivery&, proton::message& msg) override {
         std::lock_guard<std::mutex> l(lock_);
         messages_.push(msg);
         messages_ready_.notify_all();

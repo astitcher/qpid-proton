@@ -37,7 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct app_data_t {
+struct app_data_t {
   const char *amqp_address;
   const char *container_id;
 
@@ -45,7 +45,15 @@ typedef struct app_data_t {
 
   bool connection_succeeded;
   bool transport_error;
-} app_data_t;
+
+  app_data_t() :
+    amqp_address(0),
+    container_id(0),
+    server_ssl_domain(0),
+    connection_succeeded(false),
+    transport_error(false)
+  {}
+};
 
 /* Note must be run in the current directory to find certificate files */
 #define SSL_FILE(NAME) "ssl-certs/" NAME
@@ -193,7 +201,7 @@ static void setup_connection(pn_proactor_t* proactor, pn_transport_t* t) {
 }
 
 TEST_CASE("ssl certificate verification tests") {
-  struct app_data_t app = {0};
+  app_data_t app;
 
   app.container_id = "ssl-test";
   app.amqp_address = "fubar";

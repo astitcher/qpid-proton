@@ -55,8 +55,8 @@ void pni_logger_fini(pn_logger_t *logger)
   logger->scratch = NULL;
 }
 
-#define LOGLEVEL(x)   {sizeof(#x)-1, #x, PN_LEVEL_ ## x, PN_LEVEL_ ## x-1}
-#define TRACE(x)      {sizeof(#x)-1, #x, PN_LEVEL_ ## x}
+#define LOGLEVEL(x)   {sizeof(#x)-1, #x, PN_LEVEL_ ## x, PN_LEVEL_ ## x-1, 0}
+#define TRACE(x)      {sizeof(#x)-1, #x, PN_LEVEL_ ## x, 0, 0}
 #define SPECIAL(x, y) {sizeof(#x)-1, #x, PN_LEVEL_NONE, PN_LEVEL_NONE, y}
 typedef struct {
     uint8_t   strlen;
@@ -75,7 +75,7 @@ static const log_level log_levels[] = {
   TRACE(FRAME),
   TRACE(RAW),
   SPECIAL(MEMORY, pni_mem_setup_logging),
-  {0, ""}
+  {0, "", 0, 0, 0}
 };
 
 void pni_decode_log_env(const char *log_env, int *setmask)

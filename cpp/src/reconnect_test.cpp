@@ -114,7 +114,7 @@ class server_connection_handler : public proton::messaging_handler {
         r.add_credit(1);
     }
 
-    void on_message(proton::delivery & d, proton::message & m) PN_CPP_OVERRIDE {
+    void on_message(proton::delivery & d, proton::message &) PN_CPP_OVERRIDE {
         ++messages_;
         proton::connection c = d.connection();
         if (messages_==expect_) close(c);
@@ -160,7 +160,7 @@ class tester : public proton::messaging_handler, public waiter {
         open_count++;
     }
 
-    void on_sender_open(proton::sender &s) PN_CPP_OVERRIDE {
+    void on_sender_open(proton::sender &) PN_CPP_OVERRIDE {
         link_open_count++;
     }
 
@@ -177,7 +177,7 @@ class tester : public proton::messaging_handler, public waiter {
         transport_error_count++;
     }
 
-    void on_transport_close(proton::transport& t) PN_CPP_OVERRIDE {
+    void on_transport_close(proton::transport&) PN_CPP_OVERRIDE {
         transport_close_count++;
     }
 
@@ -255,7 +255,7 @@ class authfail_reconnect_tester : public proton::messaging_handler, public waite
         c.schedule(proton::duration::SECOND, proton::make_work(&authfail_reconnect_tester::deferred_stop, this));
     }
 
-    void on_transport_error(proton::transport& t) PN_CPP_OVERRIDE {
+    void on_transport_error(proton::transport&) PN_CPP_OVERRIDE {
         errored_ = true;
     }
 
@@ -296,7 +296,7 @@ class test_reconnecting_close : public proton::messaging_handler, public waiter 
         t.connection().close();                        // Abort reconnection
     }
 
-    void on_connection_close(proton::connection& c) PN_CPP_OVERRIDE {
+    void on_connection_close(proton::connection&) PN_CPP_OVERRIDE {
         ASSERT(0);              // Not expecting any clean close
     }
 

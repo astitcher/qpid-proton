@@ -230,7 +230,7 @@ class stop_tester : public proton::messaging_handler {
         state = 5;
     }
 
-    void on_transport_error(proton::transport & t) PN_CPP_OVERRIDE {
+    void on_transport_error(proton::transport &) PN_CPP_OVERRIDE {
         // Do nothing - ignore transport errors - we're going to get one when
         // the container stops.
     }
@@ -268,7 +268,7 @@ struct hang_tester : public proton::messaging_handler {
         c.close();
     }
 
-    void on_connection_close(proton::connection& c) PN_CPP_OVERRIDE {
+    void on_connection_close(proton::connection&) PN_CPP_OVERRIDE {
         if (!done) {
             done = true;
             listener.stop();

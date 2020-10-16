@@ -209,7 +209,7 @@ class receiver : private proton::messaging_handler {
         receiver_.add_credit(MAX_BUFFER); // Buffer is empty, initial credit is the limit
     }
 
-    void on_message(proton::delivery &d, proton::message &m) override {
+    void on_message(proton::delivery &, proton::message &m) override {
         // Proton automatically reduces credit by 1 before calling on_message
         std::lock_guard<std::mutex> l(lock_);
         buffer_.push(m);
