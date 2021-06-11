@@ -190,11 +190,9 @@ void pni_logger_log_data(pn_logger_t *logger, pn_log_subsystem_t subsystem, pn_l
   char buf[256];
   ssize_t n = pn_quote_data(buf, 256, bytes, size);
   if (n >= 0) {
-    pn_logger_logf(logger, subsystem, severity, "%s: %s", msg, buf);
+    pn_logger_logf(logger, subsystem, severity, "%s: \"%s\"", msg, buf);
   } else if (n == PN_OVERFLOW) {
-    pn_logger_logf(logger, subsystem, severity, "%s: %s (truncated)", msg, buf);
-  } else {
-    pn_logger_logf(logger, subsystem, severity, "%s: cannot log data: %s", msg, pn_code(n));
+    pn_logger_logf(logger, subsystem, severity, "%s: \"%s\"... (truncated)", msg, buf);
   }
 }
 
@@ -232,7 +230,7 @@ void pni_logger_log(pn_logger_t *logger, pn_log_subsystem_t subsystem, pn_log_le
   logger->sink(logger->sink_context, subsystem, severity, message);
 }
 
-void pni_logger_vlogf(pn_logger_t *logger, pn_log_subsystem_t subsystem, pn_log_level_t severity, const char *fmt, va_list ap)
+inline void pni_logger_vlogf(pn_logger_t *logger, pn_log_subsystem_t subsystem, pn_log_level_t severity, const char *fmt, va_list ap)
 {
   assert(logger);
   pn_string_vformat(logger->scratch, fmt, ap);
