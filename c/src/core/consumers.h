@@ -149,4 +149,87 @@ static inline bool pni_consume_descriptor(pni_consumer_t* consumer, uint64_t *de
     pni_consume_ulong(consumer, descriptor);
 }
 
+static inline bool pni_consume_value_bytes(pni_consumer_t* consumer, uint8_t type) {
+  uint8_t subcategory = type >> 4;
+  switch (subcategory) {
+  // Fixed width types:
+  // No data
+  case 0x4:
+    return true;
+  // 1 Octet
+  case 0x5:
+    if (consumer->position+1 > consumer->size) return false;
+    consumer->position += 1;
+    return true;
+  // 2 Octets
+  case 0x6:
+    if (consumer->position+2 > consumer->size) return false;
+    consumer->position += 2;
+    return true;
+  // 4 Octets
+  case 0x7:
+    if (consumer->position+4 > consumer->size) return false;
+    consumer->position += 4;
+    return true;
+  // 8 Octets
+  case 0x8:
+    if (consumer->position+8 > consumer->size) return false;
+    consumer->position += 8;
+    return true;
+  // 16 Octets
+  case 0x9:
+    if (consumer->position+16 > consumer->size) return false;
+    consumer->position += 16;
+    return true;
+  // Variable width types:
+  // One Octet of size
+  case 0xA:
+  case 0xC:
+  case 0xE: {
+    uint8_t size;
+    if (!pni_consumer_readf8(consumer, &size)) return false;
+    if (consumer->position+size > consumer->size) return false;
+    consumer->position += size;
+    return true;
+  }
+  // 4 Octets of size
+  case 0xB:
+  case 0xD:
+  case 0xF: {
+    uint32_t size;
+    if (!pni_consumer_readf32(consumer, &size)) return false;
+    if (consumer->position+size > consumer->size) return false;
+    consumer->position += size;
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
+static inline bool pni_consume_single_value_not_described(pni_consumer_t* consumer, uint8_t* type) {
+  uint8_t t;
+  if (!pni_consumer_readf8(consumer, &t)) return false;
+  if (t==0) return false;
+  if (!pni_consume_value_bytes(consumer, t)) return false;
+  *type = t;
+  return true;
+}
+
+static inline bool pni_consume_single_value(pni_consumer_t* consumer, uint8_t* type) {
+  uint8_t t;
+  if (!pni_consumer_readf8(consumer, &t)) return false;
+  if (t==0) {
+    uint8_t dummy;
+    if (!pni_consume_single_value_not_described(consumer, &dummy) ||
+        !pni_consume_single_value_not_described(consumer, &dummy)) return false;
+    *type = t;
+    return true;
+  } else {
+    if (!pni_consume_value_bytes(consumer, t)) return false;
+    *type = t;
+    return true;
+  }
+}
+
 #endif // PROTON_CONSUMERS_H

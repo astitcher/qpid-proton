@@ -91,6 +91,12 @@ static int pni_dispatch_frame(pn_frame_t frame, pn_logger_t *logger, pn_transpor
     return PN_ERR;
   }
 
+  uint8_t dtype;
+  if (!pni_consume_single_value_not_described(&consumer, &dtype)) {
+    PN_LOG(logger, PN_SUBSYSTEM_AMQP, PN_LEVEL_ERROR, "Error dispatching frame");
+    return PN_ERR;
+  }
+
   uint8_t frame_type = frame.type;
   uint16_t channel = frame.channel;
 
