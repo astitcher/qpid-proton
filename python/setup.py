@@ -20,7 +20,6 @@
 
 from setuptools import setup
 
-setup(name='python-qpid-proton',
-      setup_requires=["cffi>=1.0.0"],
-      cffi_modules=["ext_build.py:ffibuilder"],
-      install_requires=["cffi>=1.0.0"])
+setup(
+    cffi_modules='ext_build.py:ffibuilder'
+)

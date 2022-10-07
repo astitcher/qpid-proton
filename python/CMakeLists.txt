@@ -49,14 +49,12 @@ set (pysrc
 set(py_dist_files
     setup.py
     setup.cfg
+    pyproject.toml
     README.rst
     MANIFEST.in
     ext_build.py
     cproton.h
-    setuputils/__init__.py
-    setuputils/log.py
-    setuputils/misc.py
-    setuputils/PYZMQ_LICENSE.BSD
+    cproton.py
     docs/conf.py
     docs/index.rst
     docs/overview.rst
