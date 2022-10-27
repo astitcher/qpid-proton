@@ -642,22 +642,16 @@ pn_delivery_t *pn_work_next(pn_delivery_t *delivery);
 #define PN_TRACE_FRM ...
 #define PN_TRACE_DRV ...
 
-static pn_class_t *PN_PYREF;
-
 // Maybe need to get this from cmake, or modify how the binding does this
 #define PN_VERSION_MAJOR ...
 #define PN_VERSION_MINOR ...
 #define PN_VERSION_POINT ...
 
 // Initialization of library - probably a better way to do this than explicitly, but it works!
-void init();
+pn_class_t* pn_create_pyref();
 
 pn_connection_t *pn_cast_pn_connection(void *x);
 pn_session_t *pn_cast_pn_session(void *x);
 pn_link_t *pn_cast_pn_link(void *x);
 pn_delivery_t *pn_cast_pn_delivery(void *x);
 pn_transport_t *pn_cast_pn_transport(void *x);
-
-typedef ... PyObject;
-void *pn_py2void(PyObject *object);
-PyObject *pn_void2py(void *object);

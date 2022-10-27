@@ -27,7 +27,7 @@ from cproton import PN_CONNECTION_BOUND, PN_CONNECTION_FINAL, PN_CONNECTION_INIT
     PN_TRANSPORT, PN_TRANSPORT_CLOSED, PN_TRANSPORT_ERROR, PN_TRANSPORT_HEAD_CLOSED, PN_TRANSPORT_TAIL_CLOSED, \
     pn_cast_pn_connection, pn_cast_pn_delivery, pn_cast_pn_link, pn_cast_pn_session, pn_cast_pn_transport, \
     pn_class_name, pn_collector, pn_collector_free, pn_collector_more, pn_collector_peek, pn_collector_pop, \
-    pn_collector_put, pn_collector_release, pn_event_class, pn_event_connection, pn_event_context, pn_event_delivery, \
+    pn_collector_put_pyref, pn_collector_release, pn_event_class, pn_event_connection, pn_event_context, pn_event_delivery, \
     pn_event_link, pn_event_session, pn_event_transport, pn_event_type, pn_event_type_name, pn_py2void, pn_void2py
 
 from ._delivery import Delivery
@@ -48,8 +48,8 @@ class Collector:
     def __init__(self) -> None:
         self._impl = pn_collector()
 
-    def put(self, obj: 'Selectable', etype: 'EventType') -> None:
-        pn_collector_put(self._impl, PN_PYREF, pn_py2void(obj), etype.number)
+    def put(self, obj: Any, etype: 'EventType') -> None:
+        pn_collector_put_pyref(self._impl, obj, etype)
 
     def peek(self) -> Optional['Event']:
         return Event.wrap(pn_collector_peek(self._impl))

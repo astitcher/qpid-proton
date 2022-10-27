@@ -19,7 +19,7 @@
 
 from typing import Any, Callable, Optional, Union
 
-from cproton import pn_incref, pn_decref, \
+from cproton import addressof, pn_incref, pn_decref, \
     pn_py2void, pn_void2py, \
     pn_record_get, pn_record_def, pn_record_set, \
     PN_PYREF
@@ -43,7 +43,7 @@ EMPTY_ATTRS = EmptyAttrs()
 
 
 class Wrapper(object):
-    """ Wrapper for python objects that need to be stored in event contexts and be retrived again from them
+    """ Wrapper for python objects that need to be stored in event contexts and be retrieved again from them
         Quick note on how this works:
         The actual *python* object has only 3 attributes which redirect into the wrapped C objects:
         _impl   The wrapped C object itself
@@ -139,5 +139,4 @@ class Wrapper(object):
                                         id(self), addressof(self._impl))
 
 
-PYCTX = int(pn_py2void(Wrapper))
-addressof = int
+PYCTX = addressof(pn_py2void(Wrapper))

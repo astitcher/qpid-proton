@@ -115,28 +115,8 @@ pn_link_t *pn_cast_pn_link(void *x) { return (pn_link_t *) x; }
 pn_delivery_t *pn_cast_pn_delivery(void *x) { return (pn_delivery_t *) x; }
 pn_transport_t *pn_cast_pn_transport(void *x) { return (pn_transport_t *) x; }
 
-void *pn_py2void(PyObject *object) {
-    return object;
-}
-
-PyObject *pn_void2py(void *object) {
-    if (object) {
-        PyObject* p = (PyObject*) object;
-        Py_INCREF(p);
-        return p;
-    } else {
-        Py_RETURN_NONE;
-    }
-}
-
-// These are all defined in the swig interface to python
-// pn_transport_get_pytracer
-// pn_transport_set_pytracer
-
-pn_class_t *PN_PYREF;
-
-void init() {
-    PN_PYREF = pn_class_create("pn_pyref", NULL, NULL, pn_pyref_incref, pn_pyref_decref, pn_pyref_refcount);
+pn_class_t* pn_create_pyref() {
+    return pn_class_create("pn_pyref", NULL, NULL, pn_pyref_incref, pn_pyref_decref, pn_pyref_refcount);
 }
 
 """
