@@ -54,7 +54,8 @@ from cproton import PN_CONFIGURATION, PN_COORDINATOR, PN_DELIVERIES, PN_DIST_MOD
     pn_terminus_is_dynamic, pn_terminus_outcomes, pn_terminus_properties, pn_terminus_set_address, \
     pn_terminus_set_distribution_mode, pn_terminus_set_durability, pn_terminus_set_dynamic, \
     pn_terminus_set_expiry_policy, pn_terminus_set_timeout, pn_terminus_set_type, pn_work_head, \
-    pn_link_properties, pn_link_remote_properties
+    pn_link_properties, pn_link_remote_properties, \
+    isnull
 
 from ._common import unicode2utf8, utf82unicode
 from ._condition import cond2obj, obj2cond
@@ -161,7 +162,7 @@ class Connection(Wrapper, Endpoint):
 
     @staticmethod
     def wrap(impl):
-        if impl is None:
+        if isnull(impl):
             return None
         else:
             return Connection(impl)
@@ -574,7 +575,7 @@ class Session(Wrapper, Endpoint):
     """A container of links"""
     @staticmethod
     def wrap(impl):
-        if impl is None:
+        if isnull(impl):
             return None
         else:
             return Session(impl)
@@ -738,7 +739,7 @@ class Link(Wrapper, Endpoint):
 
     @staticmethod
     def wrap(impl):
-        if impl is None:
+        if isnull(impl):
             return None
         if pn_link_is_sender(impl):
             return Sender(impl)

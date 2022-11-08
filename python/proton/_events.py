@@ -28,7 +28,8 @@ from cproton import PN_CONNECTION_BOUND, PN_CONNECTION_FINAL, PN_CONNECTION_INIT
     pn_cast_pn_connection, pn_cast_pn_delivery, pn_cast_pn_link, pn_cast_pn_session, pn_cast_pn_transport, \
     pn_class_name, pn_collector, pn_collector_free, pn_collector_more, pn_collector_peek, pn_collector_pop, \
     pn_collector_put_pyref, pn_collector_release, pn_event_class, pn_event_connection, pn_event_context, pn_event_delivery, \
-    pn_event_link, pn_event_session, pn_event_transport, pn_event_type, pn_event_type_name, pn_py2void, pn_void2py
+    pn_event_link, pn_event_session, pn_event_transport, pn_event_type, pn_event_type_name, pn_py2void, pn_void2py, \
+    isnull
 
 from ._delivery import Delivery
 from ._endpoints import Connection, Link, Session
@@ -399,7 +400,7 @@ class Event(EventBase):
 
     @staticmethod
     def wrap(impl):
-        if impl is None:
+        if isnull(impl):
             return None
 
         number = pn_event_type(impl)
