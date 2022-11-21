@@ -110,16 +110,16 @@ from cproton_ffi.lib import \
     PN_EVENT_NONE, \
     pn_create_pyref
 
-def isnull(object):
-    return object is None or object == ffi.NULL
+def isnull(obj):
+    return obj is None or obj == ffi.NULL
 
 
-def addressof(object):
-    return ffi.cast('uint64_t', object)
+def addressof(obj):
+    return ffi.cast('uint64_t', obj)
 
 
-def pn_py2void(object):
-    return ffi.new_handle(object)
+def pn_py2void(obj):
+    return ffi.new_handle(obj)
 
 
 def pn_void2py(void):
@@ -137,13 +137,27 @@ def pn_transport_set_pytracer():
 PN_PYREF = pn_create_pyref()
 
 
+global_root = set()
+
+
 def pn_collector_put_pyref(collector, obj, etype):
-    lib.pn_collector_put(collector, PN_PYREF, pn_py2void(obj), etype.number)
+    d = ffi.new_handle(obj)
+    global_root.add(d)
+    lib.pn_collector_put(collector, PN_PYREF, d, etype.number)
 
 
 def pn_class_name(clazz):
     return ffi.string(lib.pn_class_name(clazz)).decode('utf8')
 
+
+@ffi.def_extern()
+def pn_pyref_incref(object):
+    global_root.add(object)
+
+
+@ffi.def_extern()
+def pn_pyref_decref(object):
+    global_root.discard(object)
 
 '''
 const char *pn_condition_get_description(pn_condition_t *condition);

@@ -95,15 +95,8 @@ pn_class_t *pn_class_create(
     void (*decref)(void*),
     int (*refcount)(void*));
 
-static void pn_pyref_incref(void *object) {
-    PyObject* p = (PyObject*) object;
-    Py_XINCREF(p);
-}
-
-static void pn_pyref_decref(void *object) {
-    PyObject* p = (PyObject*) object;
-    Py_XDECREF(p);
-}
+static void pn_pyref_incref(void *object);
+static void pn_pyref_decref(void *object);
 
 static int pn_pyref_refcount(void *object) {
     return 1;

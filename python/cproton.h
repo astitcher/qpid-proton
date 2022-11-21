@@ -655,3 +655,6 @@ pn_session_t *pn_cast_pn_session(void *x);
 pn_link_t *pn_cast_pn_link(void *x);
 pn_delivery_t *pn_cast_pn_delivery(void *x);
 pn_transport_t *pn_cast_pn_transport(void *x);
+
+extern "Python" void pn_pyref_incref(void *object);
+extern "Python" void pn_pyref_decref(void *object);
