@@ -73,40 +73,24 @@ static void check_condition(pn_event_t *e, pn_condition_t *cond) {
   }
 }
 
-/* Create a message with a map { "sequence" : number } encode it and return the encoded buffer. */
 static pn_bytes_t encode_message(app_data_t* app) {
-  /* Construct a message with the map { "sequence": app.sent } */
   pn_message_t* message = pn_message();
   char data[MSG_SIZE + 11] = {0};
-  pn_data_t* body;
   pn_message_set_id(message, (pn_atom_t){.type=PN_ULONG, .u.as_ulong=app->sent});
-  body = pn_message_body(message);
-  pn_data_enter(body);
-  pn_data_put_string(body, pn_bytes(MSG_SIZE, data));
-  pn_data_exit(body);
+  pn_message_set_body_data(message, pn_bytes(MSG_SIZE, data));
 
   /* encode the message, expanding the encode buffer as needed */
   if (app->message_buffer.start == NULL) {
     static const size_t initial_size = MSG_SIZE + 1000;
     app->message_buffer = pn_rwbytes(initial_size, (char*)malloc(initial_size));
   }
-  /* app->message_buffer is the total buffer space available. */
-  /* mbuf wil point at just the portion used by the encoded message */
-  {
-  pn_rwbytes_t mbuf = pn_rwbytes(app->message_buffer.size, app->message_buffer.start);
-  int status = 0;
-  while ((status = pn_message_encode(message, mbuf.start, &mbuf.size)) == PN_OVERFLOW) {
-    app->message_buffer.size *= 2;
-    app->message_buffer.start = (char*)realloc(app->message_buffer.start, app->message_buffer.size);
-    mbuf.size = app->message_buffer.size;
-  }
-  if (status != 0) {
+  ssize_t size = pn_message_encode2(message, &app->message_buffer);
+  if (size < 0) {
     fprintf(stderr, "error encoding message: %s\n", pn_error_text(pn_message_error(message)));
     exit(1);
   }
   pn_message_free(message);
-  return pn_bytes(mbuf.size, mbuf.start);
-  }
+  return pn_bytes(size, app->message_buffer.start);
 }
 
 /* Returns true to continue, false if finished */

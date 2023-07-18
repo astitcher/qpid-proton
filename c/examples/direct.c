@@ -42,6 +42,7 @@ typedef struct app_data_t {
   int message_count;
 
   pn_proactor_t *proactor;
+  pn_message_t  *message;
   pn_listener_t *listener;
   pn_rwbytes_t msgin, msgout;   /* Buffers for incoming/outgoing messages */
 
@@ -79,19 +80,16 @@ static void check_condition(pn_event_t *e, pn_condition_t *cond, app_data_t *app
 /* Create a message with a map { "sequence" : number } encode it and return the encoded buffer. */
 static void send_message(app_data_t *app, pn_link_t *sender) {
   /* Construct a message with the map { "sequence": app.sent } */
-  pn_message_t* message = pn_message();
-  pn_data_t* body = pn_message_body(message);
-  pn_message_set_id(message, (pn_atom_t){.type=PN_ULONG, .u.as_ulong=app->sent});
-  pn_data_put_map(body);
-  pn_data_enter(body);
-  pn_data_put_string(body, pn_bytes(sizeof("sequence")-1, "sequence"));
-  pn_data_put_int(body, app->sent); /* The sequence number */
-  pn_data_exit(body);
-  if (pn_message_send(message, sender, &app->msgout) < 0) {
-    fprintf(stderr, "send error: %s\n", pn_error_text(pn_message_error(message)));
+  pn_bytes_t sequence = pn_bytes(sizeof("sequence")-1, "sequence");
+  pn_message_clear(app->message);
+  pn_message_set_id(app->message, (pn_atom_t){.type=PN_ULONG, .u.as_ulong=app->sent});
+  pn_amqp_map_t *props = pn_message_properties_build(NULL, sequence, (pn_atom_t){.type=PN_INT, .u.as_int=app->sent}, pn_bytes_null);
+  pn_message_set_body_value(app->message, (pn_amqp_value_t*)props);
+  pn_amqp_map_free(props);
+  if (pn_message_send(app->message, sender, &app->msgout) < 0) {
+    fprintf(stderr, "send error: %s\n", pn_error_text(pn_message_error(app->message)));
     exit_code = 1;
   }
-  pn_message_free(message);
 }
 
 static void decode_message(pn_rwbytes_t data) {
@@ -99,10 +97,12 @@ static void decode_message(pn_rwbytes_t data) {
   int err = pn_message_decode(m, data.start, data.size);
   if (!err) {
     /* Print the decoded message */
-    char *s = pn_tostring(pn_message_body(m));
+    pn_amqp_value_t *value = pn_message_get_body_value(m);
+    char *s = pn_amqp_value_tostring(value);
     printf("%s\n", s);
     fflush(stdout);
     free(s);
+    pn_amqp_value_free(value);
     pn_message_free(m);
     free(data.start);
   } else {
@@ -311,6 +311,7 @@ int main(int argc, char **argv) {
   app.port = (argc > 2) ? argv[2] : "amqp";
   app.amqp_address = (argc > 3) ? argv[3] : "examples";
   app.message_count = (argc > 4) ? atoi(argv[4]) : 10;
+  app.message = pn_message();
 
   /* Create the proactor and connect */
   app.proactor = pn_proactor();
@@ -321,5 +322,6 @@ int main(int argc, char **argv) {
   pn_proactor_free(app.proactor);
   free(app.msgout.start);
   free(app.msgin.start);
+  pn_message_free(app.message);
   return exit_code;
 }
