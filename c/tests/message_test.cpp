@@ -23,7 +23,6 @@
 
 #include <proton/error.h>
 #include <proton/message.h>
-#include <stdarg.h>
 
 using namespace pn_test;
 
@@ -81,4 +80,68 @@ TEST_CASE("message_inferred") {
 
   pn_message_free(src);
   pn_message_free(dst);
+}
+
+TEST_CASE("message_properties_roundtrip") {
+
+  pn_amqp_map_t *mprops =
+    pn_message_properties_build(
+      nullptr,
+      "hello"_b,    pn_atom(true),
+      "world"_b,    "this-is-a-string"_a,
+      "this"_b,     pn_atom(101u),
+      "is"_b,       "what fun"_a,
+      "me"_b,       pn_atom(3.14f),
+      "Margaret"_b, pn_atom(-11729),
+      pn_bytes_null
+    );
+  CHECK(mprops);
+
+  auto mprops_str = to_string(pn_amqp_map_bytes(mprops));
+  CHECK(
+    mprops_str ==
+    R"({"hello"=true, "world"="this-is-a-string", "this"=0x65, "is"="what fun", "me"=3.14, "Margaret"=-11729})");
+
+  pn_message_t *msg = pn_message();
+  pn_message_set_properties(msg, mprops);
+  pn_amqp_map_t *mprops2 = pn_message_get_properties(msg);
+  pn_message_free(msg);
+
+  CHECK(
+    to_string(pn_amqp_map_bytes(mprops2)) == mprops_str);
+
+  pn_amqp_map_free(mprops2);
+  pn_amqp_map_free(mprops);
+}
+
+TEST_CASE("message_annotation_rountrip") {
+
+  auto fields =
+    pn_amqp_fields_build(
+      nullptr,
+      "hello"_b,    pn_atom(true),
+      "world"_b,    "this-is-a-string"_a,
+      "this"_b,     pn_atom(101u),
+      "is"_b,       "what fun"_a,
+      "me"_b,       pn_atom(3.14f),
+      "Margaret"_b, pn_atom(-11729),
+      pn_bytes_null
+    );
+  CHECK(fields);
+
+  auto fields_str = to_string(pn_amqp_map_bytes(fields));
+  CHECK(
+    fields_str ==
+    R"({:hello=true, :world="this-is-a-string", :this=0x65, :is="what fun", :me=3.14, :Margaret=-11729})");
+
+  auto msg = pn_message();
+  pn_message_set_annotations(msg, fields);
+  auto fields2 = pn_message_get_annotations(msg);
+  pn_message_free(msg);
+
+  CHECK(
+    to_string(pn_amqp_map_bytes(fields2)) == fields_str);
+
+  pn_amqp_map_free(fields2);
+  pn_amqp_map_free(fields);
 }

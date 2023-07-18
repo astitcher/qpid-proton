@@ -23,6 +23,7 @@
  */
 
 #include <proton/import_export.h>
+#include <proton/amqp_value.h>
 #include <proton/type_compat.h>
 #include <proton/codec.h>
 #include <stddef.h>
@@ -258,6 +259,9 @@ PN_EXTERN int pn_terminus_set_dynamic(pn_terminus_t *terminus, bool dynamic);
  */
 PN_EXTERN pn_data_t *pn_terminus_properties(pn_terminus_t *terminus);
 
+PN_EXTERN pn_amqp_map_t *pn_terminus_get_properties(pn_terminus_t *terminus);
+PN_EXTERN void pn_terminus_set_properties(pn_terminus_t *terminus, pn_amqp_map_t *properties);
+
 /**
  * Access/modify the AMQP capabilities data for a terminus object.
  *
@@ -271,6 +275,9 @@ PN_EXTERN pn_data_t *pn_terminus_properties(pn_terminus_t *terminus);
  * @return a pointer to a pn_data_t representing the terminus capabilities
  */
 PN_EXTERN pn_data_t *pn_terminus_capabilities(pn_terminus_t *terminus);
+
+PN_EXTERN pn_amqp_array_t *pn_terminus_get_capabilities(pn_terminus_t *terminus);
+PN_EXTERN void pn_terminus_set_capabilities(pn_terminus_t *terminus, pn_amqp_array_t *capabilities);
 
 /**
  * Access/modify the AMQP outcomes for a terminus object.
@@ -286,6 +293,9 @@ PN_EXTERN pn_data_t *pn_terminus_capabilities(pn_terminus_t *terminus);
  */
 PN_EXTERN pn_data_t *pn_terminus_outcomes(pn_terminus_t *terminus);
 
+PN_EXTERN pn_amqp_array_t *pn_terminus_get_outcomes(pn_terminus_t *terminus);
+PN_EXTERN void pn_terminus_set_outcomes(pn_terminus_t *terminus, pn_amqp_array_t *outcomes);
+
 /**
  * Access/modify the AMQP filter set for a terminus object.
  *
@@ -299,6 +309,9 @@ PN_EXTERN pn_data_t *pn_terminus_outcomes(pn_terminus_t *terminus);
  * @return a pointer to a pn_data_t representing the terminus filter set
  */
 PN_EXTERN pn_data_t *pn_terminus_filter(pn_terminus_t *terminus);
+
+PN_EXTERN pn_amqp_map_t *pn_terminus_get_filter(pn_terminus_t *terminus);
+PN_EXTERN void pn_terminus_set_filter(pn_terminus_t *terminus, pn_amqp_map_t *properties);
 
 /**
  * Copy a terminus object.

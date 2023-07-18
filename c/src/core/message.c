@@ -21,8 +21,11 @@
 
 #include "platform/platform_fmt.h"
 
+#include "amqp_value_private.h"
+#include "consumers.h"
 #include "data.h"
 #include "encodings.h"
+#include "emitters.h"
 #include "max_align.h"
 #include "message-internal.h"
 #include "protocol.h"
@@ -32,14 +35,18 @@
 #include "core/frame_generators.h"
 #include "core/frame_consumers.h"
 
+#include <proton/amqp_value.h>
 #include <proton/link.h>
 #include <proton/object.h>
 #include <proton/codec.h>
 #include <proton/error.h>
+
+#include <assert.h>
+#include <stdarg.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <assert.h>
 
 // message
 
@@ -1100,4 +1107,94 @@ ssize_t pn_message_send(pn_message_t *msg, pn_link_t *sender, pn_rwbytes_t *buff
   }
   if (local_buf.start) free(local_buf.start);
   return ret;
+}
+
+pn_amqp_value_t *pn_message_get_body_value(pn_message_t *msg) {
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(msg->body_raw);
+  return (pn_amqp_value_t *)c;
+}
+
+void pn_message_set_body_value(pn_message_t *msg, pn_amqp_value_t *body) {
+  pn_bytes_free(msg->body_raw);
+  switch ((int)body->value_type) {
+    // For these types we've already got the raw encoded bytes
+    case PN_DESCRIBED:
+    case PN_ARRAY:
+    case PN_MAP:
+    case PN_LIST:
+    case PN_COMPOUND_ARRAY:
+    case PN_COMPOUND_LIST:
+    case PN_COMPOUND_MAP:
+      msg->body_raw = pn_bytes_dup(pn_amqp_value_bytes(body));
+      break;
+    // For all other types we need to encode the value
+    default: {
+      uint32_t size = pn_amqp_value_encoded_size(*body);
+      pn_rwbytes_t bytes = pn_rwbytes_alloc(size);
+      pni_emitter_t emitter = make_emitter_from_bytes(bytes);
+      pni_compound_context compound = make_compound();
+      emit_atom(&emitter, &compound, (pn_atom_t*)body);
+      msg->body_raw = (pn_bytes_t){.size=bytes.size, .start=bytes.start};
+    }
+  }
+  pn_data_clear(msg->body_deprecated);
+}
+
+pn_bytes_t pn_message_get_body_data(pn_message_t *msg) {
+  pni_consumer_t consumer = make_consumer_from_bytes(msg->body_raw);
+  pn_bytes_t bytes;
+  if (consume_binaryornull(&consumer, &bytes)) return bytes;
+  else return (pn_bytes_t) {0, NULL};
+}
+
+void pn_message_set_body_data(pn_message_t *msg, pn_bytes_t body) {
+  uint32_t size = body.size;
+  pn_rwbytes_t bytes = pn_rwbytes_alloc(size < 256 ? size+2 : size+5);
+  pni_emitter_t emitter = make_emitter_from_rwbytes(&bytes);
+  pni_compound_context compound = make_compound();
+  emit_binary_bytes(&emitter, &compound, body);
+
+  // Can only happen if we failed to allocate the pn_rwbytes
+  if (resize_required(&emitter)) {
+    pn_rwbytes_free(bytes);
+    return;
+  }
+
+  // Free after duplicating in case the app set the body to the previous body!
+  pn_bytes_free(msg->body_raw);
+  msg->body_raw = make_bytes_from_emitter(emitter);
+  pn_data_clear(msg->body_deprecated);
+}
+
+pn_amqp_map_t *pn_message_get_properties(pn_message_t *msg) {
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(msg->properties_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_message_set_properties(pn_message_t *msg, pn_amqp_map_t *properties) {
+  pn_bytes_free(msg->properties_raw);
+  msg->properties_raw = pn_bytes_dup(pn_amqp_map_bytes(properties));
+  pn_data_clear(msg->properties_deprecated);
+}
+
+pn_amqp_map_t *pn_message_get_annotations(pn_message_t *msg) {
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(msg->annotations_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_message_set_annotations(pn_message_t *msg, pn_amqp_map_t *annotations) {
+  pn_bytes_free(msg->annotations_raw);
+  msg->annotations_raw = pn_bytes_dup(pn_amqp_map_bytes(annotations));
+  pn_data_clear(msg->annotations_deprecated);
+}
+
+pn_amqp_map_t *pn_message_get_instructions(pn_message_t *msg) {
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(msg->instructions_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_message_set_instructions(pn_message_t *msg, pn_amqp_map_t *instructions) {
+  pn_bytes_free(msg->instructions_raw);
+  msg->instructions_raw = pn_bytes_dup(pn_amqp_map_bytes(instructions));
+  pn_data_clear(msg->instructions_deprecated);
 }

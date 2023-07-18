@@ -23,6 +23,7 @@
  */
 
 #include <proton/import_export.h>
+#include <proton/amqp_value.h>
 #include <proton/type_compat.h>
 #include <proton/condition.h>
 #include <stddef.h>
@@ -342,14 +343,14 @@ PN_EXTERN pn_transactional_disposition_t *pn_transactional_disposition(pn_dispos
  * Dispositions are an extension point in the AMQP protocol. The
  * disposition interface provides setters/getters for those
  * dispositions that are predefined by the specification, however
- * access to the raw disposition data is provided so that other
+ * access to the disposition data is provided so that other
  * dispositions can be used.
  *
  * The ::pn_data_t pointer returned by this operation is valid until
  * the parent delivery is settled.
  *
  * @param[in] disposition a custom disposition object
- * @return a pointer to the raw disposition data
+ * @return a pointer to the disposition data
  */
 PN_EXTERN pn_data_t *pn_custom_disposition_data(pn_custom_disposition_t *disposition);
 
@@ -459,10 +460,29 @@ PN_EXTERN void pn_modified_disposition_set_undeliverable(pn_modified_disposition
  * The pointer returned by this operation is valid until the parent
  * delivery is settled.
  *
- * @param[in] disposition a disposition object
+ * @param[in] disposition a modified disposition object
  * @return the annotations associated with the disposition
  */
 PN_EXTERN pn_data_t *pn_modified_disposition_annotations(pn_modified_disposition_t *disposition);
+
+/**
+ * Get the annotations associated with a modified disposition.
+ *
+ * The pointer returned by this operation is valid until the parent
+ * delivery is settled.
+ *
+ * @param[in] disposition a modified disposition object
+ * @return the annotations associated with the disposition
+ */
+PN_EXTERN pn_amqp_map_t *pn_modified_disposition_get_annotations(pn_modified_disposition_t *disposition);
+
+/**
+ * Set the annotations associated with a modified disposition.
+ *
+ * @param[in] disposition a modified disposition object
+ * @param[in] annotations the annotations to be associated with the disposition
+ */
+PN_EXTERN void pn_modified_disposition_set_annotations(pn_modified_disposition_t *disposition, pn_amqp_map_t *annotations);
 
 /**
  * Get the transaction id for a transaction declared disposition

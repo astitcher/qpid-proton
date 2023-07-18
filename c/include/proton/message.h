@@ -26,6 +26,7 @@
 #include <proton/types.h>
 #include <proton/codec.h>
 #include <proton/error.h>
+#include <proton/amqp_value.h>
 #include <proton/type_compat.h>
 
 #ifdef __cplusplus
@@ -709,6 +710,54 @@ PN_EXTERN pn_data_t *pn_message_properties(pn_message_t *msg);
 PN_EXTERN pn_data_t *pn_message_body(pn_message_t *msg);
 
 /**
+ * Get the body of a message.
+ *
+ * This operation returns a new ::pn_amqp_value_t representing the
+ * body of a message. The application is now the owner of this value and must arrange to free it using
+ * ::pn_amqp_value_free.
+ *
+ * @param[in] msg a message object
+ * @return a pointer to the message body
+ */
+PN_EXTERN pn_amqp_value_t *pn_message_get_body_value(pn_message_t *msg);
+
+/**
+ * Set the body of a message.
+ *
+ * This operation sets the message body to the ::pn_amqp_value_t which represents the
+ * body of a message.
+ *
+ * @param[in] msg a message object
+ * @param[in] body the message body
+ */
+PN_EXTERN void pn_message_set_body_value(pn_message_t *msg, pn_amqp_value_t *body);
+
+/**
+ * Get the body of a message.
+ *
+ * This operation returns the byte contents of a message data section.
+ * If the message isn't just binary data then a null bytes object (pn_bytes_null)
+ * will be returned.
+ * The bytes returned are still owned by the message.
+ *
+ * @param[in] msg a message object
+ * @return a pn_bytes_t referring to the message body
+ */
+PN_EXTERN pn_bytes_t pn_message_get_body_data(pn_message_t *msg);
+
+/**
+ * Set the body of a message.
+ *
+ * This operation sets the message body to the data bytes specified by the pn_bytes_t.
+ * The data is copied into the message and so the lifetime of the original data is
+ * decoupled from the lifetime of the message.
+ *
+ * @param[in] msg a message object
+ * @param[in] data the message body data
+ */
+PN_EXTERN void pn_message_set_body_data(pn_message_t *msg, pn_bytes_t data);
+
+/**
  * Decode/load message content from AMQP formatted binary data.
  *
  * Upon invoking this operation, any existing message content will be
@@ -780,6 +829,16 @@ PN_EXTERN ssize_t pn_message_send(pn_message_t *msg, pn_link_t *sender, pn_rwbyt
  * Save message content into a pn_data_t object data. The data object will first be cleared.
  */
 PN_EXTERN int pn_message_data(pn_message_t *msg, pn_data_t *data);
+
+struct pn_amqp_map_t;
+PN_EXTERN struct pn_amqp_map_t *pn_message_get_properties(pn_message_t *msg);
+PN_EXTERN void pn_message_set_properties(pn_message_t *msg, struct pn_amqp_map_t *properties);
+
+PN_EXTERN struct pn_amqp_map_t *pn_message_get_annotations(pn_message_t *msg);
+PN_EXTERN void pn_message_set_annotations(pn_message_t *msg, struct pn_amqp_map_t *annotations);
+
+PN_EXTERN struct pn_amqp_map_t *pn_message_get_instructions(pn_message_t *msg);
+PN_EXTERN void pn_message_set_instructions(pn_message_t *msg, struct pn_amqp_map_t *instructions);
 
 /** @}
  */
