@@ -237,6 +237,96 @@ static inline void emit_ulong(pni_emitter_t* emitter, pni_compound_context* comp
   compound->count++;
 }
 
+static inline void emit_byte(pni_emitter_t* emitter, pni_compound_context* compound, int8_t val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_BYTE);
+  pni_emitter_writef8(emitter, val);
+  compound->count++;
+}
+
+static inline void emit_short(pni_emitter_t* emitter, pni_compound_context* compound, int16_t val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_SHORT);
+  pni_emitter_writef16(emitter, val);
+  compound->count++;
+}
+
+static inline void emit_int(pni_emitter_t* emitter, pni_compound_context* compound, int32_t val) {
+  emit_accumulated_nulls(emitter, compound);
+  if (val > -128 && val < 128) {
+    pni_emitter_writef8(emitter, PNE_SMALLINT);
+    pni_emitter_writef8(emitter, val);
+  } else {
+    pni_emitter_writef8(emitter, PNE_INT);
+    pni_emitter_writef32(emitter, val);
+  }
+  compound->count++;
+}
+
+static inline void emit_long(pni_emitter_t* emitter, pni_compound_context* compound, int64_t val) {
+  emit_accumulated_nulls(emitter, compound);
+  if (val > -128 && val < 128) {
+    pni_emitter_writef8(emitter, PNE_SMALLLONG);
+    pni_emitter_writef8(emitter, val);
+  } else {
+    pni_emitter_writef8(emitter, PNE_LONG);
+    pni_emitter_writef64(emitter, val);
+  }
+  compound->count++;
+}
+
+static inline void emit_char(pni_emitter_t* emitter, pni_compound_context* compound, pn_char_t val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_UTF32);
+  pni_emitter_writef32(emitter, val);
+  compound->count++;
+}
+
+static inline void emit_decimal32(pni_emitter_t* emitter, pni_compound_context* compound, pn_decimal32_t val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_DECIMAL32);
+  pni_emitter_writef32(emitter, val);
+  compound->count++;
+}
+
+static inline void emit_decimal64(pni_emitter_t* emitter, pni_compound_context* compound, pn_decimal64_t val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_DECIMAL64);
+  pni_emitter_writef64(emitter, val);
+  compound->count++;
+}
+
+static inline void emit_decimal128(pni_emitter_t* emitter, pni_compound_context* compound, pn_decimal128_t* val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_DECIMAL128);
+  pni_emitter_writef128(emitter, val);
+  compound->count++;
+}
+
+static inline void emit_float(pni_emitter_t* emitter, pni_compound_context* compound, float val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_FLOAT);
+  union {
+    uint32_t u32;
+    float f;
+  } conv;
+  conv.f = val;
+  pni_emitter_writef32(emitter, conv.u32);
+  compound->count++;
+}
+
+static inline void emit_double(pni_emitter_t* emitter, pni_compound_context* compound, double val) {
+  emit_accumulated_nulls(emitter, compound);
+  pni_emitter_writef8(emitter, PNE_DOUBLE);
+  union {
+    uint64_t u64;
+    double d;
+  } conv;
+  conv.d = val;
+  pni_emitter_writef64(emitter, conv.u64);
+  compound->count++;
+}
+
 static inline void emit_timestamp(pni_emitter_t* emitter, pni_compound_context* compound, pn_timestamp_t timestamp) {
   emit_accumulated_nulls(emitter, compound);
   pni_emitter_writef8(emitter, PNE_MS64);
@@ -451,7 +541,12 @@ static inline void emit_binaryornull(pni_emitter_t* emitter, pni_compound_contex
 
 static inline void emit_atom(pni_emitter_t* emitter, pni_compound_context* compound, pn_atom_t* atom) {
   switch (atom->type) {
-    default:
+    // Don't support these types as atom so emit a null instead
+    case PN_INVALID:
+    case PN_DESCRIBED:
+    case PN_ARRAY:
+    case PN_LIST:
+    case PN_MAP:
     case PN_NULL:
       emit_null(emitter, compound);
       return;
@@ -469,6 +564,36 @@ static inline void emit_atom(pni_emitter_t* emitter, pni_compound_context* compo
       return;
     case PN_ULONG:
       emit_ulong(emitter, compound, atom->u.as_ulong);
+      return;
+    case PN_BYTE:
+      emit_byte(emitter, compound, atom->u.as_byte);
+      return;
+    case PN_SHORT:
+      emit_short(emitter, compound, atom->u.as_short);
+      return;
+    case PN_INT:
+      emit_int(emitter, compound, atom->u.as_int);
+      return;
+    case PN_LONG:
+      emit_long(emitter, compound, atom->u.as_long);
+      return;
+    case PN_CHAR:
+      emit_char(emitter, compound, atom->u.as_char);
+      return;
+    case PN_FLOAT:
+      emit_float(emitter, compound, atom->u.as_float);
+      return;
+    case PN_DOUBLE:
+      emit_double(emitter, compound, atom->u.as_double);
+      return;
+    case PN_DECIMAL32:
+      emit_decimal32(emitter, compound, atom->u.as_decimal32);
+      return;
+    case PN_DECIMAL64:
+      emit_decimal64(emitter, compound, atom->u.as_decimal64);
+      return;
+    case PN_DECIMAL128:
+      emit_decimal128(emitter, compound, &atom->u.as_decimal128);
       return;
     case PN_TIMESTAMP:
       emit_timestamp(emitter, compound, atom->u.as_timestamp);
