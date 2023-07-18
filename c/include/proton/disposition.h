@@ -23,6 +23,7 @@
  */
 
 #include <proton/import_export.h>
+#include <proton/amqp_value.h>
 #include <proton/type_compat.h>
 #include <proton/condition.h>
 #include <stddef.h>
@@ -226,6 +227,9 @@ PN_EXTERN void pn_disposition_set_undeliverable(pn_disposition_t *disposition, b
  * @return the annotations associated with the disposition
  */
 PN_EXTERN pn_data_t *pn_disposition_annotations(pn_disposition_t *disposition);
+
+PN_EXTERN pn_amqp_map_t *pn_disposition_get_annotations(pn_disposition_t *disposition);
+PN_EXTERN void pn_disposition_set_annotations(pn_disposition_t *disposition, pn_amqp_map_t *annotations);
 
 /**
  * @}
