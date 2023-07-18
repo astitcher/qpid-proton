@@ -264,6 +264,7 @@ set (qpid-proton-core
   src/core/framing.c
   src/core/value_dump.c
 
+  src/core/amqp_value.c
   src/core/codec.c
   src/core/decoder.c
   src/core/encoder.c
@@ -309,6 +310,8 @@ set (qpid-proton-extra
   )
 
 set (qpid-proton-include
+  include/proton/amqp_type.h
+  include/proton/amqp_value.h
   include/proton/cid.h
   include/proton/codec.h
   include/proton/condition.h

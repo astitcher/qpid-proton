@@ -25,6 +25,7 @@
 
 #include <catch_extra.hpp>
 
+#include <proton/amqp_value.h>
 #include <proton/condition.h>
 #include <proton/connection_driver.h>
 #include <proton/event.h>
@@ -32,6 +33,7 @@
 
 #include <proton/object.h>
 
+#include <cstring>
 #include <iosfwd>
 #include <string>
 #include <vector>
@@ -181,6 +183,126 @@ public:
   std::string describe() const override;
   bool match(const pn_error_t &) const override;
 };
+
+std::string to_string(pn_bytes_t raw);
+
+static inline bool operator==(pn_bytes_t a, pn_bytes_t b) {
+  return (a.size == b.size && !std::memcmp(a.start, b.start, a.size));
+}
+
+static inline pn_bytes_t operator ""_b (const char* str, size_t size) {
+  return ::pn_bytes(size, str);
+}
+
+static inline pn_atom_t operator ""_a (const char* str, size_t size) {
+  pn_atom_t atom;
+  atom.type = PN_STRING;
+  atom.u.as_bytes = ::pn_bytes(size, str);
+  return atom;
+}
+
+static inline pn_atom_t operator ""_a_sym (const char* str, size_t size) {
+  pn_atom_t atom;
+  atom.type = PN_SYMBOL;
+  atom.u.as_bytes = ::pn_bytes(size, str);
+  return atom;
+}
+
+static inline pn_atom_t pn_atom() {
+  pn_atom_t atom;
+  atom.type = PN_NULL;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(bool b) {
+  pn_atom_t atom;
+  atom.type = PN_BOOL;
+  atom.u.as_bool = b;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(const std::string& s) {
+  pn_atom_t atom;
+  atom.type = PN_STRING;
+  atom.u.as_bytes = pn_bytes(s);
+  return atom;
+}
+
+static inline pn_atom_t pn_atom_from_symbol(const std::string& s) {
+  pn_atom_t atom;
+  atom.type = PN_SYMBOL;
+  atom.u.as_bytes = pn_bytes(s);
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(const pn_bytes_t bytes) {
+  pn_atom_t atom;
+  atom.type = PN_BINARY;
+  atom.u.as_bytes = bytes;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(int i) {
+  pn_atom_t atom;
+  atom.type = PN_INT;
+  atom.u.as_int = i;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(unsigned u) {
+  pn_atom_t atom;
+  atom.type = PN_UINT;
+  atom.u.as_uint = u;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(long l) {
+  pn_atom_t atom;
+  atom.type = PN_LONG;
+  atom.u.as_long = l;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(unsigned long ul) {
+  pn_atom_t atom;
+  atom.type = PN_ULONG;
+  atom.u.as_ulong = ul;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(float f) {
+  pn_atom_t atom;
+  atom.type = PN_FLOAT;
+  atom.u.as_float = f;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(double d) {
+  pn_atom_t atom;
+  atom.type = PN_DOUBLE;
+  atom.u.as_double = d;
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(pn_amqp_map_t *map) {
+  pn_atom_t atom;
+  atom.type = PN_MAP;
+  atom.u.as_bytes = pn_amqp_map_bytes (map);
+  return atom;
+}
+
+static inline pn_atom_t pn_atom(pn_amqp_list_t *list) {
+  pn_atom_t atom;
+  atom.type = PN_LIST;
+  atom.u.as_bytes = pn_amqp_list_bytes (list);
+  return atom;
+}
+
+static inline pn_atom_t pn_atom_invalid() {
+  pn_atom_t atom;
+  atom.type = PN_INVALID;
+  return atom;
+}
 
 } // namespace pn_test
 
