@@ -238,6 +238,12 @@ static inline bool pni_islist(pni_consumer_t* consumer) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+static inline bool consume_single_typed_value_not_described(pni_consumer_t* consumer, uint8_t type) {
+  if (!pni_consumer_skip_value_not_described(consumer, type)) return false;
+  if (type==0) return false;
+  return true;
+}
+
 static inline bool consume_single_value_not_described(pni_consumer_t* consumer, uint8_t* type) {
   uint8_t t;
   if (!pni_consumer_readf8(consumer, &t)) return false;
@@ -460,6 +466,68 @@ static inline bool consume_atom(pni_consumer_t* consumer, pn_atom_t *atom) {
       atom->u.as_ubyte = ub;
       return true;
     }
+    case PNE_SMALLLONG: {
+      uint8_t v;
+      if (!pni_consumer_readf8(consumer, &v)) break;
+      atom->type = PN_LONG;
+      atom->u.as_long = v;
+      return true;
+    }
+    case PNE_LONG: {
+      uint64_t l;
+      if (!pni_consumer_readf64(consumer, &l)) break;
+      atom->type = PN_LONG;
+      atom->u.as_long = l;
+      return true;
+    }
+    case PNE_SMALLINT: {
+      uint8_t ui;
+      if (!pni_consumer_readf8(consumer, &ui)) break;
+      atom->type = PN_INT;
+      atom->u.as_int = ui;
+      return true;
+    }
+    case PNE_INT: {
+      uint32_t ui;
+      if (!pni_consumer_readf32(consumer, &ui)) break;
+      atom->type = PN_INT;
+      atom->u.as_int = ui;
+      return true;
+    }
+    case PNE_SHORT: {
+      uint16_t us;
+      if (!pni_consumer_readf16(consumer, &us)) break;
+      atom->type = PN_SHORT;
+      atom->u.as_short = us;
+      return true;
+    }
+    case PNE_BYTE: {
+      uint8_t ub;
+      if (!pni_consumer_readf8(consumer, &ub)) break;
+      atom->type = PN_BYTE;
+      atom->u.as_byte = ub;
+      return true;
+    }
+    case PNE_FLOAT: {
+      union {
+        uint32_t u32;
+        float f;
+      } conv;
+      if (!pni_consumer_readf32(consumer, &conv.u32)) break;
+      atom->type = PN_FLOAT;
+      atom->u.as_float = conv.f;
+      return true;
+    }
+    case PNE_DOUBLE: {
+      union {
+        uint64_t u64;
+        double d;
+      } conv;
+      if (!pni_consumer_readf64(consumer, &conv.u64)) break;
+      atom->type = PN_DOUBLE;
+      atom->u.as_double = conv.d;
+      return true;
+    }
     case PNE_BOOLEAN: {
       uint8_t ub;
       if (!pni_consumer_readf8(consumer, &ub)) break;
@@ -531,9 +599,47 @@ static inline bool consume_atom(pni_consumer_t* consumer, pn_atom_t *atom) {
       atom->u.as_uuid = uuid;
       return true;
     }
+    case PNE_UTF32: {
+      pn_char_t utf32;
+      if (!pni_consumer_readf32(consumer, &utf32)) break;
+      atom->type = PN_CHAR;
+      atom->u.as_char = utf32;
+      return true;
+    }
+    case PNE_DECIMAL32: {
+      pn_decimal32_t d32;
+      if (!pni_consumer_readf32(consumer, &d32)) break;
+      atom->type = PN_DECIMAL32;
+      atom->u.as_decimal32 = d32;
+      return true;
+    }
+    case PNE_DECIMAL64: {
+      pn_decimal64_t d64;
+      if (!pni_consumer_readf64(consumer, &d64)) break;
+      atom->type = PN_DECIMAL64;
+      atom->u.as_decimal64 = d64;
+      return true;
+    }
+    case PNE_DECIMAL128: {
+      pn_decimal128_t d128;
+      if (!pni_consumer_readf128(consumer, &d128)) break;
+      atom->type = PN_DECIMAL128;
+      atom->u.as_decimal128 = d128;
+      return true;
+    }
     case PNE_NULL:
       atom->type = PN_NULL;
       return true;
+    // Cannot consume these types as atoms so skip
+    case PNE_DESCRIPTOR:
+    case PNE_ARRAY8:
+    case PNE_ARRAY32:
+    case PNE_LIST0:
+    case PNE_LIST8:
+    case PNE_LIST32:
+    case PNE_MAP8:
+    case PNE_MAP32:
+    // Just in case
     default:
       pni_consumer_skip_value(consumer, type);
       break;

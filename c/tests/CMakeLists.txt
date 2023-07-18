@@ -66,6 +66,7 @@ if (CMAKE_CXX_COMPILER)
     data_test.cpp
     engine_test.cpp
     refcount_test.cpp
+    amqp_value_test.cpp
     ${platform_test_src})
 
   target_link_libraries(c-core-test qpid-proton-core ${PLATFORM_LIBS})

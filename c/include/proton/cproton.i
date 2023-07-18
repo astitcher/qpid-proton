@@ -614,6 +614,7 @@ typedef long int intptr_t;
   delivery != NULL;
 }
 
+%include "proton/amqp_type.h"
 %include "proton/condition.h"
 %include "proton/connection.h"
 %include "proton/session.h"
