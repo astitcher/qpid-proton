@@ -21,6 +21,7 @@
 
 #include "platform/platform_fmt.h"
 
+#include "amqp_value_private.h"
 #include "data.h"
 #include "encodings.h"
 #include "max_align.h"
@@ -32,14 +33,18 @@
 #include "core/frame_generators.h"
 #include "core/frame_consumers.h"
 
+#include <proton/amqp_value.h>
 #include <proton/link.h>
 #include <proton/object.h>
 #include <proton/codec.h>
 #include <proton/error.h>
+
+#include <assert.h>
+#include <stdarg.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <assert.h>
 
 // message
 
@@ -1069,6 +1074,14 @@ pn_data_t *pn_message_body(pn_message_t *msg)
   return msg->body_deprecated;
 }
 
+pn_amqp_value_t *pn_message_get_body_value(pn_message_t *msg) {
+  return NULL;
+}
+
+void pn_message_set_body_value(pn_message_t *msg, pn_amqp_value_t *body) {
+
+}
+
 ssize_t pn_message_encode2(pn_message_t *msg, pn_rwbytes_t *buffer) {
   static const size_t initial_size = 256;
   int err = 0;
@@ -1100,4 +1113,37 @@ ssize_t pn_message_send(pn_message_t *msg, pn_link_t *sender, pn_rwbytes_t *buff
   }
   if (local_buf.start) free(local_buf.start);
   return ret;
+}
+
+pn_amqp_map_t *pn_message_get_properties(pn_message_t *msg) {
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(msg->properties_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_message_set_properties(pn_message_t *msg, pn_amqp_map_t *properties) {
+  pn_bytes_free(msg->properties_raw);
+  msg->properties_raw = pn_bytes_dup(pn_amqp_map_bytes(properties));
+  pn_data_clear(msg->properties_deprecated);
+}
+
+pn_amqp_map_t *pn_message_get_annotations(pn_message_t *msg) {
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(msg->annotations_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_message_set_annotations(pn_message_t *msg, pn_amqp_map_t *annotations) {
+  pn_bytes_free(msg->annotations_raw);
+  msg->annotations_raw = pn_bytes_dup(pn_amqp_map_bytes(annotations));
+  pn_data_clear(msg->annotations_deprecated);
+}
+
+pn_amqp_map_t *pn_message_get_instructions(pn_message_t *msg) {
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(msg->instructions_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_message_set_instructions(pn_message_t *msg, pn_amqp_map_t *instructions) {
+  pn_bytes_free(msg->instructions_raw);
+  msg->instructions_raw = pn_bytes_dup(pn_amqp_map_bytes(instructions));
+  pn_data_clear(msg->instructions_deprecated);
 }

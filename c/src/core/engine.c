@@ -24,6 +24,7 @@
 
 #include "engine-internal.h"
 
+#include "amqp_value_private.h"
 #include "consumers.h"
 #include "core/frame_consumers.h"
 #include "fixed_string.h"
@@ -671,6 +672,19 @@ pn_data_t *pn_connection_offered_capabilities(pn_connection_t *connection)
   return connection->offered_capabilities;
 }
 
+pn_amqp_array_t *pn_connection_get_offered_capabilities(pn_connection_t *connection) {
+  assert(connection);
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(connection->offered_capabilities_raw);
+  return (pn_amqp_array_t *)c;
+}
+
+void pn_connection_set_offered_capabilities(pn_connection_t *connection, pn_amqp_array_t *capabilities) {
+  assert(connection);
+  pn_bytes_free(connection->offered_capabilities_raw);
+  connection->offered_capabilities_raw = pn_bytes_dup(pn_amqp_array_bytes(capabilities));
+  pn_data_clear(connection->offered_capabilities);
+}
+
 pn_data_t *pn_connection_desired_capabilities(pn_connection_t *connection)
 {
   assert(connection);
@@ -678,11 +692,37 @@ pn_data_t *pn_connection_desired_capabilities(pn_connection_t *connection)
   return connection->desired_capabilities;
 }
 
+pn_amqp_array_t *pn_connection_get_desired_capabilities(pn_connection_t *connection) {
+  assert(connection);
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(connection->desired_capabilities_raw);
+  return (pn_amqp_array_t *)c;
+}
+
+void pn_connection_set_desired_capabilities(pn_connection_t *connection, pn_amqp_array_t *capabilities) {
+  assert(connection);
+  pn_bytes_free(connection->desired_capabilities_raw);
+  connection->desired_capabilities_raw = pn_bytes_dup(pn_amqp_array_bytes(capabilities));
+  pn_data_clear(connection->desired_capabilities);
+}
+
 pn_data_t *pn_connection_properties(pn_connection_t *connection)
 {
   assert(connection);
   pni_switch_to_data(&connection->properties_raw, &connection->properties);
   return connection->properties;
+}
+
+pn_amqp_map_t *pn_connection_get_properties(pn_connection_t *connection) {
+  assert(connection);
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(connection->properties_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_connection_set_properties(pn_connection_t *connection, pn_amqp_map_t *properties) {
+  assert(connection);
+  pn_bytes_free(connection->properties_raw);
+  connection->properties_raw = pn_bytes_dup(pn_amqp_map_bytes(properties));
+  pn_data_clear(connection->properties);
 }
 
 pn_data_t *pn_connection_remote_offered_capabilities(pn_connection_t *connection)
@@ -694,6 +734,14 @@ pn_data_t *pn_connection_remote_offered_capabilities(pn_connection_t *connection
   return connection->remote_offered_capabilities;
 }
 
+pn_amqp_array_t *pn_connection_get_remote_offered_capabilities(pn_connection_t *connection) {
+  assert(connection);
+  if (!connection->transport)
+    return NULL;
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(connection->transport->remote_offered_capabilities_raw);
+  return (pn_amqp_array_t *)c;
+}
+
 pn_data_t *pn_connection_remote_desired_capabilities(pn_connection_t *connection)
 {
   assert(connection);
@@ -703,6 +751,14 @@ pn_data_t *pn_connection_remote_desired_capabilities(pn_connection_t *connection
   return connection->remote_desired_capabilities;
 }
 
+pn_amqp_array_t *pn_connection_get_remote_desired_capabilities(pn_connection_t *connection) {
+  assert(connection);
+  if (!connection->transport)
+    return NULL;
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(connection->transport->remote_desired_capabilities_raw);
+  return (pn_amqp_array_t *)c;
+}
+
 pn_data_t *pn_connection_remote_properties(pn_connection_t *connection)
 {
   assert(connection);
@@ -710,6 +766,13 @@ pn_data_t *pn_connection_remote_properties(pn_connection_t *connection)
     return NULL;
   pni_switch_to_data(&connection->transport->remote_properties_raw, &connection->remote_properties);
   return connection->remote_properties;
+}
+
+pn_amqp_map_t *pn_connection_get_remote_properties(pn_connection_t *connection) {
+  assert(connection);
+  if (!connection->transport) return NULL;
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(connection->transport->remote_properties_raw);
+  return (pn_amqp_map_t *)c;
 }
 
 const char *pn_connection_remote_container(pn_connection_t *connection)
@@ -1377,12 +1440,38 @@ pn_data_t *pn_terminus_properties(pn_terminus_t *terminus)
   return terminus->properties;
 }
 
+pn_amqp_map_t *pn_terminus_get_properties(pn_terminus_t *terminus) {
+  if (!terminus) return NULL;
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(terminus->properties_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_terminus_set_properties(pn_terminus_t *terminus, pn_amqp_map_t *properties) {
+  if (!terminus) return;
+  pn_bytes_free(terminus->properties_raw);
+  terminus->properties_raw = pn_bytes_dup(pn_amqp_map_bytes(properties));
+  pn_data_clear(terminus->properties);
+}
+
 pn_data_t *pn_terminus_capabilities(pn_terminus_t *terminus)
 {
   if (!terminus)
     return NULL;
   pni_switch_to_data(&terminus->capabilities_raw, &terminus->capabilities);
   return terminus->capabilities;
+}
+
+pn_amqp_array_t *pn_terminus_get_capabilities(pn_terminus_t *terminus) {
+  if (!terminus) return NULL;
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(terminus->capabilities_raw);
+  return (pn_amqp_array_t *)c;
+}
+
+void pn_terminus_set_capabilities(pn_terminus_t *terminus, pn_amqp_array_t *capabilities) {
+  if (!terminus) return;
+  pn_bytes_free(terminus->capabilities_raw);
+  terminus->capabilities_raw = pn_bytes_dup(pn_amqp_array_bytes(capabilities));
+  pn_data_clear(terminus->capabilities);
 }
 
 pn_data_t *pn_terminus_outcomes(pn_terminus_t *terminus)
@@ -1393,12 +1482,38 @@ pn_data_t *pn_terminus_outcomes(pn_terminus_t *terminus)
   return terminus->outcomes;
 }
 
+pn_amqp_array_t *pn_terminus_get_outcomes(pn_terminus_t *terminus) {
+  if (!terminus) return NULL;
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(terminus->outcomes_raw);
+  return (pn_amqp_array_t *)c;
+}
+
+void pn_terminus_set_outcomes(pn_terminus_t *terminus, pn_amqp_array_t *outcomes) {
+  if (!terminus) return;
+  pn_bytes_free(terminus->outcomes_raw);
+  terminus->outcomes_raw = pn_bytes_dup(pn_amqp_array_bytes(outcomes));
+  pn_data_clear(terminus->outcomes);
+}
+
 pn_data_t *pn_terminus_filter(pn_terminus_t *terminus)
 {
   if (!terminus)
     return NULL;
   pni_switch_to_data(&terminus->filter_raw, &terminus->filter);
   return terminus->filter;
+}
+
+pn_amqp_map_t *pn_terminus_get_filter(pn_terminus_t *terminus) {
+  if (!terminus) return NULL;
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(terminus->filter_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_terminus_set_filter(pn_terminus_t *terminus, pn_amqp_map_t *filter) {
+  if (!terminus) return;
+  pn_bytes_free(terminus->filter_raw);
+  terminus->filter_raw = pn_bytes_dup(pn_amqp_map_bytes(filter));
+  pn_data_clear(terminus->filter);
 }
 
 pn_distribution_mode_t pn_terminus_get_distribution_mode(const pn_terminus_t *terminus)
@@ -1828,6 +1943,19 @@ pn_data_t *pn_disposition_annotations(pn_disposition_t *disposition)
   return disposition->annotations;
 }
 
+pn_amqp_map_t *pn_disposition_get_annotations(pn_disposition_t *disposition) {
+  assert(disposition);
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(disposition->annotations_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_disposition_set_annotations(pn_disposition_t *disposition, pn_amqp_map_t *annotations) {
+  assert(disposition);
+  pn_bytes_free(disposition->annotations_raw);
+  disposition->annotations_raw = pn_bytes_dup(pn_amqp_map_bytes(annotations));
+  pn_data_clear(disposition->annotations);
+}
+
 pn_condition_t *pn_disposition_condition(pn_disposition_t *disposition)
 {
   assert(disposition);
@@ -2096,6 +2224,19 @@ pn_data_t *pn_link_properties(pn_link_t *link)
   return link->properties;
 }
 
+pn_amqp_map_t *pn_link_get_properties(pn_link_t *link) {
+  assert(link);
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(link->properties_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_link_set_properties(pn_link_t *link, pn_amqp_map_t *properties) {
+  assert(link);
+  pn_bytes_free(link->properties_raw);
+  link->properties_raw = pn_bytes_dup(pn_amqp_map_bytes(properties));
+  pn_data_clear(link->properties);
+}
+
 pn_data_t *pn_link_remote_properties(pn_link_t *link)
 {
   assert(link);
@@ -2106,6 +2247,11 @@ pn_data_t *pn_link_remote_properties(pn_link_t *link)
   return link->remote_properties;
 }
 
+pn_amqp_map_t *pn_link_get_remote_properties(pn_link_t *link) {
+  assert(link);
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(link->remote_properties_raw);
+  return (pn_amqp_map_t *)c;
+}
 
 pn_link_t *pn_delivery_link(pn_delivery_t *delivery)
 {
@@ -2330,6 +2476,19 @@ pn_data_t *pn_condition_info(pn_condition_t *condition)
   assert(condition);
   pni_switch_to_data(&condition->info_raw, &condition->info);
   return condition->info;
+}
+
+pn_amqp_map_t *pn_condition_get_info(pn_condition_t *condition) {
+  assert(condition);
+  struct pn_amqp_compound_t *c = pn_amqp_compound_make(condition->info_raw);
+  return (pn_amqp_map_t *)c;
+}
+
+void pn_condition_set_info(pn_condition_t *condition, pn_amqp_map_t *info) {
+  assert(condition);
+  pn_bytes_free(condition->info_raw);
+  condition->info_raw = pn_bytes_dup(pn_amqp_map_bytes(info));
+  pn_data_clear(condition->info);
 }
 
 bool pn_condition_is_redirect(pn_condition_t *condition)
