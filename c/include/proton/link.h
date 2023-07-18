@@ -23,6 +23,7 @@
  */
 
 #include <proton/import_export.h>
+#include <proton/amqp_value.h>
 #include <proton/type_compat.h>
 #include <proton/condition.h>
 #include <proton/terminus.h>
@@ -707,6 +708,11 @@ PN_EXTERN pn_data_t *pn_link_properties(pn_link_t *link);
  * @return the remote link properties
  */
 PN_EXTERN pn_data_t *pn_link_remote_properties(pn_link_t *link);
+
+PN_EXTERN pn_amqp_map_t *pn_link_get_properties(pn_link_t *link);
+PN_EXTERN void pn_link_set_properties(pn_link_t *link, pn_amqp_map_t *properties);
+
+PN_EXTERN pn_amqp_map_t *pn_link_get_remote_properties(pn_link_t *link);
 
 /**
  * @}
