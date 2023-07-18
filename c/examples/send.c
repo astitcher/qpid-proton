@@ -19,6 +19,7 @@
  *
  */
 
+#include <proton/amqp_value.h>
 #include <proton/connection.h>
 #include <proton/condition.h>
 #include <proton/delivery.h>
@@ -58,15 +59,12 @@ static void check_condition(pn_event_t *e, pn_condition_t *cond) {
 /* Create a message with a map { "sequence" : number } encode it and return the encoded buffer. */
 static void send_message(app_data_t* app, pn_link_t *sender) {
   /* Construct a message with the map { "sequence": app.sent } */
-  pn_data_t* body;
+  pn_bytes_t sequence = pn_bytes(sizeof("sequence")-1, "sequence");
   pn_message_clear(app->message);
-  body = pn_message_body(app->message);
   pn_message_set_id(app->message, (pn_atom_t){.type=PN_ULONG, .u.as_ulong=app->sent});
-  pn_data_put_map(body);
-  pn_data_enter(body);
-  pn_data_put_string(body, pn_bytes(sizeof("sequence")-1, "sequence"));
-  pn_data_put_int(body, app->sent); /* The sequence number */
-  pn_data_exit(body);
+  pn_amqp_map_t *props = pn_message_properties_build(NULL, sequence, (pn_atom_t){.type=PN_INT, .u.as_int=app->sent}, pn_bytes_null);
+  pn_message_set_body_value(app->message, (pn_amqp_value_t*)props);
+  pn_amqp_map_free(props);
   if (pn_message_send(app->message, sender, &app->message_buffer) < 0) {
     fprintf(stderr, "error sending message: %s\n", pn_error_text(pn_message_error(app->message)));
     exit(1);
