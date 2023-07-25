@@ -733,6 +733,31 @@ PN_EXTERN pn_amqp_value_t *pn_message_get_body_value(pn_message_t *msg);
 PN_EXTERN void pn_message_set_body_value(pn_message_t *msg, pn_amqp_value_t *body);
 
 /**
+ * Get the body of a message.
+ *
+ * This operation returns the byte contents of a message data section.
+ * If the message isn't just binary data then a null bytes object (pn_bytes_null)
+ * will be returned.
+ * The bytes returned are still owned by the message.
+ *
+ * @param[in] msg a message object
+ * @return a pn_bytes_t referring to the message body
+ */
+PN_EXTERN pn_bytes_t pn_message_get_body_data(pn_message_t *msg);
+
+/**
+ * Set the body of a message.
+ *
+ * This operation sets the message body to the data bytes specified by the pn_bytes_t.
+ * The data is copied into the message and so the lifetime of the original data is
+ * decoupled from the lifetime of the message.
+ *
+ * @param[in] msg a message object
+ * @param[in] data the message body data
+ */
+PN_EXTERN void pn_message_set_body_data(pn_message_t *msg, pn_bytes_t data);
+
+/**
  * Decode/load message content from AMQP formatted binary data.
  *
  * Upon invoking this operation, any existing message content will be
