@@ -217,6 +217,7 @@ static inline pn_type_t pn_amqp_value_type(pn_amqp_value_t *value) {
 }
 
 PN_EXTERN pn_bytes_t pn_amqp_value_bytes(pn_amqp_value_t *value);
+PN_EXTERN char* pn_amqp_value_tostring(pn_amqp_value_t *value);
 PN_EXTERN void pn_amqp_value_free(pn_amqp_value_t *value);
 
 PN_EXTERN pn_amqp_map_t *pn_amqp_map_build(pn_amqp_map_t *map, ...);
