@@ -23,6 +23,8 @@
 #include "consumers.h"
 #include "emitters.h"
 #include "encodings.h"
+#include "util_str.h"
+#include "value_dump.h"
 
 #include <proton/annotations.h>
 #include <proton/amqp_value.h>
@@ -242,6 +244,12 @@ pn_bytes_t pn_amqp_value_bytes(pn_amqp_value_t *value) {
     default:
       return (pn_bytes_t){.size=0, .start=NULL};
   }
+}
+
+char *pn_amqp_value_tostring(pn_amqp_value_t *value) {
+  char buf[1024];
+  pn_value_dump(pn_amqp_value_bytes(value), buf, sizeof(buf));
+  return pn_strdup(buf);
 }
 
 void pn_amqp_value_free(pn_amqp_value_t *value) {
