@@ -94,9 +94,9 @@ class Test(common.Test):
     def cleanup(self):
         self._wires = []
 
-    def pump(self, buffer_size=OUTPUT_SIZE):
+    def pump(self):
         for c1, t1, c2, t2 in self._wires:
-            pump(t1, t2, buffer_size)
+            pump(t1, t2)
 
 
 class ConnectionTest(Test):
@@ -905,7 +905,7 @@ class TransferTest(Test):
         # wanted = b'\x00\x00\x00\x1d\x02\x00\x00\x00\x00S\x14\xc0\x10\x0bCC\xa0\x03tagCA@@@@A@'
         wanted = b'\x00\x00\x00\x1c\x02\x00\x00\x00\x00S\x14\xc0\x0f\x0aCC\xa0\x03tagCA@@@@A'
         t = self.snd.transport
-        wire_bytes = t.peek(1024)
+        wire_bytes = t.peek()
         assert wanted == wire_bytes, wire_bytes
 
         self.pump()
@@ -977,7 +977,7 @@ class TransferTest(Test):
 
     def test_delivery_id_ordering(self):
         self.rcv.flow(1024)
-        self.pump(buffer_size=64 * 1024)
+        self.pump()
 
         # fill up delivery buffer on sender
         for m in range(1024):
@@ -987,7 +987,7 @@ class TransferTest(Test):
             assert n == len(msg)
             assert self.snd.advance()
 
-        self.pump(buffer_size=64 * 1024)
+        self.pump()
 
         # receive a session-windows worth of messages and accept them
         for m in range(1024):
@@ -999,7 +999,7 @@ class TransferTest(Test):
             rd.update(Delivery.ACCEPTED)
             rd.settle()
 
-        self.pump(buffer_size=64 * 1024)
+        self.pump()
 
         # add some new deliveries
         for m in range(1024, 1450):
@@ -1017,9 +1017,9 @@ class TransferTest(Test):
             assert n == len(msg)
             assert self.snd.advance()
 
-        self.pump(buffer_size=64 * 1024)
+        self.pump()
         self.rcv.flow(1024)
-        self.pump(buffer_size=64 * 1024)
+        self.pump()
 
         # verify remaining messages can be received and accepted
         for m in range(1024, 1500):
@@ -1270,7 +1270,7 @@ class MaxFrameTransferTest(Test):
         n = self.snd.send(dblfrmbytes)
         assert n == len(dblfrmbytes)
         sd.abort()
-        generated = sndt.peek(2048)
+        generated = sndt.peek()
         assert generated == b""
         assert self.snd.credit == 1
 
@@ -1297,7 +1297,7 @@ class MaxFrameTransferTest(Test):
         # wanted = b'\x00\x00\x00\x1f\x02\x00\x00\x00\x00S\x14\xc0\x12\x0bCC\xa0\x05tag_1CA@@@@A@'
         wanted = b'\x00\x00\x00\x1e\x02\x00\x00\x00\x00S\x14\xc0\x11\x0aCC\xa0\x05tag_1CA@@@@A'
         t = self.snd.transport
-        wire_bytes = t.peek(2048)
+        wire_bytes = t.peek()
         assert wanted == wire_bytes, wire_bytes
         assert self.snd.credit == 0
         self.pump()
@@ -1312,7 +1312,7 @@ class MaxFrameTransferTest(Test):
         # wanted = b"\x00\x00\x00\x16\x02\x00\x00\x00\x00S\x16\xd0\x00\x00\x00\x06\x00\x00\x00\x02CA"
         # wanted = b'\x00\x00\x00\x11\x02\x00\x00\x00\x00S\x16\xc0\x04\x03CA@'
         wanted = b'\x00\x00\x00\x10\x02\x00\x00\x00\x00S\x16\xc0\x03\x02CA'
-        wire_bytes = t.peek(2048)
+        wire_bytes = t.peek()
         assert wanted == wire_bytes, wire_bytes
 
 
@@ -2807,7 +2807,7 @@ class SaslEventTest(CollectorTest):
         )
         self.expect(Event.TRANSPORT)
         p = transport.pending()
-        bytes = transport.peek(p)
+        bytes = transport.peek()
         transport.pop(p)
 
         server = Transport(Transport.SERVER)
@@ -2823,7 +2823,7 @@ class SaslEventTest(CollectorTest):
         s.allowed_mechs("ANONYMOUS")
         transport.bind(conn)
         p = transport.pending()
-        bytes = transport.peek(p)
+        bytes = transport.peek()
         transport.pop(p)
         self.expect(Event.CONNECTION_INIT, Event.CONNECTION_BOUND)
         transport.push(
@@ -2838,7 +2838,7 @@ class SaslEventTest(CollectorTest):
         )
         self.expect(Event.TRANSPORT)
         p = transport.pending()
-        bytes = transport.peek(p)
+        bytes = transport.peek()
         transport.pop(p)
         assert s.outcome == SASL.OK
         # XXX: the bytes above appear to be correct, but we don't get any

@@ -1215,21 +1215,18 @@ class IOHandler(Handler):
         if not t:
             return
 
-        pending = t.pending()
-        if pending > 0:
-
-            try:
-                n = s.send(t.peek(pending))
-                t.pop(n)
-            except socket.error as e:
-                log.error("Couldn't send: %r" % e)
-                # TODO: Error? or actually an exception
-                t.close_head()
-
-        newpending = t.pending()
-        if newpending != pending:
-            r = s._reactor
-            self.update(t, s, r.now)
+        try:
+            b = t.peek()
+            if b and len(b) > 0:
+                n = s.send(b)
+                newb = t.pop(n)
+                if newb and len(newb) > 0:
+                    r = s._reactor
+                    self.update(t, s, r.now)
+        except socket.error as e:
+            log.error("Couldn't send: %r" % e)
+            # TODO: Error? or actually an exception
+            t.close_head()
 
     def on_selectable_error(self, event: Event) -> None:
         s = event.selectable

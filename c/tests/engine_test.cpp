@@ -27,13 +27,13 @@ using namespace pn_test;
 
 // push data from one transport to another
 static int xfer(pn_transport_t *src, pn_transport_t *dest) {
-  ssize_t out = pn_transport_pending(src);
-  if (out > 0) {
+  pn_bytes_t out = pn_transport_get_output_bytes (src);
+  if (out.size > 0) {
     ssize_t in = pn_transport_capacity(dest);
     if (in > 0) {
-      size_t count = (size_t)((out < in) ? out : in);
-      pn_transport_push(dest, pn_transport_head(src), count);
-      pn_transport_pop(src, count);
+      size_t count = (out.size < (size_t)in) ? out.size : (size_t)in;
+      pn_transport_push(dest, out.start, count);
+      pn_transport_pop_output_bytes(src, count);
       return (int)count;
     }
   }

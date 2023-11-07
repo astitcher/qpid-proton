@@ -78,8 +78,8 @@ class SslTest(common.Test):
             # bind last, after all configuration complete:
             self.transport.bind(self.connection)
 
-    def _pump(self, ssl_client, ssl_server, buffer_size=1024):
-        pump(ssl_client.transport, ssl_server.transport, buffer_size)
+    def _pump(self, ssl_client, ssl_server):
+        pump(ssl_client.transport, ssl_server.transport)
 
     def _do_handshake(self, client, server):
         """ Attempt to connect client to server. Will throw a TransportException if the SSL
@@ -162,8 +162,7 @@ class SslTest(common.Test):
         client.connection.open()
         server.connection.open()
 
-        small_buffer_size = 1
-        self._pump(client, server, small_buffer_size)
+        self._pump(client, server)
 
         assert client.ssl.protocol_name() is not None
         client.connection.close()

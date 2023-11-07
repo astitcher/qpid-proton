@@ -59,7 +59,7 @@ def free_tcp_port():
     return free_tcp_ports(1)[0]
 
 
-def pump_uni(src, dst, buffer_size=1024):
+def pump_uni(src, dst):
     p = src.pending()
     c = dst.capacity()
 
@@ -75,21 +75,21 @@ def pump_uni(src, dst, buffer_size=1024):
     elif p == 0 or c == 0:
         return False
     else:
-        binary = src.peek(min(c, buffer_size))
+        binary = src.peek()
         dst.push(binary)
         src.pop(len(binary))
 
     return True
 
 
-def pump(transport1, transport2, buffer_size=1024):
+def pump(transport1, transport2):
     """ Transfer all pending bytes between two Proton engines
         by repeatedly calling peek/pop and push.
         Asserts that each engine accepts some bytes every time
         (unless it's already closed).
     """
-    while (pump_uni(transport1, transport2, buffer_size) or
-           pump_uni(transport2, transport1, buffer_size)):
+    while (pump_uni(transport1, transport2) or
+           pump_uni(transport2, transport1)):
         pass
 
 

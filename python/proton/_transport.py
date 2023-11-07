@@ -41,7 +41,7 @@ from cproton import PN_EOS, PN_OK, PN_SASL_AUTH, PN_SASL_NONE, PN_SASL_OK, PN_SA
     pn_transport_require_auth, pn_transport_require_encryption, pn_transport_set_channel_max, \
     pn_transport_set_idle_timeout, pn_transport_set_max_frame, pn_transport_set_pytracer, pn_transport_set_server, \
     pn_transport_tick, pn_transport_trace, pn_transport_unbind, \
-    isnull
+    isnull, bytes2py
 
 from ._common import millis2secs, secs2millis
 from ._condition import cond2obj, obj2cond
@@ -299,9 +299,14 @@ class Transport(Wrapper):
                 - ``OverflowError`` if the size of the data exceeds the
                   transport capacity.
         """
-        n = self._check(pn_transport_push(self._impl, binary))
-        if n != len(binary):
-            raise OverflowError("unable to process all bytes: %s, %s" % (n, len(binary)))
+        total = 0
+        while total != len(binary):
+            n = self._check(pn_transport_push(self._impl, binary[total:]))
+            total += n
+            if n == 0:
+                break
+        if total != len(binary):
+            raise OverflowError("unable to process all bytes: %s, %s" % (total, len(binary)))
 
     def close_tail(self) -> None:
         """
@@ -327,37 +332,30 @@ class Transport(Wrapper):
         else:
             return self._check(p)
 
-    def peek(self, size: int) -> Optional[bytes]:
+    def peek(self) -> Optional[memoryview]:
         """
-        Returns ``size`` bytes from the head of the transport.
-
-        It is an error to call this with a value of ``size`` that
-        is greater than the value reported by :meth:`pending`.
-
-        :param size: Number of bytes to return.
-        :return: ``size`` bytes from the head of the transport, or ``None``
+        :return: bytes from the head of the transport, or ``None``
                  if none are available.
         :raise: :exc:`TransportException` if there is any Proton error.
         """
-        cd, out = pn_transport_peek(self._impl, size)
-        if cd == PN_EOS:
+        out = pn_transport_peek(self._impl)
+        if out == PN_EOS:
             return None
-        else:
-            self._check(cd)
-            return out
+        return bytes2py(out)
 
     def pop(self, size: int) -> None:
         """
         Removes ``size`` bytes of output from the pending output queue
-        following the transport's head pointer.
 
-        Calls to this function may alter the transport's head pointer as
-        well as the number of pending bytes reported by
-        :meth:`pending`.
+        Calls to this function may alter the number of pending bytes
+        reported by :meth:`pending`.
 
         :param size: Number of bytes to remove.
         """
-        pn_transport_pop(self._impl, size)
+        out = pn_transport_pop(self._impl, size)
+        if out == PN_EOS:
+            return None
+        return bytes2py(out)
 
     def close_head(self) -> None:
         """

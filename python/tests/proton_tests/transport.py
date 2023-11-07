@@ -47,7 +47,7 @@ class ClientTransportTest(Test):
             if p < 0:
                 return
             elif p > 0:
-                data = self.transport.peek(p)
+                data = self.transport.peek()
                 self.peer.push(data)
                 self.transport.pop(len(data))
             else:
@@ -108,14 +108,14 @@ class ClientTransportTest(Test):
         self.transport.push(b"AMQP\x01\x01\x0a\x00")
         p = self.transport.pending()
         assert p >= 8, p
-        bytes = self.transport.peek(p)
+        bytes = self.transport.peek()
         assert bytes[:8] == b"AMQP\x00\x01\x00\x00"
         self.transport.pop(p)
         self.drain()
         assert self.transport.closed
 
     def testPeek(self):
-        out = self.transport.peek(1024)
+        out = self.transport.peek()
         assert out is not None
 
     def testBindAfterOpen(self):
@@ -127,9 +127,9 @@ class ClientTransportTest(Test):
         conn.hostname = "test-hostname"
         trn = Transport()
         trn.bind(conn)
-        out = trn.peek(1024)
-        assert b"test-container" in out, repr(out)
-        assert b"test-hostname" in out, repr(out)
+        out = trn.peek()
+        assert b"test-container" in bytes(out), repr(out)
+        assert b"test-hostname" in bytes(out), repr(out)
         self.transport.push(out)
 
         c = Connection()
@@ -170,12 +170,12 @@ class ClientTransportTest(Test):
         conn.hostname = "hostname"
         conn.open()
 
-        dat1 = self.transport.peek(1024)
+        dat1 = bytes(self.transport.peek())
 
         ssn = conn.session()
         ssn.open()
 
-        dat2 = self.transport.peek(1024)
+        dat2 = bytes(self.transport.peek())
 
         assert dat2[:len(dat1)] == dat1
 
@@ -184,9 +184,9 @@ class ClientTransportTest(Test):
 
         self.transport.pop(len(dat1))
         self.transport.pop(len(dat2) - len(dat1))
-        dat3 = self.transport.peek(1024)
+        dat3 = self.transport.peek()
         self.transport.pop(len(dat3))
-        assert self.transport.peek(1024) == b""
+        assert len(self.transport.peek()) == 0
 
         self.peer.push(dat1)
         self.peer.push(dat2[len(dat1):])
@@ -212,7 +212,7 @@ class ServerTransportTest(Test):
             if p < 0:
                 return
             elif p > 0:
-                bytes = self.transport.peek(p)
+                bytes = self.transport.peek()
                 self.peer.push(bytes)
                 self.transport.pop(len(bytes))
             else:
@@ -241,7 +241,7 @@ class ServerTransportTest(Test):
         self.transport.close_tail()
         p = self.transport.pending()
         assert p >= 8, p
-        bytes = self.transport.peek(p)
+        bytes = self.transport.peek()
         assert bytes[:8] == b"AMQP\x00\x01\x00\x00"
         self.transport.pop(p)
         self.drain()
@@ -251,7 +251,7 @@ class ServerTransportTest(Test):
         self.transport.push(garbage)
         p = self.transport.pending()
         assert p >= 8, p
-        bytes = self.transport.peek(p)
+        bytes = self.transport.peek()
         assert bytes[:8] == b"AMQP\x00\x01\x00\x00"
         self.transport.pop(p)
         self.drain()
@@ -272,14 +272,14 @@ class ServerTransportTest(Test):
         self.transport.push(b"AMQP\x01\x01\x0a\x00")
         p = self.transport.pending()
         assert p >= 8, p
-        bytes = self.transport.peek(p)
+        bytes = self.transport.peek()
         assert bytes[:8] == b"AMQP\x00\x01\x00\x00"
         self.transport.pop(p)
         self.drain()
         assert self.transport.closed
 
     def testPeek(self):
-        out = self.transport.peek(1024)
+        out = self.transport.peek()
         assert out is not None
 
     def testBindAfterOpen(self):
@@ -291,9 +291,9 @@ class ServerTransportTest(Test):
         conn.hostname = "test-hostname"
         trn = Transport()
         trn.bind(conn)
-        out = trn.peek(1024)
-        assert b"test-container" in out, repr(out)
-        assert b"test-hostname" in out, repr(out)
+        out = trn.peek()
+        assert b"test-container" in bytes(out), repr(out)
+        assert b"test-hostname" in bytes(out), repr(out)
         self.transport.push(out)
 
         c = Connection()
@@ -334,12 +334,12 @@ class ServerTransportTest(Test):
         conn.hostname = "hostname"
         conn.open()
 
-        dat1 = self.transport.peek(1024)
+        dat1 = self.transport.peek()
 
         ssn = conn.session()
         ssn.open()
 
-        dat2 = self.transport.peek(1024)
+        dat2 = self.transport.peek()
 
         assert dat2[:len(dat1)] == dat1
 
@@ -348,9 +348,9 @@ class ServerTransportTest(Test):
 
         self.transport.pop(len(dat1))
         self.transport.pop(len(dat2) - len(dat1))
-        dat3 = self.transport.peek(1024)
+        dat3 = self.transport.peek()
         self.transport.pop(len(dat3))
-        assert self.transport.peek(1024) == b""
+        assert self.transport.peek() == b""
 
         self.peer.push(dat1)
         self.peer.push(dat2[len(dat1):])
@@ -364,7 +364,7 @@ class ServerTransportTest(Test):
         # this should send over the sasl header plus a sasl-init set up
         # for anonymous
         p = self.peer.pending()
-        self.transport.push(self.peer.peek(p))
+        self.transport.push(self.peer.peek())
         self.peer.pop(p)
 
         # now we send EOS
@@ -373,7 +373,7 @@ class ServerTransportTest(Test):
         # the server may send an error back
         p = self.transport.pending()
         while p > 0:
-            self.peer.push(self.transport.peek(p))
+            self.peer.push(self.transport.peek())
             self.transport.pop(p)
             p = self.transport.pending()
 

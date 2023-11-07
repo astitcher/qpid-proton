@@ -46,7 +46,7 @@ def _testSaslMech(self, mech, clientUser='user@proton', authUser='user@proton',
     self.c1.open()
     self.c2.open()
 
-    pump(self.t1, self.t2, 1024)
+    pump(self.t1, self.t2)
 
     if encrypted is not None:
         assert self.t2.encrypted == encrypted, encrypted
@@ -94,7 +94,7 @@ class Test(common.Test):
 def consumeAllOuput(t):
     stops = 0
     while stops < 1:
-        out = t.peek(1024)
+        out = t.peek()
         l = len(out) if out else 0
         t.pop(l)
         if l <= 0:
@@ -111,7 +111,7 @@ class SaslTest(Test):
         self.s2 = SASL(self.t2)
 
     def pump(self):
-        pump(self.t1, self.t2, 1024)
+        pump(self.t1, self.t2)
 
     # We have to generate the client frames manually because proton does not
     # generate pipelined SASL and AMQP frames together
@@ -204,7 +204,7 @@ class SaslTest(Test):
         assert c1.state & Endpoint.REMOTE_ACTIVE
 
     def testPipelined2(self):
-        out1 = self.t1.peek(1024)
+        out1 = self.t1.peek()
         self.t1.pop(len(out1))
         self.t2.push(out1)
 
@@ -213,11 +213,11 @@ class SaslTest(Test):
         c2.open()
         self.t2.bind(c2)
 
-        out2 = self.t2.peek(1024)
+        out2 = self.t2.peek()
         self.t2.pop(len(out2))
         self.t1.push(out2)
 
-        out1 = self.t1.peek(1024)
+        out1 = self.t1.peek()
         assert len(out1) > 0
 
     def testFracturedSASL(self):
@@ -227,23 +227,23 @@ class SaslTest(Test):
 
         # self.t1.trace(Transport.TRACE_FRM)
 
-        out = self.t1.peek(1024)
+        out = self.t1.peek()
         self.t1.pop(len(out))
         self.t1.push(b"AMQP\x03\x01\x00\x00")
-        out = self.t1.peek(1024)
+        out = self.t1.peek()
         self.t1.pop(len(out))
         self.t1.push(b"\x00\x00\x00")
-        out = self.t1.peek(1024)
+        out = self.t1.peek()
         self.t1.pop(len(out))
 
         self.t1.push(b"6\x02\x01\x00\x00\x00S@\xc0\x29\x01\xe0\x26\x04\xa3\x05PLAIN\x0aDIGEST-MD5\x09ANONYMOUS\x08CRAM-MD5")
-        out = self.t1.peek(1024)
+        out = self.t1.peek()
         self.t1.pop(len(out))
         self.t1.push(b"\x00\x00\x00\x10\x02\x01\x00\x00\x00SD\xc0\x03\x01P\x00")
-        out = self.t1.peek(1024)
+        out = self.t1.peek()
         self.t1.pop(len(out))
         while out:
-            out = self.t1.peek(1024)
+            out = self.t1.peek()
             self.t1.pop(len(out))
 
         assert self.s1.outcome == SASL.OK, self.s1.outcome

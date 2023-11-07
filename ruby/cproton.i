@@ -292,13 +292,15 @@ ssize_t pn_transport_input(pn_transport_t *transport, char *STRING, size_t LENGT
 %rename(pn_transport_peek) wrap_pn_transport_peek;
 %inline %{
   int wrap_pn_transport_peek(pn_transport_t *transport, char *OUTPUT, size_t *OUTPUT_SIZE) {
-    ssize_t sz = pn_transport_peek(transport, OUTPUT, *OUTPUT_SIZE);
-    if(sz >= 0) {
-      *OUTPUT_SIZE = sz;
-    } else {
+    pn_bytes_t bytes = pn_transport_get_output_bytes(transport);
+    if (bytes.size==0 && pn_transport_head_closed(transport)) {
       *OUTPUT_SIZE = 0;
+      return PN_EOS;
     }
-    return sz;
+    size_t size = (bytes.size >= *OUTPUT_SIZE) ? bytes.size : *OUTPUT_SIZE;
+    memmove(OUTPUT, bytes.start, size);
+    *OUTPUT_SIZE = size;
+    return size;
   }
 %}
 %ignore pn_transport_peek;

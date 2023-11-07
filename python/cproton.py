@@ -150,7 +150,7 @@ from cproton_ffi.lib import (PN_ACCEPTED, PN_ARRAY, PN_BINARY, PN_BOOL, PN_BYTE,
                              pn_transport_get_frames_output, pn_transport_get_idle_timeout,
                              pn_transport_get_max_frame, pn_transport_get_remote_idle_timeout,
                              pn_transport_get_remote_max_frame, pn_transport_is_authenticated,
-                             pn_transport_is_encrypted, pn_transport_pending, pn_transport_pop,
+                             pn_transport_is_encrypted,
                              pn_transport_remote_channel_max, pn_transport_require_auth,
                              pn_transport_require_encryption, pn_transport_set_channel_max,
                              pn_transport_set_idle_timeout, pn_transport_set_max_frame,
@@ -357,13 +357,25 @@ def pn_event_class_name(event):
     return ffi.string(lib.pn_event_class_name_py(event)).decode('utf8')
 
 
-# size_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size);
-def pn_transport_peek(transport, size):
-    buff = bytearray(size)
-    cd = lib.pn_transport_peek(transport, ffi.from_buffer(buff), size)
-    if cd >= 0:
-        buff = buff[:cd]
-    return cd, buff
+def pn_transport_peek(transport):
+    bytes_out = lib.pn_transport_get_output_bytes(transport)
+    if bytes_out.size == 0 and lib.pn_transport_head_closed(transport):
+        return PN_EOS
+    return bytes_out
+
+
+def pn_transport_pending(transport):
+    size = lib.pn_transport_get_output_bytes(transport).size
+    if size == 0 and lib.pn_transport_head_closed(transport):
+        return PN_EOS
+    return size
+
+
+def pn_transport_pop(transport, size):
+    bytes_out = lib.pn_transport_pop_output_bytes(transport, size)
+    if bytes_out.size == 0 and lib.pn_transport_head_closed(transport):
+        return PN_EOS
+    return bytes_out
 
 
 # ssize_t pn_transport_push(pn_transport_t *transport, const char *src, size_t size);
