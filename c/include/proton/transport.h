@@ -729,6 +729,26 @@ PN_EXTERN uint64_t pn_transport_get_frames_output(const pn_transport_t *transpor
 PN_EXTERN uint64_t pn_transport_get_frames_input(const pn_transport_t *transport);
 
 /**
+ * Get the transport's output bytes
+ *
+ * The returned bytes are a reference to the next queued output bytes.
+ *
+ * @param[in] transport the transport
+ * @return the transport's output bytes, or null bytes if no pending output.
+ */
+PN_EXTERN pn_bytes_t pn_transport_get_output_bytes(pn_transport_t *transport);
+
+/**
+ * Removes @c size bytes of output from the pending output queue
+ * and returns the next bytes to be output if any.
+ *
+ * @param[in] transport the transport
+ * @param[in] size the number of bytes to remove
+ * @return Any bytes the transport has still to output, or null bytes if no pending output.
+ */
+PN_EXTERN pn_bytes_t pn_transport_pop_output_bytes(pn_transport_t *transport, size_t size);
+
+/**
  * Access the AMQP Connection associated with the transport.
  *
  * @param[in] transport a transport object

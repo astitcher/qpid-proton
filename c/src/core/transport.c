@@ -2764,13 +2764,14 @@ static ssize_t transport_produce(pn_transport_t *transport)
 ssize_t pn_transport_output(pn_transport_t *transport, char *bytes, size_t size)
 {
   if (!transport) return PN_ARG_ERR;
-  ssize_t available = pn_transport_pending(transport);
-  if (available > 0) {
-    available = (ssize_t) pn_min( (size_t)available, size );
-    memmove( bytes, pn_transport_head(transport), available );
-    pn_transport_pop( transport, (size_t) available );
+  pn_bytes_t out = pn_transport_get_output_bytes(transport);
+  if (out.size > 0) {
+    size_t available = pn_min( out.size, size );
+    memmove(bytes, out.start, size);
+      pn_transport_pop_output_bytes( transport, available );
+    return available;
   }
-  return available;
+  return 0;
 }
 
 
@@ -3046,15 +3047,16 @@ ssize_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size)
 {
   assert(transport);
 
-  ssize_t pending = pn_transport_pending(transport);
-  if (pending < 0) {
-    return pending;
-  } else if (size > (size_t) pending) {
+  pn_bytes_t bytes = pn_transport_get_output_bytes(transport);
+  size_t pending = bytes.size;
+  if (pending==0 && pn_transport_head_closed(transport)) return PN_EOS;
+
+  if (size > pending) {
     size = pending;
   }
 
-  if (pending > 0) {
-    const char *src = pn_transport_head(transport);
+  if (size > 0) {
+    const char *src = bytes.start;
     assert(src);
     memmove(dst, src, size);
   }
@@ -3064,19 +3066,35 @@ ssize_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size)
 
 void pn_transport_pop(pn_transport_t *transport, size_t size)
 {
+  pn_transport_pop_output_bytes(transport, size);
+}
+
+pn_bytes_t pn_transport_get_output_bytes(pn_transport_t *transport)
+{
   if (transport) {
-    assert( transport->output_pending >= size );
-    transport->output_pending -= size;
-    transport->bytes_output += size;
-    if (transport->output_pending) {
-      // TODO: This could be potentially inefficient if we often pop the output without emptying it
-      // TODO: as we rotate the buffer here if we have any bytes left to write.
-      memmove( transport->output_buf,  &transport->output_buf[size],
-               transport->output_pending );
-    } else {
-      // If we emptied the output buffer then see if there's more output pending
-      pn_transport_pending(transport);
-    }
+    transport_produce(transport);
+    if (transport->output_pending)
+      return pn_bytes(transport->output_pending, transport->output_buf);
+  }
+  return (pn_bytes_t){0, NULL};
+}
+
+pn_bytes_t pn_transport_pop_output_bytes(pn_transport_t *transport, size_t size)
+{
+  if (!transport) return (pn_bytes_t){0, NULL};
+
+  assert( transport->output_pending >= size );
+  transport->output_pending -= size;
+  transport->bytes_output += size;
+  if (transport->output_pending) {
+    // TODO: This could be potentially inefficient if we often pop the output without emptying it
+    // TODO: as we rotate the buffer here if we have any bytes left to write.
+    memmove( transport->output_buf,  &transport->output_buf[size],
+              transport->output_pending );
+    return (pn_bytes_t){transport->output_pending, transport->output_buf};
+  } else {
+    // If we emptied the output buffer then see if there's more output pending
+    return pn_transport_get_output_bytes(transport);
   }
 }
 
@@ -3085,7 +3103,7 @@ int pn_transport_close_head(pn_transport_t *transport)
   ssize_t pending = pn_transport_pending(transport);
   pni_close_head(transport);
   if (pending > 0)
-    pn_transport_pop(transport, pending);
+    pn_transport_pop_output_bytes(transport, pending);
   return 0;
 }
 

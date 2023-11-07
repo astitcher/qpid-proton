@@ -119,7 +119,7 @@ pn_bytes_t pn_connection_driver_write_buffer(pn_connection_driver_t *d) {
 
 pn_bytes_t pn_connection_driver_write_done(pn_connection_driver_t *d, size_t n) {
   pn_transport_pop(d->transport, n);
-  ssize_t pending = d->transport->output_pending;
+  ssize_t pending = pn_transport_pending(d->transport);
   return (pending > 0) ?
     pn_bytes(pending, pn_transport_head(d->transport)) : pn_bytes_null;
 }
