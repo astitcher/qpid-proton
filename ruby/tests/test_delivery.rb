@@ -35,7 +35,7 @@ class TestDelivery < Minitest::Test
     end
 
     def on_connection_open(connection)
-      @outcomes = []
+      @outcomes = {}
       @sender = connection.open_sender("x")
       @unsettled = {}           # Awaiting remote settlement
     end
@@ -52,7 +52,7 @@ class TestDelivery < Minitest::Test
     def outcome(method, tracker)
       t = tracker
       m = @unsettled.delete(t)
-      @outcomes << [m.body, method, t.id, t.state, t.modifications]
+      @outcomes[t.id] = [m.body, method, t.id, t.state, t.modifications]
       tracker.connection.close if @unsettled.empty?
     end
 
@@ -94,16 +94,16 @@ class TestDelivery < Minitest::Test
     c.connect(l.url, {:handler => sh})
     c.run
     o = sh.outcomes
-    assert_equal ["accept", :on_tracker_accept, "1", Transfer::ACCEPTED, nil], o.shift
-    assert_equal ["reject", :on_tracker_reject, "2", Transfer::REJECTED, nil], o.shift
-    assert_equal ["release-really", :on_tracker_release, "3", Transfer::RELEASED, nil], o.shift
-    assert_equal ["release", :on_tracker_modify, "4", Transfer::MODIFIED, {:failed=>true, :undeliverable=>false, :annotations=>nil}], o.shift
-    assert_equal ["modify", :on_tracker_modify, "5", Transfer::MODIFIED, {:failed=>true, :undeliverable=>true, :annotations=>{:x => 42}}], o.shift
-    assert_equal ["modify-empty", :on_tracker_release, "6", Transfer::RELEASED, nil], o.shift
-    assert_equal ["modify-nil", :on_tracker_release, "7", Transfer::RELEASED, nil], o.shift
-    assert_equal ["reject-raise", :on_tracker_reject, "8", Transfer::REJECTED, nil], o.shift
-    assert_equal ["release-raise", :on_tracker_modify, "9", Transfer::MODIFIED, {:failed=>true, :undeliverable=>false, :annotations=>nil}], o.shift
-    assert_empty o
+    assert_equal ["accept", :on_tracker_accept, "1", Transfer::ACCEPTED, nil], o["1"]
+    assert_equal ["reject", :on_tracker_reject, "2", Transfer::REJECTED, nil], o["2"]
+    assert_equal ["release-really", :on_tracker_release, "3", Transfer::RELEASED, nil], o["3"]
+    assert_equal ["release", :on_tracker_modify, "4", Transfer::MODIFIED, {:failed=>true, :undeliverable=>false, :annotations=>nil}], o["4"]
+    assert_equal ["modify", :on_tracker_modify, "5", Transfer::MODIFIED, {:failed=>true, :undeliverable=>true, :annotations=>{:x => 42}}], o["5"]
+    assert_equal ["modify-empty", :on_tracker_release, "6", Transfer::RELEASED, nil], o["6"]
+    assert_equal ["modify-nil", :on_tracker_release, "7", Transfer::RELEASED, nil], o["7"]
+    assert_equal ["reject-raise", :on_tracker_reject, "8", Transfer::REJECTED, nil], o["8"]
+    assert_equal ["release-raise", :on_tracker_modify, "9", Transfer::MODIFIED, {:failed=>true, :undeliverable=>false, :annotations=>nil}], o["9"]
+    assert_equal o.length, 9
     assert_equal ["accept", "reject", "release-really", "release", "modify", "modify-empty", "modify-nil", "reject-raise", "release-raise"], rh.received
     assert_empty sh.unsettled
   end

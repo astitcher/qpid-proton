@@ -98,9 +98,12 @@ module Qpid::Proton
     # IO errors are returned as transport errors by {#event}, not raised
     def write
       data = Cproton.pn_connection_driver_write_buffer(@impl)
-      return unless data && data.size > 0
-      n = @io.write_nonblock(data)
-      Cproton.pn_connection_driver_write_done(@impl, n) if n > 0
+      loop do
+        return unless data && data.size > 0
+        n = @io.write_nonblock(data)
+        return unless n > 0
+        data = Cproton.pn_connection_driver_write_done(@impl, n)
+      end
     rescue Errno::EWOULDBLOCK, Errno::EAGAIN, Errno::EINTR
       # Try again later.
     rescue IOError, SystemCallError => e

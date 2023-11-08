@@ -135,15 +135,21 @@ driver_pair::driver_pair(handler &ch, handler &sh) : client(ch), server(sh) {
 }
 
 size_t driver::read(pn_connection_driver_t &src) {
+  size_t total = 0;
   pn_bytes_t wb = pn_connection_driver_write_buffer(&src);
-  pn_rwbytes_t rb = pn_connection_driver_read_buffer(this);
-  size_t size = rb.size < wb.size ? rb.size : wb.size;
-  if (size) {
-    std::copy(wb.start, wb.start + size, rb.start);
-    pn_connection_driver_write_done(&src, size);
-    pn_connection_driver_read_done(this, size);
+  while (true) {
+    pn_rwbytes_t rb = pn_connection_driver_read_buffer(this);
+    size_t size = rb.size < wb.size ? rb.size : wb.size;
+    if (size) {
+      std::copy(wb.start, wb.start + size, rb.start);
+      wb = pn_connection_driver_write_done(&src, size);
+      pn_connection_driver_read_done(this, size);
+      total += size;
+    } else {
+      break;
+    }
   }
-  return size;
+  return total;
 }
 
 pn_event_type_t driver_pair::run() {

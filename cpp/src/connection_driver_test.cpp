@@ -78,11 +78,12 @@ struct in_memory_driver : public connection_driver {
 
     void do_write() {
         const_buffer wbuf = write_buffer();
-        if (wbuf.size) {
-            writes.insert(writes.begin(),
+        while (wbuf.size) {
+            writes.insert(writes.end(),
                           static_cast<const char*>(wbuf.data),
                           static_cast<const char*>(wbuf.data) + wbuf.size);
-            write_done(wbuf.size);
+
+            wbuf = write_done(wbuf.size);
         }
     }
 
