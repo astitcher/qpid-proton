@@ -410,6 +410,8 @@ static void pn_transport_initialize(void *object)
   transport->sasl = NULL;
   transport->ssl = NULL;
   transport->scratch_space = pn_rwbytes_alloc(PN_TRANSPORT_INITIAL_FRAME_SIZE);
+  transport->output_space = pn_rwbytes_null;
+  transport->output_space_tail = 0;
   transport->header_space = pn_rwbytes_alloc(PN_TRANSPORT_FRAME_HEADER_SPACE);
   transport->header_space_head = 0;
   transport->header_space_tail = 0;
@@ -660,6 +662,7 @@ static void pn_transport_finalize(void *object)
   pn_free(transport->remote_channels);
   pni_mem_subdeallocate(pn_class(transport), transport, transport->input_buf);
   pn_rwbytes_free(transport->scratch_space);
+  pn_rwbytes_free(transport->output_space);
   pn_rwbytes_free(transport->header_space);
   pn_free(transport->context);
   pn_buffer_list_clear(&transport->output_buffers);
@@ -2720,9 +2723,18 @@ static void pni_close_head(pn_transport_t *transport)
   }
 }
 
+static bool pni_transport_pending_output(pn_transport_t* transport)
+{
+  return
+    !pn_buffer_list_empty(&transport->output_buffers) ||
+    transport->output_space_tail > 0;
+}
+
 // generate outbound data, return amount of pending output else error
 static void transport_produce(pn_transport_t *transport)
 {
+  if (transport->head_closed) return;
+
   while (true) {
     ssize_t n;
     n = transport->io_layers[0]->
@@ -2733,7 +2745,7 @@ static void transport_produce(pn_transport_t *transport)
     } else if (n == 0) {
       break;
     } else {
-      if (!pn_buffer_list_empty(&transport->output_buffers))
+      if (pni_transport_pending_output(transport))
         break;   // return what is available
       PN_LOG(&transport->logger, PN_SUBSYSTEM_AMQP | PN_SUBSYSTEM_IO, PN_LEVEL_FRAME | PN_LEVEL_RAW, "  -> EOS");
       pni_close_head(transport);
@@ -2741,21 +2753,6 @@ static void transport_produce(pn_transport_t *transport)
     }
   }
 }
-
-// deprecated
-ssize_t pn_transport_output(pn_transport_t *transport, char *bytes, size_t size)
-{
-  if (!transport) return PN_ARG_ERR;
-  pn_bytes_t out = pn_transport_get_output_bytes(transport);
-  if (out.size > 0) {
-    size_t available = pn_min( out.size, size );
-    memmove(bytes, out.start, size);
-      pn_transport_pop_output_bytes( transport, available );
-    return available;
-  }
-  return 0;
-}
-
 
 void pn_transport_trace(pn_transport_t *transport, pn_trace_t trace)
 {
@@ -3041,27 +3038,57 @@ int pn_transport_close_tail(pn_transport_t *transport)
   // XXX: what if not all input processed at this point?  do we care???
 }
 
+static void pni_transport_coalesce_output(pn_transport_t *transport)
+{
+  size_t size = pn_buffer_list_byte_total(&transport->output_buffers);
+
+  // resize output_space to fit
+  if (transport->output_space.size < transport->output_space_tail+size) {
+    pn_rwbytes_realloc(&transport->output_space, transport->output_space_tail+size);
+  }
+
+  pn_buffer_list_output(&transport->output_buffers, &transport->output_space.start[transport->output_space_tail], size);
+  transport->output_space_tail += size;
+}
+
 // output
 ssize_t pn_transport_pending(pn_transport_t *transport)      /* <0 == done */
 {
   assert(transport);
   transport_produce( transport );
-  pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&transport->output_buffers);
-  return (!entry && pn_transport_head_closed(transport)) ? PN_EOS : entry ? (ssize_t) entry->size : 0;
+  pni_transport_coalesce_output(transport);
+  size_t pending = transport->output_space_tail;
+  return (!pending && pn_transport_head_closed(transport)) ? PN_EOS : (ssize_t) pending;
 }
 
 const char *pn_transport_head(pn_transport_t *transport)
 {
-  pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&transport->output_buffers);
-  return !entry ? NULL : (const char*)entry->buffer+entry->offset;
+  pni_transport_coalesce_output(transport);
+  pn_rwbytes_t bytes = transport->output_space;
+  size_t pending = transport->output_space_tail;
+  return !pending ? NULL : (const char*)bytes.start;
+}
+
+// deprecated
+ssize_t pn_transport_output(pn_transport_t *transport, char *bytes, size_t size)
+{
+  if (!transport) return PN_ARG_ERR;
+  ssize_t available = pn_transport_peek(transport, bytes, size);
+  if (available > 0) {
+    pn_transport_pop( transport, available );
+    return available;
+  }
+  return 0;
 }
 
 ssize_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size)
 {
   assert(transport);
 
-  pn_bytes_t bytes = pn_transport_get_output_bytes(transport);
-  size_t pending = bytes.size;
+  transport_produce(transport);
+  pni_transport_coalesce_output(transport);
+
+  size_t pending = transport->output_space_tail;
   if (pending==0 && pn_transport_head_closed(transport)) return PN_EOS;
 
   if (size > pending) {
@@ -3069,7 +3096,7 @@ ssize_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size)
   }
 
   if (size > 0) {
-    const char *src = bytes.start;
+    const char *src = transport->output_space.start;
     assert(src);
     memmove(dst, src, size);
   }
@@ -3079,7 +3106,15 @@ ssize_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size)
 
 void pn_transport_pop(pn_transport_t *transport, size_t size)
 {
-  pn_transport_pop_output_bytes(transport, size);
+  size_t popped = pn_min(size, transport->output_space_tail);
+  size_t to_move = transport->output_space_tail - popped;
+  if (!to_move) {
+    transport->output_space_tail = 0;
+    transport_produce(transport);
+  } else {
+    memmove(transport->output_space.start, transport->output_space.start+popped, to_move);
+    transport->output_space_tail = to_move;
+  }
 }
 
 pn_bytes_t pn_transport_get_output_bytes(pn_transport_t *transport)
@@ -3119,7 +3154,7 @@ int pn_transport_close_head(pn_transport_t *transport)
   ssize_t pending = pn_transport_pending(transport);
   pni_close_head(transport);
   if (pending > 0)
-    pn_transport_pop_output_bytes(transport, pending);
+    pn_transport_pop(transport, pending);
   return 0;
 }
 

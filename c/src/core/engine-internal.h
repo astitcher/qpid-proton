@@ -171,6 +171,10 @@ struct pn_transport_t {
   /* scratch area */
   pn_rwbytes_t scratch_space;
 
+  /* Back compatibility output */
+  pn_rwbytes_t output_space;
+  uint32_t output_space_tail;
+
   /* area for frame headers */
   /* Allocate a fixed amount of space for frame headers
    * They must be used in sequence so we can use a circular buffer
