@@ -1473,7 +1473,7 @@ static void pn_delivery_finalize(void *object)
                         delivery);
     pn_bytes_free(delivery->tag);
     delivery->tag = (pn_delivery_tag_t){0, NULL};
-    pn_buffer_clear(delivery->bytes);
+    pn_buffer_list_clear(&delivery->buffered_bytes);
     pn_record_clear(delivery->context);
     delivery->settled = true;
     pn_connection_t *conn = link->session->connection;
@@ -1491,7 +1491,7 @@ static void pn_delivery_finalize(void *object)
     pn_free(delivery->context);
     pn_bytes_free(delivery->tag);
     delivery->tag = (pn_delivery_tag_t){0, NULL};
-    pn_buffer_free(delivery->bytes);
+    pn_buffer_list_clear(&delivery->buffered_bytes);
     pn_disposition_finalize(&delivery->local);
     pn_disposition_finalize(&delivery->remote);
   }
@@ -1546,7 +1546,7 @@ pn_delivery_t *pn_delivery(pn_link_t *link, pn_delivery_tag_t tag)
   if (!delivery) {
     delivery = (pn_delivery_t *) pn_class_new(&PN_CLASSCLASS(pn_delivery), sizeof(pn_delivery_t));
     if (!delivery) return NULL;
-    delivery->bytes = pn_buffer(64);
+    pn_buffer_list_init(&delivery->buffered_bytes);
     pn_disposition_init(&delivery->local);
     pn_disposition_init(&delivery->remote);
     delivery->context = pn_record();
@@ -1568,7 +1568,7 @@ pn_delivery_t *pn_delivery(pn_link_t *link, pn_delivery_tag_t tag)
   delivery->tpwork_next = NULL;
   delivery->tpwork_prev = NULL;
   delivery->tpwork = false;
-  pn_buffer_clear(delivery->bytes);
+  pn_buffer_list_clear(&delivery->buffered_bytes);
   delivery->done = false;
   delivery->aborted = false;
   pn_record_clear(delivery->context);
@@ -1601,7 +1601,7 @@ bool pn_delivery_buffered(pn_delivery_t *delivery)
     if (state->sent) {
       return false;
     } else {
-      return delivery->done || (pn_buffer_size(delivery->bytes) > 0);
+      return delivery->done || (pn_buffer_list_has_data(&delivery->buffered_bytes));
     }
   } else {
     return false;
@@ -1779,8 +1779,8 @@ static void pni_advance_receiver(pn_link_t *link)
   link->session->incoming_deliveries--;
 
   pn_delivery_t *current = link->current;
-  link->session->incoming_bytes -= pn_buffer_size(current->bytes);
-  pn_buffer_clear(current->bytes);
+  link->session->incoming_bytes -= pn_buffer_list_byte_total(&current->buffered_bytes);
+  pn_buffer_list_clear(&current->buffered_bytes);
 
   if (!link->session->state.incoming_window) {
     pni_add_tpwork(current);
@@ -1896,7 +1896,8 @@ ssize_t pn_link_send(pn_link_t *sender, const char *bytes, size_t n)
   pn_delivery_t *current = pn_link_current(sender);
   if (!current) return PN_EOS;
   if (!bytes || !n) return 0;
-  pn_buffer_append(current->bytes, bytes, n);
+  pn_bytes_t data = pn_bytes_dup(pn_bytes(n, bytes));
+  pn_buffer_list_append_head(&current->buffered_bytes, pn_buffer_list_entry_from_bytes(data));
   sender->session->outgoing_bytes += n;
   pni_add_tpwork(current);
   return n;
@@ -1928,10 +1929,9 @@ ssize_t pn_link_recv(pn_link_t *receiver, char *bytes, size_t n)
   pn_delivery_t *delivery = receiver->current;
   if (!delivery) return PN_STATE_ERR;
   if (delivery->aborted) return PN_ABORTED;
-  size_t size = pn_buffer_get(delivery->bytes, 0, n, bytes);
-  pn_buffer_trim(delivery->bytes, size, 0);
+  size_t size = pn_buffer_list_output(&delivery->buffered_bytes, bytes, n);
+  receiver->session->incoming_bytes -= size;
   if (size) {
-    receiver->session->incoming_bytes -= size;
     if (!receiver->session->state.incoming_window) {
       pni_add_tpwork(delivery);
     }
@@ -2087,7 +2087,7 @@ size_t pn_delivery_pending(pn_delivery_t *delivery)
      the PN_ABORTED error return code.
   */
   if (delivery->aborted) return 1;
-  return pn_buffer_size(delivery->bytes);
+  return pn_buffer_list_byte_total(&delivery->buffered_bytes);
 }
 
 bool pn_delivery_partial(pn_delivery_t *delivery)
@@ -2099,8 +2099,8 @@ void pn_delivery_abort(pn_delivery_t *delivery) {
   if (!delivery->local.settled) { /* Can't abort a settled delivery */
     delivery->aborted = true;
     pn_delivery_settle(delivery);
-    delivery->link->session->outgoing_bytes -= pn_buffer_size(delivery->bytes);
-    pn_buffer_clear(delivery->bytes);
+    delivery->link->session->outgoing_bytes -= pn_buffer_list_byte_total(&delivery->buffered_bytes);
+    pn_buffer_list_clear(&delivery->buffered_bytes);
   }
 }
 

@@ -1468,7 +1468,8 @@ int pn_do_transfer(pn_transport_t *transport, uint8_t frame_type, uint16_t chann
   }
 
   if (delivery) {
-    pn_buffer_append(delivery->bytes, payload.start, payload.size);
+    pn_bytes_t delivery_bytes = pn_bytes_dup(payload);
+    pn_buffer_list_append_head(&delivery->buffered_bytes, pn_buffer_list_entry_from_bytes(delivery_bytes));
     if (more) {
       if (!link->more_pending) {
         // First frame of a multi-frame transfer. Remember at link level.
@@ -2215,13 +2216,14 @@ static int pni_process_tpwork_sender(pn_transport_t *transport, pn_delivery_t *d
   pn_link_state_t *link_state = &link->state;
   bool xfr_posted = false;
   if ((int16_t) ssn_state->local_channel >= 0 && (int32_t) link_state->local_handle >= 0) {
-    if (!state->sent && (delivery->done || pn_buffer_size(delivery->bytes) > 0) &&
+    if (!state->sent && (delivery->done || pn_buffer_list_has_data(&delivery->buffered_bytes)) &&
         ssn_state->remote_incoming_window > 0 && link_state->link_credit > 0) {
       if (!state->init) {
         state = pni_delivery_map_push(&ssn_state->outgoing, delivery);
       }
 
-      pn_bytes_t bytes = pn_buffer_bytes(delivery->bytes);
+      pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&delivery->buffered_bytes);
+      pn_bytes_t bytes = pn_bytes_from_buffer_list_entry(entry);
       size_t full_size = bytes.size;
       pn_data_clear(transport->disp_data);
       PN_RETURN_IF_ERROR(pni_disposition_encode(&delivery->local, transport->disp_data));
@@ -2245,10 +2247,19 @@ static int pni_process_tpwork_sender(pn_transport_t *transport, pn_delivery_t *d
       ssn_state->outgoing_transfer_count += count;
       ssn_state->remote_incoming_window -= count;
 
-      int sent = full_size - bytes.size;
-      pn_buffer_trim(delivery->bytes, sent, 0);
+      size_t sent = full_size - bytes.size;
+      if (entry) {
+        if (sent<entry->size) {
+          entry->offset += sent;
+          entry->size -= sent;
+        } else {
+          pn_buffer_list_advance_tail(&delivery->buffered_bytes);
+          // TODO: return the read data to the user somehow
+          pn_buffer_list_entry_free(entry);
+        }
+      }
       link->session->outgoing_bytes -= sent;
-      if (!pn_buffer_size(delivery->bytes) && delivery->done) {
+      if (!pn_buffer_list_has_data(&delivery->buffered_bytes) && delivery->done) {
         state->sent = true;
         link_state->delivery_count++;
         link_state->link_credit--;

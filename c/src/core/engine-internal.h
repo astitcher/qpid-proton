@@ -329,6 +329,7 @@ struct pn_disposition_t {
 };
 
 struct pn_delivery_t {
+  pn_buffer_list_t buffered_bytes;
   pn_disposition_t local;
   pn_disposition_t remote;
   pn_delivery_tag_t tag;
@@ -340,7 +341,6 @@ struct pn_delivery_t {
   pn_delivery_t *tpwork_next;
   pn_delivery_t *tpwork_prev;
   pn_delivery_state_t state;
-  pn_buffer_t *bytes;
   pn_record_t *context;
   bool updated;
   bool settled; // tracks whether we're in the unsettled list or not
