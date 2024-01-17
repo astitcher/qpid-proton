@@ -258,3 +258,154 @@ pn_rwbytes_t pn_buffer_memory(pn_buffer_t *buf)
   pn_buffer_defrag(buf);
   return (pn_rwbytes_t){.size=buf->size, .start=buf->bytes};
 }
+
+void pn_buffer_list_init(pn_buffer_list_t *blist, pn_buffer_list_entry_free_cb *free_cb, uintptr_t free_context)
+{
+  blist->entry_count = 15;
+  blist->entry_head = 0;
+  blist->entry_tail = 0;
+  blist->free_cb = free_cb;
+  blist->free_context = free_context;
+  blist->indirect = NULL;
+  for (int i=0; i<blist->entry_count; ++i) {
+    blist->direct[0] = (pn_buffer_list_entry_t){0};
+  }
+}
+
+void pn_buffer_list_clear(pn_buffer_list_t *blist)
+{
+  // TODO: for now just free any buffers we have here, but we will
+  // have to return it to the user in 'real life'
+  if (blist->entry_head < blist->entry_tail) {
+    for (size_t i=blist->entry_tail; i<blist->entry_count; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      blist->free_cb(blist->free_context, e);
+    }
+    for (size_t i=0; i<blist->entry_head; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      blist->free_cb(blist->free_context, e);
+    }
+  } else {
+    for (size_t i=blist->entry_tail; i<blist->entry_head; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      blist->free_cb(blist->free_context, e);
+    }
+  }
+  free(blist->indirect);
+  blist->indirect = NULL;
+  blist->entry_head = 0;
+  blist->entry_tail = 0;
+  blist->entry_count = 15;
+}
+
+uint32_t pn_buffer_list_byte_total(pn_buffer_list_t *blist)
+{
+  uint32_t total = 0;
+  if (blist->entry_head < blist->entry_tail) {
+    for (size_t i=blist->entry_tail; i<blist->entry_count; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      total += e->size;
+    }
+    for (size_t i=0; i<blist->entry_head; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      total += e->size;
+    }
+  } else {
+    for (size_t i=blist->entry_tail; i<blist->entry_head; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      total += e->size;
+    }
+  }
+  return total;
+}
+
+bool pn_buffer_list_has_data(pn_buffer_list_t *blist)
+{
+  if (blist->entry_head < blist->entry_tail) {
+    for (size_t i=blist->entry_tail; i<blist->entry_count; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      if (e->size) return true;
+    }
+    for (size_t i=0; i<blist->entry_head; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      if (e->size) return true;
+    }
+  } else {
+    for (size_t i=blist->entry_tail; i<blist->entry_head; ++i) {
+      pn_buffer_list_entry_t *e = pn_buffer_list_get_entry(blist, i);
+      if (e->size) return true;
+    }
+  }
+  return false;
+}
+
+void pn_buffer_list_append_head(pn_buffer_list_t *blist, pn_buffer_list_entry_t data)
+{
+  if (pn_buffer_list_full(blist)) {
+    uint16_t old_count = blist->entry_count;
+
+    if (!blist->indirect) {
+      blist->indirect = malloc(32 * sizeof(pn_buffer_list_entry_t));
+      blist->entry_count += 32;
+    } else {
+      // Experiment with simple linear expansion to not use up memory too fast
+      blist->indirect = realloc(blist->indirect, (blist->entry_count+32) * sizeof(pn_buffer_list_entry_t));
+      blist->entry_count += 32;
+    }
+    // Need to relocate entries from tail to end if tail is above head in list
+    if (blist->entry_tail > blist->entry_head) {
+      uint16_t tail_size = old_count-blist->entry_tail;
+      uint16_t new_tail = blist->entry_count-tail_size;
+      memmove(pn_buffer_list_get_entry(blist, new_tail), pn_buffer_list_get_entry(blist, blist->entry_tail), sizeof(pn_buffer_list_entry_t)*tail_size);
+      blist->entry_tail = new_tail;
+    }
+  }
+  // At this point we've expanded if necessary
+  pn_buffer_list_entry_t *entry = pn_buffer_list_get_entry(blist, blist->entry_head);
+  *entry = data;
+  pn_buffer_list_advance_head(blist);
+}
+
+pn_buffer_list_entry_t *pn_buffer_list_tail(pn_buffer_list_t *blist)
+{
+  if (!pn_buffer_list_empty(blist)) {
+    pn_buffer_list_entry_t *tail = pn_buffer_list_get_entry(blist, blist->entry_tail);
+    return tail;
+  } else {
+    return NULL;
+  }
+}
+
+size_t pn_buffer_list_output(pn_buffer_list_t *blist, char *bytes, size_t n)
+{
+  size_t total = 0;
+  do {
+    pn_buffer_list_entry_t *entry = pn_buffer_list_tail(blist);
+    if (!entry) return total;
+    uint32_t size = pn_min(entry->size, n);
+
+    memcpy(bytes+total, entry->buffer+entry->offset, size);
+    total += size;
+    n -= size;
+    if (size<entry->size) {
+      entry->offset += size;
+      entry->size -= size;
+    } else {
+      pn_buffer_list_advance_tail(blist);
+      blist->free_cb(blist->free_context, entry);
+    }
+  } while (true);
+}
+
+size_t pn_buffer_list_transfer(pn_buffer_list_t *input, pn_buffer_list_t *output)
+{
+  size_t total = 0;
+  do {
+    pn_buffer_list_entry_t *entry = pn_buffer_list_tail(input);
+    if (!entry) return total;
+
+    pn_buffer_list_append_head(output, *entry);
+    total += entry->size;
+    pn_buffer_list_advance_tail(input);
+  } while (true);
+}
