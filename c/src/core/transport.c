@@ -139,23 +139,23 @@ static void pni_delivery_map_clear(pn_delivery_map_t *dm)
 }
 
 static ssize_t pn_io_layer_input_passthru(pn_transport_t *, unsigned int, const char *, size_t );
-static ssize_t pn_io_layer_output_passthru(pn_transport_t *, unsigned int, char *, size_t );
+static ssize_t pn_io_layer_output_passthru(pn_transport_t *, unsigned int, pn_buffer_list_t *blist );
 
 static ssize_t pn_io_layer_input_error(pn_transport_t *, unsigned int, const char *, size_t );
-static ssize_t pn_io_layer_output_error(pn_transport_t *, unsigned int, char *, size_t );
+static ssize_t pn_io_layer_output_error(pn_transport_t *, unsigned int, pn_buffer_list_t *blist );
 
 static ssize_t pn_io_layer_input_setup(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available);
-static ssize_t pn_io_layer_output_setup(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available);
+static ssize_t pn_io_layer_output_setup(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
 
 static ssize_t pn_input_read_amqp_header(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available);
 static ssize_t pn_input_read_amqp(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available);
-static ssize_t pn_output_write_amqp_header(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available);
-static ssize_t pn_output_write_amqp(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available);
+static ssize_t pn_output_write_amqp_header(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
+static ssize_t pn_output_write_amqp(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
 static void pn_error_amqp(pn_transport_t *transport, unsigned int layer);
 static int64_t pn_tick_amqp(pn_transport_t *transport, unsigned int layer, int64_t now);
 
 static ssize_t pn_io_layer_input_autodetect(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available);
-static ssize_t pn_io_layer_output_null(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available);
+static ssize_t pn_io_layer_output_null(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
 
 const pn_io_layer_t amqp_header_layer = {
     pn_input_read_amqp_header,
@@ -253,10 +253,10 @@ ssize_t pn_io_layer_input_setup(pn_transport_t *transport, unsigned int layer, c
   return transport->io_layers[layer]->process_input(transport, layer, bytes, available);
 }
 
-ssize_t pn_io_layer_output_setup(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available)
+ssize_t pn_io_layer_output_setup(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   pn_io_layer_setup(transport, layer);
-  return transport->io_layers[layer]->process_output(transport, layer, bytes, available);
+  return transport->io_layers[layer]->process_output(transport, layer, blist);
 }
 
 void pn_set_error_layer(pn_transport_t *transport)
@@ -366,7 +366,7 @@ ssize_t pn_io_layer_input_autodetect(pn_transport_t *transport, unsigned int lay
 }
 
 // We don't know what the output should be - do nothing
-ssize_t pn_io_layer_output_null(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available)
+ssize_t pn_io_layer_output_null(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   return 0;
 }
@@ -380,10 +380,10 @@ ssize_t pn_io_layer_input_passthru(pn_transport_t *transport, unsigned int layer
 }
 
 /** Pass through output handler */
-ssize_t pn_io_layer_output_passthru(pn_transport_t *transport, unsigned int layer, char *data, size_t available)
+ssize_t pn_io_layer_output_passthru(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist)
 {
     if (layer+1<PN_IO_LAYER_CT)
-        return transport->io_layers[layer+1]->process_output(transport, layer+1, data, available);
+        return transport->io_layers[layer+1]->process_output(transport, layer+1, blist);
     return PN_EOS;
 }
 
@@ -394,7 +394,7 @@ ssize_t pn_io_layer_input_error(pn_transport_t *transport, unsigned int layer, c
 }
 
 /** Output handler after detected error */
-ssize_t pn_io_layer_output_error(pn_transport_t *transport, unsigned int layer, char *data, size_t available)
+ssize_t pn_io_layer_output_error(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist)
 {
     return PN_EOS;
 }
@@ -403,8 +403,6 @@ static void pn_transport_initialize(void *object)
 {
   pn_transport_t *transport = (pn_transport_t *)object;
   transport->freed = false;
-  transport->output_buf = NULL;
-  transport->output_size = PN_TRANSPORT_INITIAL_BUFFER_SIZE;
   transport->input_buf = NULL;
   transport->input_size =  PN_TRANSPORT_INITIAL_BUFFER_SIZE;
   pni_logger_init(&transport->logger);
@@ -412,6 +410,9 @@ static void pn_transport_initialize(void *object)
   transport->sasl = NULL;
   transport->ssl = NULL;
   transport->scratch_space = pn_rwbytes_alloc(PN_TRANSPORT_INITIAL_FRAME_SIZE);
+  transport->header_space = pn_rwbytes_alloc(PN_TRANSPORT_FRAME_HEADER_SPACE);
+  transport->header_space_head = 0;
+  transport->header_space_tail = 0;
   transport->input_frames_ct = 0;
   transport->output_frames_ct = 0;
 
@@ -476,7 +477,6 @@ static void pn_transport_initialize(void *object)
   transport->bytes_output = 0;
 
   transport->input_pending = 0;
-  transport->output_pending = 0;
 
   transport->done_processing = false;
 
@@ -545,6 +545,12 @@ static void pn_transport_finalize(void *object);
 #define pn_transport_compare NULL
 #define pn_transport_inspect NULL
 
+void pni_transport_free_buffer_entry(pn_transport_t*, pn_buffer_list_entry_t*);
+void pni_transport_free_buffer_entry_thunk(uintptr_t context, pn_buffer_list_entry_t *entry)
+{
+  pni_transport_free_buffer_entry((pn_transport_t*)context, entry);
+}
+
 pn_transport_t *pn_transport(void)
 {
 #define pn_transport_free NULL
@@ -554,23 +560,14 @@ pn_transport_t *pn_transport(void)
     (pn_transport_t *) pn_class_new(&clazz, sizeof(pn_transport_t));
   if (!transport) return NULL;
 
-  transport->output_buf = (char *) pni_mem_suballocate(&clazz, transport, transport->output_size);
-  if (!transport->output_buf) {
-    pn_transport_free(transport);
-    return NULL;
-  }
-
   transport->input_buf = (char *) pni_mem_suballocate(&clazz, transport, transport->input_size);
   if (!transport->input_buf) {
     pn_transport_free(transport);
     return NULL;
   }
 
-  transport->output_buffer = pn_buffer(4*1024);
-  if (!transport->output_buffer) {
-    pn_transport_free(transport);
-    return NULL;
-  }
+  pn_buffer_list_init(&transport->amqp_buffers, pni_transport_free_buffer_entry_thunk, (uintptr_t)transport);
+  pn_buffer_list_init(&transport->output_buffers, pni_transport_free_buffer_entry_thunk, (uintptr_t)transport);
 
   return transport;
 }
@@ -662,10 +659,11 @@ static void pn_transport_finalize(void *object)
   pn_free(transport->local_channels);
   pn_free(transport->remote_channels);
   pni_mem_subdeallocate(pn_class(transport), transport, transport->input_buf);
-  pni_mem_subdeallocate(pn_class(transport), transport, transport->output_buf);
   pn_rwbytes_free(transport->scratch_space);
+  pn_rwbytes_free(transport->header_space);
   pn_free(transport->context);
-  pn_buffer_free(transport->output_buffer);
+  pn_buffer_list_clear(&transport->output_buffers);
+  pn_buffer_list_clear(&transport->amqp_buffers);
   pni_logger_fini(&transport->logger);
 }
 
@@ -937,7 +935,7 @@ static int pni_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
       }
     }
     pn_bytes_t payload = {.size = available, .start = full_payload->start};
-    pn_framing_send_amqp_with_payload(transport, ch, performative, payload);
+    pn_framing_send_amqp_with_payload(transport, ch, pn_buffer_list_entry_from_bytes(pn_bytes_dup(performative)), pn_buffer_list_entry_from_bytes(pn_bytes_dup(payload)));
 
     full_payload->start += available;
     full_payload->size -= available;
@@ -963,7 +961,8 @@ static int pni_post_close(pn_transport_t *transport, pn_condition_t *cond)
   /* "DL[?DL[sSC]]" */
   pn_bytes_t buf = pn_amqp_encode_DLEQDLEsSCee(&transport->scratch_space, CLOSE,
                        (bool) condition, ERROR, pn_string_bytes(condition), pn_string_bytes(description), info);
-  return pn_framing_send_amqp(transport, 0, buf);
+  pn_framing_send_amqp(transport, 0, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
+  return 0;
 }
 
 static pn_collector_t *pni_transport_collector(pn_transport_t *transport)
@@ -1886,8 +1885,7 @@ static int pni_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endp
                               connection->offered_capabilities,
                               connection->desired_capabilities,
                               connection->properties);
-      int err = pn_framing_send_amqp(transport, 0, buf);
-      if (err) return err;
+      pn_framing_send_amqp(transport, 0, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       transport->open_sent = true;
     }
   }
@@ -1969,7 +1967,7 @@ static int pni_process_ssn_setup(pn_transport_t *transport, pn_endpoint_t *endpo
                     state->incoming_window,
                     state->outgoing_window,
                     ssn->local_handle_max);
-      pn_framing_send_amqp(transport, state->local_channel, buf);
+      pn_framing_send_amqp(transport, state->local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
     }
   }
 
@@ -2042,8 +2040,7 @@ static int pni_process_link_setup(pn_transport_t *transport, pn_endpoint_t *endp
                                 link->source.capabilities,
                                 COORDINATOR, link->target.capabilities,
                                 0);
-        int err = pn_framing_send_amqp(transport, ssn_state->local_channel, buf);
-        if (err) return err;
+        pn_framing_send_amqp(transport, ssn_state->local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       } else {
         /* "DL[SIoBB?DL[SIsIoC?sCnMM]?DL[SIsIoCM]nnILnnC]" */
         pn_bytes_t buf = pn_amqp_encode_DLESIoBBQDLESIsIoCQsCnMMeQDLESIsIoCMennILnnCe(&transport->scratch_space, ATTACH,
@@ -2077,8 +2074,7 @@ static int pni_process_link_setup(pn_transport_t *transport, pn_endpoint_t *endp
                                 0,
                                 link->max_message_size,
                                 link->properties);
-        int err = pn_framing_send_amqp(transport, ssn_state->local_channel, buf);
-        if (err) return err;
+        pn_framing_send_amqp(transport, ssn_state->local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       }
     }
   }
@@ -2102,7 +2098,8 @@ static int pni_post_flow(pn_transport_t *transport, pn_session_t *ssn, pn_link_t
                        linkq, linkq ? state->delivery_count : 0,
                        linkq, linkq ? state->link_credit : 0,
                        linkq, linkq ? link->drain : false);
-  return pn_framing_send_amqp(transport, ssn->state.local_channel, buf);
+  pn_framing_send_amqp(transport, ssn->state.local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
+  return 0;
 }
 
 static int pni_process_flow_receiver(pn_transport_t *transport, pn_endpoint_t *endpoint)
@@ -2135,8 +2132,7 @@ static int pni_flush_disp(pn_transport_t *transport, pn_session_t *ssn)
                             ssn->state.disp_last!=ssn->state.disp_first, ssn->state.disp_last,
                             settled, settled,
                             (bool)code, code);
-    int err = pn_framing_send_amqp(transport, ssn->state.local_channel, buf);
-    if (err) return err;
+    pn_framing_send_amqp(transport, ssn->state.local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
     ssn->state.disp_type = 0;
     ssn->state.disp_code = 0;
     ssn->state.disp_settled = 0;
@@ -2170,7 +2166,8 @@ static int pni_post_disp(pn_transport_t *transport, pn_delivery_t *delivery)
       role, state->id,
       delivery->local.settled, delivery->local.settled,
       (bool)code, code, transport->disp_data);
-    return pn_framing_send_amqp(transport, ssn->state.local_channel, buf);
+    pn_framing_send_amqp(transport, ssn->state.local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
+    return 0;
   }
 
   if (ssn_state->disp && code == ssn_state->disp_code &&
@@ -2187,7 +2184,7 @@ static int pni_post_disp(pn_transport_t *transport, pn_delivery_t *delivery)
 
   if (ssn_state->disp) {
     int err = pni_flush_disp(transport, ssn);
-    if (err) return err;
+    if (err < 0) return err;
   }
 
   ssn_state->disp_type = role;
@@ -2275,7 +2272,7 @@ static int pni_process_tpwork_sender(pn_transport_t *transport, pn_delivery_t *d
   if ((int16_t) ssn_state->local_channel >= 0 && !delivery->remote.settled
       && state && state->sent && !xfr_posted) {
     int err = pni_post_disp(transport, delivery);
-    if (err) return err;
+    if (err < 0) return err;
   }
 
   *settle = delivery->local.settled && state && state->sent;
@@ -2296,7 +2293,7 @@ static int pni_process_tpwork_receiver(pn_transport_t *transport, pn_delivery_t 
   // XXX: need to centralize this policy and improve it
   if (!ssn->state.incoming_window) {
     int err = pni_post_flow(transport, ssn, link);
-    if (err) return err;
+    if (err < 0) return err;
   }
 
   *settle = delivery->local.settled;
@@ -2319,11 +2316,11 @@ static int pni_process_tpwork(pn_transport_t *transport, pn_endpoint_t *endpoint
       if (pn_link_is_sender(link)) {
         dm = &link->session->state.outgoing;
         int err = pni_process_tpwork_sender(transport, delivery, &settle);
-        if (err) return err;
+        if (err < 0) return err;
       } else {
         dm = &link->session->state.incoming;
         int err = pni_process_tpwork_receiver(transport, delivery, &settle);
-        if (err) return err;
+        if (err < 0) return err;
       }
 
       if (settle) {
@@ -2347,7 +2344,7 @@ static int pni_process_flush_disp(pn_transport_t *transport, pn_endpoint_t *endp
     if ((int16_t) state->local_channel >= 0 && !transport->close_sent)
     {
       int err = pni_flush_disp(transport, session);
-      if (err) return err;
+      if (err < 0) return err;
     }
   }
 
@@ -2417,8 +2414,7 @@ static int pni_process_link_teardown(pn_transport_t *transport, pn_endpoint_t *e
                                             state->local_handle,
                                             !link->detached, !link->detached,
                                             (bool)name, ERROR, pn_string_bytes(name), pn_string_bytes(description), info);
-      int err = pn_framing_send_amqp(transport, ssn_state->local_channel, buf);
-      if (err) return err;
+      pn_framing_send_amqp(transport, ssn_state->local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       pni_unmap_local_handle(link);
     }
 
@@ -2491,8 +2487,7 @@ static int pni_process_ssn_teardown(pn_transport_t *transport, pn_endpoint_t *en
       /* "DL[?DL[sSC]]" */
       pn_bytes_t buf = pn_amqp_encode_DLEQDLEsSCee(&transport->scratch_space, END,
                               (bool) name, ERROR, pn_string_bytes(name), pn_string_bytes(description), info);
-      int err = pn_framing_send_amqp(transport, state->local_channel, buf);
-      if (err) return err;
+      pn_framing_send_amqp(transport, state->local_channel, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       pni_unmap_local_channel(session);
     }
 
@@ -2508,7 +2503,7 @@ static int pni_process_conn_teardown(pn_transport_t *transport, pn_endpoint_t *e
     if (endpoint->state & PN_LOCAL_CLOSED && !transport->close_sent) {
       if (pni_pointful_buffering(transport, NULL)) return 0;
       int err = pni_post_close(transport, NULL);
-      if (err) return err;
+      if (err < 0) return err;
       transport->close_sent = true;
     }
 
@@ -2524,8 +2519,8 @@ static int pni_phase(pn_transport_t *transport, int (*phase)(pn_transport_t *, p
   while (endpoint)
   {
     pn_endpoint_t *next = endpoint->transport_next;
-    int err = phase(transport, endpoint);
-    if (err) return err;
+    int rc = phase(transport, endpoint);
+    if (rc < 0) return rc;
     endpoint = next;
   }
   return 0;
@@ -2567,7 +2562,7 @@ static void pn_error_amqp(pn_transport_t* transport, unsigned int layer)
     if (!transport->open_sent) {
       /* "DL[S]" */
       pn_bytes_t buf = pn_amqp_encode_DLESe(&transport->scratch_space, OPEN, (pn_bytes_t){.size=0, .start=""});
-      pn_framing_send_amqp(transport, 0, buf);
+      pn_framing_send_amqp(transport, 0, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
     }
 
     pni_post_close(transport, &transport->condition);
@@ -2662,11 +2657,9 @@ static int64_t pn_tick_amqp(pn_transport_t* transport, unsigned int layer, int64
       transport->last_bytes_output = transport->bytes_output;
     } else if (transport->keepalive_deadline <= now) {
       transport->keepalive_deadline = now + (pn_timestamp_t)(transport->remote_idle_timeout/2.0);
-      if (pn_buffer_size(transport->output_buffer) == 0) {    // no outbound data pending
+      if (!pn_buffer_list_has_data(&transport->amqp_buffers)) {    // no outbound data pending
         // so send empty frame (and account for it!)
-        pn_bytes_t buf = pn_bytes(0,"");
-        pn_framing_send_amqp(transport, 0, buf);
-        transport->last_bytes_output += pn_buffer_size(transport->output_buffer);
+        transport->last_bytes_output += pn_framing_send_heartbeat(transport, 0);
       }
     }
     timeout = pn_timestamp_min( timeout, transport->keepalive_deadline );
@@ -2675,15 +2668,17 @@ static int64_t pn_tick_amqp(pn_transport_t* transport, unsigned int layer, int64
   return timeout;
 }
 
-static ssize_t pn_output_write_amqp_header(pn_transport_t* transport, unsigned int layer, char* bytes, size_t available)
+static ssize_t pn_output_write_amqp_header(pn_transport_t* transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   PN_LOG(&transport->logger, PN_SUBSYSTEM_AMQP, PN_LEVEL_FRAME, "  -> %s", "AMQP");
-  assert(available >= 8);
-  memmove(bytes, AMQP_HEADER, 8);
+  pn_rwbytes_t header = pni_transport_get_header_space(transport);
+  memmove(header.start, AMQP_HEADER, AMQP_HEADER_SIZE);
+  pn_buffer_list_append_head(blist, pn_buffer_list_entry((const uint8_t*)header.start, header.size, 0));
   if (pn_condition_is_set(&transport->condition)) {
       pn_error_amqp(transport, layer);
     transport->io_layers[layer] = &pni_error_layer;
-    return pn_dispatcher_output(transport, bytes+8, available-8) + 8;
+    // We might already have generated a frame - append it to the amqp header here
+    return pn_dispatcher_output(transport, blist) + AMQP_HEADER_SIZE;
   }
 
   if (transport->io_layers[layer] == &amqp_write_header_layer) {
@@ -2691,10 +2686,10 @@ static ssize_t pn_output_write_amqp_header(pn_transport_t* transport, unsigned i
   } else {
     transport->io_layers[layer] = &amqp_read_header_layer;
   }
-  return 8;
+  return AMQP_HEADER_SIZE;
 }
 
-static ssize_t pn_output_write_amqp(pn_transport_t* transport, unsigned int layer, char* bytes, size_t available)
+static ssize_t pn_output_write_amqp(pn_transport_t* transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   if (transport->connection && !transport->done_processing) {
     int err = pni_process(transport);
@@ -2707,11 +2702,11 @@ static ssize_t pn_output_write_amqp(pn_transport_t* transport, unsigned int laye
   // write out any buffered data _before_ returning PN_EOS, else we
   // could truncate an outgoing Close frame containing a useful error
   // status
-  if (!pn_buffer_size(transport->output_buffer) && transport->close_sent) {
+  if (!pn_buffer_list_has_data(&transport->amqp_buffers) && transport->close_sent) {
     return PN_EOS;
   }
 
-  return pn_dispatcher_output(transport, bytes, available);
+  return pn_dispatcher_output(transport, blist);
 }
 
 // Mark transport output as closed and send event
@@ -2726,49 +2721,25 @@ static void pni_close_head(pn_transport_t *transport)
 }
 
 // generate outbound data, return amount of pending output else error
-static ssize_t transport_produce(pn_transport_t *transport)
+static void transport_produce(pn_transport_t *transport)
 {
-  if (transport->head_closed) return PN_EOS;
-
-  ssize_t space = transport->output_size - transport->output_pending;
-
-  if (space <= 0) {     // can we expand the buffer?
-    int more = 0;
-    if (!transport->remote_max_frame)   // no limit, so double it
-      more = transport->output_size;
-    else if (transport->remote_max_frame > transport->output_size)
-      more = pn_min(transport->output_size, transport->remote_max_frame - transport->output_size);
-    if (more) {
-      char *newbuf = (char *)pni_mem_subreallocate(pn_class(transport), transport, transport->output_buf, transport->output_size + more );
-      if (newbuf) {
-        transport->output_buf = newbuf;
-        transport->output_size += more;
-        space += more;
-      }
-    }
-  }
-
-  while (space > 0) {
+  while (true) {
     ssize_t n;
     n = transport->io_layers[0]->
       process_output( transport, 0,
-                      &transport->output_buf[transport->output_pending],
-                      space );
+                      &transport->output_buffers);
     if (n > 0) {
-      space -= n;
-      transport->output_pending += n;
+      continue;
     } else if (n == 0) {
       break;
     } else {
-      if (transport->output_pending)
+      if (!pn_buffer_list_empty(&transport->output_buffers))
         break;   // return what is available
       PN_LOG(&transport->logger, PN_SUBSYSTEM_AMQP | PN_SUBSYSTEM_IO, PN_LEVEL_FRAME | PN_LEVEL_RAW, "  -> EOS");
       pni_close_head(transport);
-      return n;
+      return;
     }
   }
-
-  return transport->output_pending;
 }
 
 // deprecated
@@ -2953,6 +2924,37 @@ uint64_t pn_transport_get_frames_input(const pn_transport_t *transport)
   return 0;
 }
 
+pn_rwbytes_t pni_transport_get_header_space(pn_transport_t* transport)
+{
+  uint16_t head = transport->header_space_head;
+  uint16_t tail = transport->header_space_tail;
+
+  if (head > tail)
+    if (head-tail == PN_TRANSPORT_FRAME_HEADER_SPACE) return pn_rwbytes_alloc(8);
+  if (head+8 == tail) return pn_rwbytes_alloc(8);
+
+  transport->header_space_head = (head+8==PN_TRANSPORT_FRAME_HEADER_SPACE) ? 0 : head+8;
+
+  return pn_rwbytes(8, transport->header_space.start+head);
+}
+
+void pni_transport_free_buffer_entry(pn_transport_t *transport, pn_buffer_list_entry_t *entry)
+{
+  char *buffer = (char*) entry->buffer;
+
+  // Check whether this allocation came from the transport header space
+  if (buffer >= transport->header_space.start && buffer < &transport->header_space.start[transport->header_space.size]) {
+    uint16_t tail = buffer-transport->header_space.start;
+    assert( tail == transport->header_space_tail);
+
+    transport->header_space_tail = (tail+8==PN_TRANSPORT_FRAME_HEADER_SPACE) ? 0 : tail+8;
+
+    return;
+  }
+
+  pn_buffer_list_entry_free(entry);
+}
+
 ssize_t pni_transport_grow_capacity(pn_transport_t *transport, size_t n) {
   // can we expand the size of the input buffer?
   size_t size = pn_max(n, transport->input_size);
@@ -3043,15 +3045,15 @@ int pn_transport_close_tail(pn_transport_t *transport)
 ssize_t pn_transport_pending(pn_transport_t *transport)      /* <0 == done */
 {
   assert(transport);
-  return transport_produce( transport );
+  transport_produce( transport );
+  pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&transport->output_buffers);
+  return (!entry && pn_transport_head_closed(transport)) ? PN_EOS : entry ? (ssize_t) entry->size : 0;
 }
 
 const char *pn_transport_head(pn_transport_t *transport)
 {
-  if (transport && transport->output_pending) {
-    return transport->output_buf;
-  }
-  return NULL;
+  pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&transport->output_buffers);
+  return !entry ? NULL : (const char*)entry->buffer+entry->offset;
 }
 
 ssize_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size)
@@ -3084,8 +3086,9 @@ pn_bytes_t pn_transport_get_output_bytes(pn_transport_t *transport)
 {
   if (transport) {
     transport_produce(transport);
-    if (transport->output_pending)
-      return pn_bytes(transport->output_pending, transport->output_buf);
+    pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&transport->output_buffers);
+    if (entry)
+      return pn_bytes_from_buffer_list_entry(entry);
   }
   return (pn_bytes_t){0, NULL};
 }
@@ -3094,16 +3097,18 @@ pn_bytes_t pn_transport_pop_output_bytes(pn_transport_t *transport, size_t size)
 {
   if (!transport) return (pn_bytes_t){0, NULL};
 
-  assert( transport->output_pending >= size );
-  transport->output_pending -= size;
-  transport->bytes_output += size;
-  if (transport->output_pending) {
-    // TODO: This could be potentially inefficient if we often pop the output without emptying it
-    // TODO: as we rotate the buffer here if we have any bytes left to write.
-    memmove( transport->output_buf,  &transport->output_buf[size],
-              transport->output_pending );
-    return (pn_bytes_t){transport->output_pending, transport->output_buf};
+  if (size==0) return pn_transport_get_output_bytes(transport);
+
+  pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&transport->output_buffers);
+  assert(entry->size >= size);
+  if (entry->size > size) {
+    entry->offset += size;
+    entry->size -= size;
+    return pn_bytes_from_buffer_list_entry(entry);
   } else {
+    // TODO: Hmm this should really use the buffer lists free mechanism
+    pni_transport_free_buffer_entry(transport, entry);
+    pn_buffer_list_advance_tail(&transport->output_buffers);
     // If we emptied the output buffer then see if there's more output pending
     return pn_transport_get_output_bytes(transport);
   }

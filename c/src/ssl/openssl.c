@@ -101,13 +101,12 @@ struct pni_ssl_t {
   BIO *bio_net_io;      // socket-side "half" of network-facing BIO
   // buffers for holding I/O from "applications" above SSL
 #define APP_BUF_SIZE    (4*1024)
-  char *outbuf;
+  pn_buffer_list_t out_buffers;
   char *inbuf;
 
   ssize_t app_input_closed;   // error code returned by upper layer process input
   ssize_t app_output_closed;  // error code returned by upper layer process output
 
-  size_t out_size;
   size_t out_count;
   size_t in_size;
   size_t in_count;
@@ -144,9 +143,9 @@ static inline pni_ssl_t *get_ssl_internal(pn_ssl_t *ssl)
 static int keyfile_pw_cb(char *buf, int size, int rwflag, void *userdata);
 static void handle_error_ssl( pn_transport_t *transport, unsigned int layer);
 static ssize_t process_input_ssl( pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len);
-static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, char *input_data, size_t len);
+static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
 static ssize_t process_input_done(pn_transport_t *transport, unsigned int layer, const char *input_data, size_t len);
-static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, char *input_data, size_t len);
+static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
 static int init_ssl_socket(pn_transport_t *, pni_ssl_t *, pn_ssl_domain_t *);
 static void release_ssl_socket( pni_ssl_t * );
 static size_t buffered_output( pn_transport_t *transport );
@@ -961,7 +960,7 @@ void pn_ssl_free(pn_transport_t *transport)
   if (ssl->session_id) free((void *)ssl->session_id);
   if (ssl->peer_hostname) free((void *)ssl->peer_hostname);
   if (ssl->inbuf) free((void *)ssl->inbuf);
-  if (ssl->outbuf) free((void *)ssl->outbuf);
+  pn_buffer_list_clear(&ssl->out_buffers);
   if (ssl->subject) free(ssl->subject);
   if (ssl->peer_certificate) X509_free(ssl->peer_certificate);
   free(ssl);
@@ -974,17 +973,11 @@ pn_ssl_t *pn_ssl(pn_transport_t *transport)
 
   pni_ssl_t *ssl = (pni_ssl_t *) calloc(1, sizeof(pni_ssl_t));
   if (!ssl) return NULL;
-  ssl->out_size = APP_BUF_SIZE;
   uint32_t max_frame = pn_transport_get_max_frame(transport);
   ssl->in_size =  max_frame ? max_frame : APP_BUF_SIZE;
-  ssl->outbuf = (char *)malloc(ssl->out_size);
-  if (!ssl->outbuf) {
-    free(ssl);
-    return NULL;
-  }
+  pn_buffer_list_init(&ssl->out_buffers, pni_transport_free_buffer_entry_thunk, (uintptr_t)transport);
   ssl->inbuf =  (char *)malloc(ssl->in_size);
   if (!ssl->inbuf) {
-    free(ssl->outbuf);
     free(ssl);
     return NULL;
   }
@@ -1190,7 +1183,7 @@ static void handle_error_ssl(pn_transport_t *transport, unsigned int layer)
   }
 }
 
-static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, char *buffer, size_t max_len)
+static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   pni_ssl_t *ssl = transport->ssl;
   if (!ssl) return PN_EOS;
@@ -1205,8 +1198,8 @@ static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer
 
     // first, get any pending application output, if possible
 
-    if (!ssl->app_output_closed && ssl->out_count < ssl->out_size) {
-      ssize_t app_bytes = transport->io_layers[layer+1]->process_output(transport, layer+1, &ssl->outbuf[ssl->out_count], ssl->out_size - ssl->out_count);
+    if (!ssl->app_output_closed) {
+      ssize_t app_bytes = transport->io_layers[layer+1]->process_output(transport, layer+1, &ssl->out_buffers);
       if (app_bytes > 0) {
         ssl->out_count += app_bytes;
         work_pending = true;
@@ -1220,17 +1213,23 @@ static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer
       }
     }
 
-    // now push any pending app data into the socket
-
+    // now push any pending app data into TLS encrypt pipeline
+    int wrote = 0;
     if (!ssl->ssl_closed) {
-      char *data = ssl->outbuf;
+      pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&ssl->out_buffers);
       if (ssl->out_count > 0) {
-        int wrote = BIO_write( ssl->bio_ssl, data, ssl->out_count );
+        wrote = BIO_write( ssl->bio_ssl, &entry->buffer[entry->offset], entry->size );
         if (wrote > 0) {
-          data += wrote;
+          if ((unsigned)wrote==entry->size) {
+            pni_transport_free_buffer_entry(transport, entry);
+            pn_buffer_list_advance_tail(&ssl->out_buffers);
+          } else {
+            entry->offset += wrote;
+            entry->size -= wrote;
+          }
           ssl->out_count -= wrote;
           work_pending = true;
-          ssl_log( transport, PN_LEVEL_TRACE, "Wrote %d bytes from app to socket", wrote );
+          ssl_log( transport, PN_LEVEL_TRACE, "Wrote %d bytes from app to TLS encrypt pipeline", wrote );
         } else {
           if (!BIO_should_retry(ssl->bio_ssl)) {
             int reason = SSL_get_error( ssl->ssl, wrote );
@@ -1265,26 +1264,27 @@ static ssize_t process_output_ssl( pn_transport_t *transport, unsigned int layer
           // been written to the SSL socket
           start_ssl_shutdown(transport);
         }
-      } else if (data != ssl->outbuf) {
-        memmove( ssl->outbuf, data, ssl->out_count );
       }
     }
 
     // read from the network bio as much as possible, filling the buffer
-    if (max_len) {
-      int available = BIO_read( ssl->bio_net_io, buffer, max_len );
-      if (available > 0) {
-        max_len -= available;
-        buffer += available;
-        written += available;
-        ssl->write_blocked = false;
-        work_pending = work_pending || max_len > 0;
-        ssl_log(transport, PN_LEVEL_TRACE, "Read %d bytes from BIO Layer", available );
-      } else if ( !ssl->handshake_ok && !ssl->ssl_closed ) {
-        // OpenSSL bug workaround 1.0.x -> unknown.  Harmless in all versions.
-        // See PROTON-2643. SSL_do_handshake() prevents forgetting to refill the BIO.
-        ssl->handshake_ok = (SSL_do_handshake(ssl->ssl) == 1);
-      }
+    // As a finger in the air allocate twice the buffer size for the encrypted data
+    uint32_t buffer_len = (wrote>0) ? wrote*2 : 512;
+    uint8_t *buffer = malloc(buffer_len);
+    int available = BIO_read( ssl->bio_net_io, buffer,  buffer_len);
+    if (available > 0) {
+      pn_buffer_list_append_head(blist, pn_buffer_list_entry(buffer, available, 0));
+      written += available;
+
+      ssl->write_blocked = false;
+      ssl_log(transport, PN_LEVEL_TRACE, "Read %d bytes from BIO Layer", available );
+    } else if ( !ssl->handshake_ok && !ssl->ssl_closed ) {
+      free(buffer);
+      // OpenSSL bug workaround 1.0.x -> unknown.  Harmless in all versions.
+      // See PROTON-2643. SSL_do_handshake() prevents forgetting to refill the BIO.
+      ssl->handshake_ok = (SSL_do_handshake(ssl->ssl) == 1);
+    } else {
+      free(buffer);
     }
 
   } while (work_pending);
@@ -1589,7 +1589,7 @@ static ssize_t process_input_done(pn_transport_t *transport, unsigned int layer,
 {
   return PN_EOS;
 }
-static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, char *input_data, size_t len)
+static ssize_t process_output_done(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   return PN_EOS;
 }

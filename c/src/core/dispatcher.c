@@ -27,6 +27,7 @@
 #include "framing.h"
 #include "logger_private.h"
 #include "protocol.h"
+#include "util.h"
 
 
 int pni_bad_frame(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, pn_bytes_t payload) {
@@ -78,7 +79,7 @@ static inline int pni_dispatch_action(pn_transport_t* transport, uint64_t lcode,
 
 static int pni_dispatch_frame(pn_frame_t frame, pn_logger_t *logger, pn_transport_t * transport)
 {
-  pn_bytes_t frame_payload = frame.frame_payload0;
+  pn_bytes_t frame_payload = pn_bytes_from_buffer_list_entry(&frame.frame_payload0);
 
   if (frame_payload.size == 0) { // ignore null frames
     return 0;
@@ -129,10 +130,7 @@ ssize_t pn_dispatcher_input(pn_transport_t *transport, const char *bytes, size_t
   return read;
 }
 
-ssize_t pn_dispatcher_output(pn_transport_t *transport, char *bytes, size_t size)
+ssize_t pn_dispatcher_output(pn_transport_t *transport, pn_buffer_list_t *blist)
 {
-    int n = pn_buffer_get(transport->output_buffer, 0, size, bytes);
-    pn_buffer_trim(transport->output_buffer, n, 0);
-    // XXX: need to check for errors
-    return n;
+  return pn_buffer_list_transfer(&transport->amqp_buffers, blist);
 }

@@ -287,9 +287,9 @@ static inline pni_sasl_t *get_sasl_internal(pn_sasl_t *sasl)
 static ssize_t pn_input_read_sasl_header(pn_transport_t* transport, unsigned int layer, const char* bytes, size_t available);
 static ssize_t pn_input_read_sasl(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available);
 static ssize_t pn_input_read_sasl_encrypt(pn_transport_t *transport, unsigned int layer, const char *bytes, size_t available);
-static ssize_t pn_output_write_sasl_header(pn_transport_t* transport, unsigned int layer, char* bytes, size_t size);
-static ssize_t pn_output_write_sasl(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available);
-static ssize_t pn_output_write_sasl_encrypt(pn_transport_t *transport, unsigned int layer, char *bytes, size_t available);
+static ssize_t pn_output_write_sasl_header(pn_transport_t* transport, unsigned int layer, pn_buffer_list_t *blist);
+static ssize_t pn_output_write_sasl(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
+static ssize_t pn_output_write_sasl_encrypt(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
 static void pn_error_sasl(pn_transport_t* transport, unsigned int layer);
 
 const pn_io_layer_t sasl_header_layer = {
@@ -483,17 +483,18 @@ static void pni_split_mechs(char *mechlist, const char* included_mechs, char *me
 }
 
 // Post SASL frame
-static void pni_post_sasl_frame(pn_transport_t *transport)
+static size_t pni_post_sasl_frame(pn_transport_t *transport)
 {
   pni_sasl_t *sasl = transport->sasl;
   pn_bytes_t out = sasl->bytes_out;
   enum pnx_sasl_state desired_state = sasl->desired_state;
+  size_t total_size = 0;
   while (sasl->desired_state > sasl->last_state) {
     switch (desired_state) {
     case SASL_POSTED_INIT: {
       /* GENERATE_CODEC_CODE: "DL[szS]" */
       pn_bytes_t buf = pn_amqp_encode_DLEszSe(&transport->scratch_space, SASL_INIT, pn_string_bytes(sasl->selected_mechanism), out.size, out.start, pn_string_bytes(sasl->local_fqdn));
-      pn_framing_send_sasl(transport, buf);
+      total_size += pn_framing_send_sasl(transport, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       pni_emit(transport);
       break;
     }
@@ -509,7 +510,7 @@ static void pni_post_sasl_frame(pn_transport_t *transport)
       /* GENERATE_CODEC_CODE: "DL[@T[*s]]" */
       pn_bytes_t buf = pn_amqp_encode_DLEATEjsee(&transport->scratch_space, SASL_MECHANISMS, PN_SYMBOL, count, mechs);
       free(mechlist);
-      pn_framing_send_sasl(transport, buf);
+      total_size += pn_framing_send_sasl(transport, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       pni_emit(transport);
       break;
     }
@@ -517,7 +518,7 @@ static void pni_post_sasl_frame(pn_transport_t *transport)
       if (sasl->last_state != SASL_POSTED_RESPONSE) {
         /* "DL[Z]" */
         pn_bytes_t buf = pn_amqp_encode_DLEZe(&transport->scratch_space, SASL_RESPONSE, out.size, out.start);
-        pn_framing_send_sasl(transport, buf);
+        total_size += pn_framing_send_sasl(transport, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
         pni_emit(transport);
       }
       break;
@@ -528,7 +529,7 @@ static void pni_post_sasl_frame(pn_transport_t *transport)
       } else if (sasl->last_state != SASL_POSTED_CHALLENGE) {
         /* "DL[Z]" */
         pn_bytes_t buf = pn_amqp_encode_DLEZe(&transport->scratch_space, SASL_CHALLENGE, out.size, out.start);
-        pn_framing_send_sasl(transport, buf);
+        total_size += pn_framing_send_sasl(transport, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
         pni_emit(transport);
       }
       break;
@@ -539,7 +540,7 @@ static void pni_post_sasl_frame(pn_transport_t *transport)
       }
       /* "DL[Bz]" */
       pn_bytes_t buf = pn_amqp_encode_DLEBze(&transport->scratch_space, SASL_OUTCOME, sasl->outcome, out.size, out.start);
-      pn_framing_send_sasl(transport, buf);
+      total_size += pn_framing_send_sasl(transport, pn_buffer_list_entry_from_bytes(pn_bytes_dup(buf)));
       pni_emit(transport);
       if (sasl->outcome!=PN_SASL_OK) {
         const char *selected_mechanism = transport->sasl->selected_mechanism ? pn_string_get(transport->sasl->selected_mechanism) : NULL;
@@ -565,11 +566,12 @@ static void pni_post_sasl_frame(pn_transport_t *transport)
     case SASL_ERROR:
       break;
     case SASL_NONE:
-      return;
+      return total_size;
     }
     sasl->last_state = desired_state;
     desired_state = sasl->desired_state;
   }
+  return total_size;
 }
 
 static void pn_error_sasl(pn_transport_t* transport, unsigned int layer)
@@ -685,11 +687,12 @@ static ssize_t pn_input_read_sasl_encrypt(pn_transport_t* transport, unsigned in
   return available;
 }
 
-static ssize_t pn_output_write_sasl_header(pn_transport_t *transport, unsigned int layer, char *bytes, size_t size)
+static ssize_t pn_output_write_sasl_header(pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   PN_LOG(&transport->logger, PN_SUBSYSTEM_SASL, PN_LEVEL_FRAME, "  -> %s", "SASL");
-  assert(size >= SASL_HEADER_LEN);
-  memmove(bytes, SASL_HEADER, SASL_HEADER_LEN);
+  pn_rwbytes_t header = pni_transport_get_header_space(transport);
+  memmove(header.start, SASL_HEADER, SASL_HEADER_LEN);
+  pn_buffer_list_append_head(blist, pn_buffer_list_entry((const uint8_t*)header.start, header.size, 0));
   if (transport->io_layers[layer]==&sasl_write_header_layer) {
       transport->io_layers[layer] = &sasl_layer;
   } else {
@@ -698,7 +701,7 @@ static ssize_t pn_output_write_sasl_header(pn_transport_t *transport, unsigned i
   return SASL_HEADER_LEN;
 }
 
-static ssize_t pn_output_write_sasl(pn_transport_t* transport, unsigned int layer, char* bytes, size_t available)
+static ssize_t pn_output_write_sasl(pn_transport_t* transport, unsigned int layer, pn_buffer_list_t *blist)
 {
   pni_sasl_t *sasl = transport->sasl;
 
@@ -711,12 +714,12 @@ static ssize_t pn_output_write_sasl(pn_transport_t* transport, unsigned int laye
 
   pni_post_sasl_frame(transport);
 
-  if (pn_buffer_size(transport->output_buffer) != 0 || !pni_sasl_is_final_output_state(sasl)) {
-    return pn_dispatcher_output(transport, bytes, available);
+  if (pn_buffer_list_has_data(&transport->amqp_buffers) || !pni_sasl_is_final_output_state(sasl)) {
+    return pn_dispatcher_output(transport, blist);
   }
 
   if (!pni_sasl_is_final_input_state(sasl)) {
-    return pni_passthru_layer.process_output(transport, layer, bytes, available );
+    return pni_passthru_layer.process_output(transport, layer, blist);
   }
 
   // We only get here if there is nothing to output and we're in a final state
@@ -732,30 +735,38 @@ static ssize_t pn_output_write_sasl(pn_transport_t* transport, unsigned int laye
   } else {
     transport->io_layers[layer] = &pni_passthru_layer;
   }
-  return transport->io_layers[layer]->process_output(transport, layer, bytes, available);
+  return transport->io_layers[layer]->process_output(transport, layer, blist);
 }
 
-static ssize_t pn_output_write_sasl_encrypt(pn_transport_t* transport, unsigned int layer, char* bytes, size_t available)
+static ssize_t pn_output_write_sasl_encrypt(pn_transport_t* transport, unsigned int layer, pn_buffer_list_t *blist)
 {
-  ssize_t clear_size = pni_passthru_layer.process_output(transport, layer, bytes, available );
+  pn_buffer_list_t clear_buffers;
+  pn_buffer_list_init(&clear_buffers, pni_transport_free_buffer_entry_thunk, (uintptr_t) transport);
+
+  ssize_t clear_size = pni_passthru_layer.process_output(transport, layer, &clear_buffers);
   if (clear_size<0) return clear_size;
 
   const ssize_t max_buffer = transport->sasl->max_encrypt_size;
-  pn_buffer_t *out = transport->sasl->encoded_buffer;
+  size_t total = 0;
   for (ssize_t processed = 0; processed<clear_size;) {
     pn_bytes_t encoded = pn_bytes(0, NULL);
-    ssize_t encode_size = (clear_size-processed)<=max_buffer?(clear_size-processed):max_buffer;
-    ssize_t size = pni_sasl_impl_encode(transport, pn_bytes(encode_size, bytes+processed), &encoded);
+    pn_buffer_list_entry_t *entry = pn_buffer_list_tail(&clear_buffers);
+    ssize_t encode_size = (entry->size)<=max_buffer?(entry->size):max_buffer;
+    ssize_t size = pni_sasl_impl_encode(transport, pn_bytes(encode_size, (const char*)entry->buffer+entry->offset), &encoded);
     if (size<0) return size;
     if (size>0) {
-      size = pn_buffer_append(out, encoded.start, encoded.size);
-      if (size) return size;
+      total += size;
+      if (encode_size==entry->size) {
+        pn_buffer_list_advance_tail(&clear_buffers);
+      } else {
+        entry->offset += encode_size;
+        entry->size -= encode_size;
+      }
+      pn_buffer_list_append_head(blist, pn_buffer_list_entry_from_bytes(pn_bytes_dup(encoded)));
     }
     processed += encode_size;
   }
-  ssize_t size = pn_buffer_get(out, 0, available, bytes);
-  pn_buffer_trim(out, size, 0);
-  return size;
+  return total;
 }
 
 pn_sasl_t *pn_sasl(pn_transport_t *transport)

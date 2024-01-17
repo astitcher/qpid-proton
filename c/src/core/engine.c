@@ -1538,6 +1538,11 @@ pn_delivery_tag_t pn_dtag(const char *bytes, size_t size) {
   return dtag;
 }
 
+void pni_delivery_free_buffer_entry(uintptr_t context, pn_buffer_list_entry_t *entry)
+{
+  pn_buffer_list_entry_free(entry);
+}
+
 pn_delivery_t *pn_delivery(pn_link_t *link, pn_delivery_tag_t tag)
 {
   assert(link);
@@ -1546,7 +1551,7 @@ pn_delivery_t *pn_delivery(pn_link_t *link, pn_delivery_tag_t tag)
   if (!delivery) {
     delivery = (pn_delivery_t *) pn_class_new(&PN_CLASSCLASS(pn_delivery), sizeof(pn_delivery_t));
     if (!delivery) return NULL;
-    pn_buffer_list_init(&delivery->buffered_bytes);
+    pn_buffer_list_init(&delivery->buffered_bytes, pni_delivery_free_buffer_entry, 0);
     pn_disposition_init(&delivery->local);
     pn_disposition_init(&delivery->remote);
     delivery->context = pn_record();

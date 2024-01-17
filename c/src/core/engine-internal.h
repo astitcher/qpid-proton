@@ -106,7 +106,7 @@ typedef struct {
 
 typedef struct pn_io_layer_t {
   ssize_t (*process_input)(struct pn_transport_t *transport, unsigned int layer, const char *, size_t);
-  ssize_t (*process_output)(struct pn_transport_t *transport, unsigned int layer, char *, size_t);
+  ssize_t (*process_output)(struct pn_transport_t *transport, unsigned int layer, pn_buffer_list_t *blist);
   void (*handle_error)(struct pn_transport_t* transport, unsigned int layer);
   int64_t (*process_tick)(struct pn_transport_t *transport, unsigned int layer, int64_t);
   size_t (*buffered_output)(struct pn_transport_t *transport);  // how much output is held
@@ -129,6 +129,9 @@ typedef struct pni_sasl_t pni_sasl_t;
 typedef struct pni_ssl_t pni_ssl_t;
 
 struct pn_transport_t {
+  pn_buffer_list_t amqp_buffers;
+  pn_buffer_list_t output_buffers;
+
   pn_logger_t logger;
   pn_tracer_t tracer;
   pni_sasl_t *sasl;
@@ -168,8 +171,18 @@ struct pn_transport_t {
   /* scratch area */
   pn_rwbytes_t scratch_space;
 
-  // Temporary - ??
-  pn_buffer_t *output_buffer;
+  /* area for frame headers */
+  /* Allocate a fixed amount of space for frame headers
+   * They must be used in sequence so we can use a circular buffer
+   * if this space isn't big enough then just use malloc/free.
+   *
+   * It seems safe to limit this to under 65536 bytes for now (that's a
+   * lot of frame headers)
+   */
+  #define PN_TRANSPORT_FRAME_HEADER_SPACE (8*64)
+  pn_rwbytes_t header_space;
+  uint16_t header_space_tail;
+  uint16_t header_space_head;
 
   /* statistics */
   uint64_t bytes_input;
@@ -177,11 +190,7 @@ struct pn_transport_t {
   uint64_t output_frames_ct;
   uint64_t input_frames_ct;
 
-  /* output buffered for send */
   #define PN_TRANSPORT_INITIAL_BUFFER_SIZE (8*1024)
-  size_t output_size;
-  size_t output_pending;
-  char *output_buf;
 
   /* input from peer */
   size_t input_size;
@@ -380,6 +389,9 @@ void pn_ep_incref(pn_endpoint_t *endpoint);
 void pn_ep_decref(pn_endpoint_t *endpoint);
 
 ssize_t pni_transport_grow_capacity(pn_transport_t *transport, size_t n);
+pn_rwbytes_t pni_transport_get_header_space(pn_transport_t *transport);
+void pni_transport_free_buffer_entry(pn_transport_t *transport, pn_buffer_list_entry_t *entry);
+void pni_transport_free_buffer_entry_thunk(uintptr_t context, pn_buffer_list_entry_t *entry);
 
 #if __cplusplus
 }

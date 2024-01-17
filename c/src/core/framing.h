@@ -40,17 +40,17 @@
 typedef struct {
   uint8_t type;
   uint16_t channel;
-  pn_bytes_t extended;
-  pn_bytes_t frame_payload0;
-  pn_bytes_t frame_payload1;
+  pn_buffer_list_entry_t extended;
+  pn_buffer_list_entry_t frame_payload0;
+  pn_buffer_list_entry_t frame_payload1;
 } pn_frame_t;
 
 ssize_t pn_read_frame(pn_frame_t *frame, const char *bytes, size_t available, uint32_t max, pn_logger_t *logger);
-size_t pn_write_frame(pn_buffer_t* buffer, pn_frame_t frame, pn_logger_t *logger);
 
-int pn_framing_send_amqp(pn_transport_t *transport, uint16_t ch, pn_bytes_t performative);
-int pn_framing_send_amqp_with_payload(pn_transport_t *transport, uint16_t ch, pn_bytes_t performative, pn_bytes_t payload);
-int pn_framing_send_sasl(pn_transport_t *transport, pn_bytes_t performative);
+size_t pn_framing_send_heartbeat(pn_transport_t *transport, uint16_t ch);
+size_t pn_framing_send_amqp(pn_transport_t *transport, uint16_t ch, pn_buffer_list_entry_t performative);
+size_t pn_framing_send_amqp_with_payload(pn_transport_t *transport, uint16_t ch, pn_buffer_list_entry_t performative, pn_buffer_list_entry_t payload);
+size_t pn_framing_send_sasl(pn_transport_t *transport, pn_buffer_list_entry_t performative);
 
 ssize_t pn_framing_recv_amqp(pn_data_t *args, pn_logger_t  *logger, const pn_bytes_t frame_payload);
 

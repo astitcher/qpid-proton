@@ -32,6 +32,7 @@
 typedef int (pn_action_t)(pn_transport_t *transport, uint8_t frame_type, uint16_t channel, const pn_bytes_t frame_payload);
 
 ssize_t pn_dispatcher_input(pn_transport_t* transport, const char* bytes, size_t available, bool batch, bool* halt);
-ssize_t pn_dispatcher_output(pn_transport_t *transport, char *bytes, size_t size);
+struct pn_buffer_list_t;
+ssize_t pn_dispatcher_output(pn_transport_t *transport, struct pn_buffer_list_t *blist);
 
 #endif /* dispatcher.h */
