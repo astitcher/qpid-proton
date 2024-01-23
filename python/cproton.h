@@ -19,7 +19,7 @@
  *
  */
 
-typedef struct pn_bytes_t
+typedef struct
 {
   size_t size;
   const char *start;
@@ -29,7 +29,7 @@ typedef struct pn_collector_t pn_collector_t;
 typedef struct pn_condition_t pn_condition_t;
 typedef struct pn_connection_t pn_connection_t;
 typedef struct pn_data_t pn_data_t;
-typedef struct 
+typedef struct
 {
   char bytes[16];
 } pn_decimal128_t;
@@ -38,13 +38,13 @@ typedef uint64_t pn_decimal64_t;
 typedef struct pn_delivery_t pn_delivery_t;
 typedef pn_bytes_t pn_delivery_tag_t;
 typedef struct pn_disposition_t pn_disposition_t;
-typedef enum 
+typedef enum
 {
   PN_DIST_MODE_UNSPECIFIED = 0,
   PN_DIST_MODE_COPY = 1,
   PN_DIST_MODE_MOVE = 2
 } pn_distribution_mode_t;
-typedef enum 
+typedef enum
 {
   PN_NONDURABLE = 0,
   PN_CONFIGURATION = 1,
@@ -52,7 +52,7 @@ typedef enum
 } pn_durability_t;
 typedef struct pn_error_t pn_error_t;
 typedef struct pn_event_t pn_event_t;
-typedef enum 
+typedef enum
 {
   PN_EVENT_NONE = 0,
   PN_REACTOR_INIT,
@@ -114,7 +114,7 @@ typedef enum
   PN_RAW_CONNECTION_WAKE,
   PN_RAW_CONNECTION_DRAIN_BUFFERS
 } pn_event_type_t;
-typedef enum 
+typedef enum
 {
   PN_EXPIRE_WITH_LINK,
   PN_EXPIRE_WITH_SESSION,
@@ -130,7 +130,12 @@ typedef enum
   PN_RCV_SECOND = 1
 } pn_rcv_settle_mode_t;
 typedef struct pn_record_t pn_record_t;
-typedef enum 
+typedef struct
+{
+  size_t size;
+  char *start;
+} pn_rwbytes_t;
+typedef enum
 {
   PN_SASL_NONE = -1,
   PN_SASL_OK = 0,
@@ -143,13 +148,13 @@ typedef struct pn_sasl_t pn_sasl_t;
 typedef uint32_t pn_seconds_t;
 typedef uint32_t pn_sequence_t;
 typedef struct pn_session_t pn_session_t;
-typedef enum 
+typedef enum
 {
   PN_SND_UNSETTLED = 0,
   PN_SND_SETTLED = 1,
   PN_SND_MIXED = 2
 } pn_snd_settle_mode_t;
-typedef enum 
+typedef enum
 {
   PN_SSL_CERT_SUBJECT_COUNTRY_NAME,
   PN_SSL_CERT_SUBJECT_STATE_OR_PROVINCE,
@@ -159,26 +164,26 @@ typedef enum
   PN_SSL_CERT_SUBJECT_COMMON_NAME
 } pn_ssl_cert_subject_subfield;
 typedef struct pn_ssl_domain_t pn_ssl_domain_t;
-typedef enum 
+typedef enum
 {
   PN_SSL_SHA1,
   PN_SSL_SHA256,
   PN_SSL_SHA512,
   PN_SSL_MD5
 } pn_ssl_hash_alg;
-typedef enum 
+typedef enum
 {
   PN_SSL_MODE_CLIENT = 1,
   PN_SSL_MODE_SERVER
 } pn_ssl_mode_t;
-typedef enum 
+typedef enum
 {
   PN_SSL_RESUME_UNKNOWN,
   PN_SSL_RESUME_NEW,
   PN_SSL_RESUME_REUSED
 } pn_ssl_resume_status_t;
 typedef struct pn_ssl_t pn_ssl_t;
-typedef enum 
+typedef enum
 {
   PN_SSL_VERIFY_NULL = 0,
   PN_SSL_VERIFY_PEER,
@@ -187,7 +192,7 @@ typedef enum
 } pn_ssl_verify_mode_t;
 typedef int pn_state_t;
 typedef struct pn_terminus_t pn_terminus_t;
-typedef enum 
+typedef enum
 {
   PN_UNSPECIFIED = 0,
   PN_SOURCE = 1,
@@ -197,7 +202,7 @@ typedef enum
 typedef int64_t pn_timestamp_t;
 typedef int pn_trace_t;
 typedef struct pn_transport_t pn_transport_t;
-typedef enum 
+typedef enum
 {
   PN_NULL = 1,
   PN_BOOL = 2,
@@ -226,11 +231,12 @@ typedef enum
   PN_MAP = 25,
   PN_INVALID = -1
 } pn_type_t;
-typedef struct 
+typedef struct
 {
   char bytes[16];
 } pn_uuid_t;
-typedef struct {
+typedef struct
+{
   pn_type_t type;
   union {
     _Bool as_bool;
@@ -254,6 +260,12 @@ typedef struct {
   } u;
 } pn_atom_t;
 typedef pn_atom_t pn_msgid_t;
+typedef struct
+{
+  pn_connection_t *connection;
+  pn_transport_t *transport;
+  pn_collector_t *collector;
+} pn_connection_driver_t;
 typedef void (*pn_tracer_t)(pn_transport_t *transport, const char *message);
 
 pn_collector_t *pn_collector(void);
@@ -270,6 +282,24 @@ pn_data_t *pn_condition_info(pn_condition_t *condition);
 _Bool pn_condition_is_set(pn_condition_t *condition);
 int pn_condition_set_description(pn_condition_t *condition, const char *description);
 int pn_condition_set_name(pn_condition_t *condition, const char *name);
+
+int pn_connection_driver_init(pn_connection_driver_t*, pn_connection_t*, pn_transport_t*);
+int pn_connection_driver_bind(pn_connection_driver_t *d);
+void pn_connection_driver_destroy(pn_connection_driver_t *);
+pn_connection_t *pn_connection_driver_release_connection(pn_connection_driver_t *d);
+pn_rwbytes_t pn_connection_driver_read_buffer_sized(pn_connection_driver_t *, size_t n);
+pn_rwbytes_t pn_connection_driver_read_buffer(pn_connection_driver_t *);
+void pn_connection_driver_read_done(pn_connection_driver_t *, size_t n);
+void pn_connection_driver_read_close(pn_connection_driver_t *);
+_Bool pn_connection_driver_read_closed(pn_connection_driver_t *);
+pn_bytes_t pn_connection_driver_write_buffer(pn_connection_driver_t *);
+pn_bytes_t pn_connection_driver_write_done(pn_connection_driver_t *, size_t n);
+void pn_connection_driver_write_close(pn_connection_driver_t *);
+_Bool pn_connection_driver_write_closed(pn_connection_driver_t *);
+void pn_connection_driver_close(pn_connection_driver_t * c);
+pn_event_t* pn_connection_driver_next_event(pn_connection_driver_t *);
+_Bool pn_connection_driver_has_event(pn_connection_driver_t *);
+_Bool pn_connection_driver_finished(pn_connection_driver_t *);
 
 pn_connection_t *pn_connection(void);
 pn_record_t *pn_connection_attachments(pn_connection_t *connection);
