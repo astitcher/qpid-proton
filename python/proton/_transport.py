@@ -34,13 +34,13 @@ from cproton import PN_EOS, PN_OK, PN_SASL_AUTH, PN_SASL_NONE, PN_SASL_OK, PN_SA
     pn_ssl_set_peer_hostname, pn_transport, pn_transport_attachments, pn_transport_bind, pn_transport_capacity, \
     pn_transport_close_head, pn_transport_close_tail, pn_transport_closed, pn_transport_condition, \
     pn_transport_connection, pn_transport_error, pn_transport_get_channel_max, pn_transport_get_frames_input, \
-    pn_transport_get_frames_output, pn_transport_get_idle_timeout, pn_transport_get_max_frame, \
+    pn_transport_get_frames_output, pn_transport_get_idle_timeout, pn_transport_get_max_frame, pn_transport_get_output, \
     pn_transport_get_pytracer, pn_transport_get_remote_idle_timeout, pn_transport_get_remote_max_frame, \
     pn_transport_get_user, pn_transport_is_authenticated, pn_transport_is_encrypted, pn_transport_log, \
-    pn_transport_peek, pn_transport_pending, pn_transport_pop, pn_transport_push, pn_transport_remote_channel_max, \
-    pn_transport_require_auth, pn_transport_require_encryption, pn_transport_set_channel_max, \
-    pn_transport_set_idle_timeout, pn_transport_set_max_frame, pn_transport_set_pytracer, pn_transport_set_server, \
-    pn_transport_tick, pn_transport_trace, pn_transport_unbind, \
+    pn_transport_peek, pn_transport_pending, pn_transport_pop, pn_transport_pop_output, pn_transport_push, \
+    pn_transport_remote_channel_max, pn_transport_require_auth, pn_transport_require_encryption, \
+    pn_transport_set_channel_max, pn_transport_set_idle_timeout, pn_transport_set_max_frame, \
+    pn_transport_set_pytracer, pn_transport_set_server, pn_transport_tick, pn_transport_trace, pn_transport_unbind, \
     isnull
 
 from ._common import millis2secs, secs2millis
@@ -358,6 +358,30 @@ class Transport(Wrapper):
         :param size: Number of bytes to remove.
         """
         pn_transport_pop(self._impl, size)
+
+    def get_output(self) -> Optional[memoryview]:
+        """
+        Returns bytes from the head of the transport.
+
+        :return: bytes from the head of the transport, or ``None``
+                 if none are available.
+        """
+        out = pn_transport_get_output(self._impl)
+        if out == PN_EOS:
+            return None
+        return out
+
+    def pop_output(self, size: int) -> None:
+        """
+        Removes ``size`` bytes of output from the pending output queue
+        following the transport's head pointer.
+
+        :param size: Number of bytes to remove.
+        """
+        out = pn_transport_pop_output(self._impl, size)
+        if out == PN_EOS:
+            return None
+        return out
 
     def close_head(self) -> None:
         """

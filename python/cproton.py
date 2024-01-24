@@ -371,6 +371,20 @@ def pn_transport_push(transport, src):
     return lib.pn_transport_push(transport, ffi.from_buffer(src), len(src))
 
 
+def pn_transport_get_output(transport):
+    bytes_out = lib.pn_transport_get_output_bytes(transport)
+    if bytes_out.size == 0 and lib.pn_transport_head_closed(transport):
+        return PN_EOS
+    return bytes2py(bytes_out)
+
+
+def pn_transport_pop_output(transport, size):
+    bytes_out = lib.pn_transport_pop_output_bytes(transport, size)
+    if bytes_out.size == 0 and lib.pn_transport_head_closed(transport):
+        return PN_EOS
+    return bytes2py(bytes_out)
+
+
 # int pn_message_decode(pn_message_t *msg, const char *bytes, size_t size);
 def pn_message_decode(msg, buff):
     return lib.pn_message_decode(msg, ffi.from_buffer(buff), len(buff))
