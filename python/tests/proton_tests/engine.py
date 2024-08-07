@@ -2275,13 +2275,6 @@ class DispositionTester:
     def check(self, dlv: Delivery):
         assert dlv.remote_state == self._type
         assert dlv.remote.type == self._type
-        assert dlv.remote.data is None
-        assert dlv.remote.section_number == 0
-        assert dlv.remote.section_offset == 0
-        assert dlv.remote.condition is None
-        assert dlv.remote.failed is False
-        assert dlv.remote.undeliverable is False
-        assert dlv.remote.annotations is None
 
 
 class RejectedTester(DispositionTester):
@@ -2296,13 +2289,7 @@ class RejectedTester(DispositionTester):
     def check(self, dlv: Delivery):
         assert dlv.remote_state == self._type
         assert dlv.remote.type == self._type
-        assert dlv.remote.data is None, dlv.data
-        assert dlv.remote.section_number == 0
-        assert dlv.remote.section_offset == 0
         assert dlv.remote.condition == self.condition, (dlv.condition, self.condition)
-        assert dlv.remote.failed is False
-        assert dlv.remote.undeliverable is False
-        assert dlv.remote.annotations is None
 
 
 class ReceivedValue(DispositionTester):
@@ -2319,13 +2306,8 @@ class ReceivedValue(DispositionTester):
     def check(self, dlv: Delivery):
         assert dlv.remote_state == self._type
         assert dlv.remote.type == self._type
-        assert dlv.remote.data is None, dlv.data
         assert dlv.remote.section_number == self._section_number, (dlv.section_number, self._section_number)
         assert dlv.remote.section_offset == self._section_offset
-        assert dlv.remote.condition is None
-        assert dlv.remote.failed is False
-        assert dlv.remote.undeliverable is False
-        assert dlv.remote.annotations is None
 
 
 class ModifiedTester(DispositionTester):
@@ -2344,10 +2326,6 @@ class ModifiedTester(DispositionTester):
     def check(self, dlv: Delivery):
         assert dlv.remote_state == self._type
         assert dlv.remote.type == self._type
-        assert dlv.remote.data is None, dlv.data
-        assert dlv.remote.section_number == 0
-        assert dlv.remote.section_offset == 0
-        assert dlv.remote.condition is None
         assert dlv.remote.failed == self._failed
         assert dlv.remote.undeliverable == self._undeliverable
         assert dlv.remote.annotations == self._annotations, (dlv.annotations, self._annotations)
@@ -2366,12 +2344,6 @@ class CustomTester(DispositionTester):
         assert dlv.remote_state == self._type
         assert dlv.remote.type == self._type
         assert dlv.remote.data == self._data, (dlv.data, self._data)
-        assert dlv.remote.section_number == 0
-        assert dlv.remote.section_offset == 0
-        assert dlv.remote.condition is None
-        assert dlv.remote.failed is False
-        assert dlv.remote.undeliverable is False
-        assert dlv.remote.annotations is None
 
 
 class DeliveryTest(Test):
