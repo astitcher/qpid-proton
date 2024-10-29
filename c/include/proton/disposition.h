@@ -91,6 +91,12 @@ typedef struct pn_disposition_t pn_disposition_t;
 #define PN_MODIFIED (0x0000000000000027)
 
 /**
+ * The PN_TRANSACTIONAL_STATE delivery state is a non terminal state
+ * indicating the transactional state of a delivery.
+ */
+#define PN_TRANSACTIONAL_STATE (0x0000000000000034)
+
+/**
  * Get the type of a disposition.
  *
  * Defined values are:
@@ -234,6 +240,7 @@ PN_EXTERN pn_data_t *pn_disposition_annotations(pn_disposition_t *disposition);
 typedef struct pn_received_disposition_t pn_received_disposition_t;
 typedef struct pn_rejected_disposition_t pn_rejected_disposition_t;
 typedef struct pn_modified_disposition_t pn_modified_disposition_t;
+typedef struct pn_transactional_disposition_t pn_transactional_disposition_t;
 typedef struct pn_custom_disposition_t pn_custom_disposition_t;
 
 /**
@@ -254,6 +261,7 @@ PN_EXTERN pn_custom_disposition_t *pn_custom_disposition(pn_disposition_t *dispo
 PN_EXTERN pn_received_disposition_t *pn_received_disposition(pn_disposition_t *disposition);
 PN_EXTERN pn_rejected_disposition_t *pn_rejected_disposition(pn_disposition_t *disposition);
 PN_EXTERN pn_modified_disposition_t *pn_modified_disposition(pn_disposition_t *disposition);
+PN_EXTERN pn_transactional_disposition_t *pn_transactional_disposition(pn_disposition_t *disposition);
 
 /**
  * Access the disposition as a raw pn_data_t.
@@ -382,6 +390,17 @@ PN_EXTERN void pn_modified_disposition_set_undeliverable(pn_modified_disposition
  * @return the annotations associated with the disposition
  */
 PN_EXTERN pn_data_t *pn_modified_disposition_annotations(pn_modified_disposition_t *disposition);
+
+
+PN_EXTERN pn_bytes_t pn_transactional_disposition_get_id(pn_transactional_disposition_t *disposition);
+PN_EXTERN void pn_transactional_disposition_set_id(pn_transactional_disposition_t *disposition, pn_bytes_t id);
+PN_EXTERN uint64_t pn_transactional_disposition_get_outcome_type(pn_transactional_disposition_t *disposition);
+
+/**
+ * Set the provisional outcome of the message if the transaction is committed successfully.
+ * Only terminal disposition states are allowed (PN_ACCEPTED, PN_REJECTED, PN_RELEASED, PN_MODIFIED)
+ */
+PN_EXTERN void pn_transactional_disposition_set_outcome_type(pn_transactional_disposition_t *disposition, uint64_t outcome);
 
 /**
  * @}
