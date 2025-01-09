@@ -20,7 +20,7 @@
 from typing import Any, Callable, Optional
 
 from cproton import addressof, pn_incref, pn_decref, \
-    pn_record_get_py, pn_record_def_py, pn_record_set_py
+    pn_record_get_py
 
 from ._exceptions import ProtonException
 
@@ -43,14 +43,14 @@ EMPTY_ATTRS = EmptyAttrs()
 class Wrapper(object):
     """ Wrapper for python objects that need to be stored in event contexts and be retrieved again from them
         Quick note on how this works:
-        The actual *python* object has only 3 attributes which redirect into the wrapped C objects:
+        The actual *python* object has only 2 attributes which redirect into the wrapped C objects:
         _impl   The wrapped C object itself
         _attrs  This is a special pn_record_t holding a PYCTX which is a python dict
                 every attribute in the python object is actually looked up here
 
         Because the objects actual attributes are stored away they must be initialised *after* the wrapping
         is set up. This is the purpose of the _init method in the wrapped  object. Wrapper.__init__ will call
-        eht subclass _init to initialise attributes. So they *must not* be initialised in the subclass __init__
+        the subclass _init to initialise attributes. So they *must not* be initialised in the subclass __init__
         before calling the superclass (Wrapper) __init__ or they will not be accessible from the wrapper at all.
 
     """
@@ -78,10 +78,7 @@ class Wrapper(object):
         if get_context:
             record = get_context(impl)
             attrs = pn_record_get_py(record)
-            if attrs is None:
-                attrs = {}
-                pn_record_def_py(record)
-                pn_record_set_py(record, attrs)
+            if not attrs:
                 init = True
         else:
             attrs = EMPTY_ATTRS
