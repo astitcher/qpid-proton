@@ -25,21 +25,6 @@ from cproton import addressof, pn_incref, pn_decref, \
 from ._exceptions import ProtonException
 
 
-class EmptyAttrs:
-
-    def __contains__(self, name):
-        return False
-
-    def __getitem__(self, name):
-        raise KeyError(name)
-
-    def __setitem__(self, name, value):
-        raise TypeError("does not support item assignment")
-
-
-EMPTY_ATTRS = EmptyAttrs()
-
-
 class Wrapper(object):
     """ Wrapper for python objects that need to be stored in event contexts and be retrieved again from them
         Quick note on how this works:
@@ -62,12 +47,13 @@ class Wrapper(object):
             constructor: Optional[Callable[[], Any]] = None
     ) -> None:
         init = False
+        attrs = None
         if impl is None and constructor is not None:
             # we are constructing a new object
             impl = constructor()
             if impl is None:
                 self.__dict__["_impl"] = impl
-                self.__dict__["_attrs"] = EMPTY_ATTRS
+                self.__dict__["_attrs"] = attrs
                 raise ProtonException(
                     "Wrapper failed to create wrapped object. Check for file descriptor or memory exhaustion.")
             init = True
@@ -81,7 +67,6 @@ class Wrapper(object):
             if not attrs:
                 init = True
         else:
-            attrs = EMPTY_ATTRS
             init = False
         self.__dict__["_impl"] = impl
         self.__dict__["_attrs"] = attrs
@@ -90,7 +75,7 @@ class Wrapper(object):
 
     def __getattr__(self, name: str) -> Any:
         attrs = self.__dict__["_attrs"]
-        if name in attrs:
+        if attrs and name in attrs:
             return attrs[name]
         else:
             raise AttributeError(name + " not in _attrs")
@@ -100,7 +85,8 @@ class Wrapper(object):
             object.__setattr__(self, name, value)
         else:
             attrs = self.__dict__["_attrs"]
-            attrs[name] = value
+            if attrs is not None:
+                attrs[name] = value
 
     def __delattr__(self, name: str) -> None:
         attrs = self.__dict__["_attrs"]
