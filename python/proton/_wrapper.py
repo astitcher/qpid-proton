@@ -17,7 +17,7 @@
 # under the License.
 #
 
-from typing import Any, Callable, Optional
+from typing import Any
 
 from cproton import addressof, pn_incref, pn_decref, \
     pn_record_get_py
@@ -40,38 +40,27 @@ class Wrapper(object):
 
     """
 
-    def __init__(
-            self,
-            impl: Any = None,
-            get_context: Optional[Callable[[Any], Any]] = None,
-            constructor: Optional[Callable[[], Any]] = None
-    ) -> None:
-        init = False
+    def __init__(self, impl: Any = None) -> None:
         attrs = None
-        if impl is None and constructor is not None:
-            # we are constructing a new object
-            impl = constructor()
+        try:
             if impl is None:
-                self.__dict__["_impl"] = impl
-                self.__dict__["_attrs"] = attrs
-                raise ProtonException(
-                    "Wrapper failed to create wrapped object. Check for file descriptor or memory exhaustion.")
-            init = True
-        else:
-            # we are wrapping an existing object
-            pn_incref(impl)
+                # we are constructing a new object
+                impl = self.constructor()
+                if impl is None:
+                    raise ProtonException(
+                        "Wrapper failed to create wrapped object. Check for file descriptor or memory exhaustion.")
+            else:
+                # we are wrapping an existing object
+                pn_incref(impl)
 
-        if get_context:
-            record = get_context(impl)
+            record = self.get_context(impl)
             attrs = pn_record_get_py(record)
-            if not attrs:
-                init = True
-        else:
-            init = False
-        self.__dict__["_impl"] = impl
-        self.__dict__["_attrs"] = attrs
-        if init:
-            self._init()
+        finally:
+            self.__dict__["_impl"] = impl
+            self.__dict__["_attrs"] = attrs
+
+    def Uninitialized(self) -> bool:
+        return self._attrs == {}
 
     def __getattr__(self, name: str) -> Any:
         attrs = self.__dict__["_attrs"]

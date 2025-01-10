@@ -166,19 +166,18 @@ class Connection(Wrapper, Endpoint):
         else:
             return Connection(impl)
 
-    def __init__(self, impl: Any = None) -> None:
-        if impl is None:
-            Wrapper.__init__(self, constructor=pn_connection, get_context=pn_connection_attachments)
-        else:
-            Wrapper.__init__(self, impl, pn_connection_attachments)
+    constructor = pn_connection
+    get_context = pn_connection_attachments
 
-    def _init(self) -> None:
-        Endpoint.__init__(self)
-        self.offered_capabilities_list = None
-        self.desired_capabilities_list = None
-        self.properties = None
-        self.url = None
-        self._acceptor = None
+    def __init__(self, impl: Any = None) -> None:
+        Wrapper.__init__(self, impl)
+        if self.Uninitialized():
+            Endpoint.__init__(self)
+            self.offered_capabilities_list = None
+            self.desired_capabilities_list = None
+            self.properties = None
+            self.url = None
+            self._acceptor = None
 
     def _get_attachments(self):
         return pn_connection_attachments(self._impl)
@@ -557,11 +556,12 @@ class Session(Wrapper, Endpoint):
         else:
             return Session(impl)
 
-    def __init__(self, impl):
-        Wrapper.__init__(self, impl, pn_session_attachments)
+    get_context = pn_session_attachments
 
-    def _init(self):
-        Endpoint.__init__(self)
+    def __init__(self, impl):
+        Wrapper.__init__(self, impl)
+        if self.Uninitialized():
+            Endpoint.__init__(self)
 
     def _get_attachments(self):
         return pn_session_attachments(self._impl)
@@ -726,12 +726,13 @@ class Link(Wrapper, Endpoint):
         else:
             return Receiver(impl)
 
-    def __init__(self, impl):
-        Wrapper.__init__(self, impl, pn_link_attachments)
+    get_context = pn_link_attachments
 
-    def _init(self) -> None:
-        Endpoint.__init__(self)
-        self.properties = None
+    def __init__(self, impl):
+        Wrapper.__init__(self, impl)
+        if self.Uninitialized():
+            Endpoint.__init__(self)
+            self.properties = None
 
     def _get_attachments(self):
         return pn_link_attachments(self._impl)

@@ -92,27 +92,26 @@ class Transport(Wrapper):
         else:
             return Transport(impl=impl)
 
+    constructor = pn_transport
+    get_context = pn_transport_attachments
+
     def __init__(
             self,
-            mode: 'Optional[int]' = None,
-            impl: 'Callable' = None,
+            mode: Optional[int] = None,
+            impl=None,
     ) -> None:
-        if impl is None:
-            Wrapper.__init__(self, constructor=pn_transport, get_context=pn_transport_attachments)
-        else:
-            Wrapper.__init__(self, impl, pn_transport_attachments)
+        Wrapper.__init__(self, impl)
         if mode == Transport.SERVER:
             pn_transport_set_server(self._impl)
         elif mode is None or mode == Transport.CLIENT:
             pass
         else:
             raise TransportException("Cannot initialise Transport from mode: %s" % str(mode))
-
-    def _init(self) -> None:
-        self._sasl = None
-        self._ssl = None
-        self._reactor = None
-        self._connect_selectable = None
+        if self.Uninitialized():
+            self._sasl = None
+            self._ssl = None
+            self._reactor = None
+            self._connect_selectable = None
 
     def _check(self, err: int) -> int:
         if err < 0:

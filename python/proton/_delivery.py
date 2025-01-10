@@ -284,12 +284,13 @@ class Delivery(Wrapper):
         else:
             return Delivery(impl)
 
-    def __init__(self, impl):
-        Wrapper.__init__(self, impl, pn_delivery_attachments)
+    get_context = pn_delivery_attachments
 
-    def _init(self) -> None:
-        self.local = Disposition(pn_delivery_local(self._impl), True)
-        self.remote = Disposition(pn_delivery_remote(self._impl), False)
+    def __init__(self, impl):
+        Wrapper.__init__(self, impl)
+        if self.Uninitialized():
+            self.local = Disposition(pn_delivery_local(self._impl), True)
+            self.remote = Disposition(pn_delivery_remote(self._impl), False)
 
     @property
     def tag(self) -> str:
