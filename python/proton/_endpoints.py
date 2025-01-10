@@ -112,7 +112,7 @@ class Endpoint(object):
     REMOTE_CLOSED = PN_REMOTE_CLOSED
     """ The remote endpoint state is closed. """
 
-    def _init(self) -> None:
+    def __init__(self) -> None:
         self.condition: Optional['Condition'] = None
         self._handler: Optional[Handler] = None
 
@@ -173,7 +173,7 @@ class Connection(Wrapper, Endpoint):
             Wrapper.__init__(self, impl, pn_connection_attachments)
 
     def _init(self) -> None:
-        Endpoint._init(self)
+        Endpoint.__init__(self)
         self.offered_capabilities_list = None
         self.desired_capabilities_list = None
         self.properties = None
@@ -560,6 +560,9 @@ class Session(Wrapper, Endpoint):
     def __init__(self, impl):
         Wrapper.__init__(self, impl, pn_session_attachments)
 
+    def _init(self):
+        Endpoint.__init__(self)
+
     def _get_attachments(self):
         return pn_session_attachments(self._impl)
 
@@ -727,7 +730,7 @@ class Link(Wrapper, Endpoint):
         Wrapper.__init__(self, impl, pn_link_attachments)
 
     def _init(self) -> None:
-        Endpoint._init(self)
+        Endpoint.__init__(self)
         self.properties = None
 
     def _get_attachments(self):

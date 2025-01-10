@@ -468,7 +468,9 @@ class Transport(Wrapper):
 
         :return: SASL object associated with this transport.
         """
-        return SASL(self)
+        if not self._sasl:
+            self._sasl = SASL(self)
+        return self._sasl
 
     def ssl(self, domain: Optional['SSLDomain'] = None, session_details: Optional['SSLSessionDetails'] = None) -> 'SSL':
         """
@@ -512,7 +514,7 @@ class SASLException(TransportException):
     pass
 
 
-class SASL(Wrapper):
+class SASL:
     """
     The SASL layer is responsible for establishing an authenticated
     and/or encrypted tunnel over which AMQP frames are passed between
@@ -542,9 +544,14 @@ class SASL(Wrapper):
         """
         return pn_sasl_extended()
 
-    def __init__(self, transport: Transport) -> None:
-        Wrapper.__init__(self, transport._impl, pn_transport_attachments)
-        self._sasl = pn_sasl(transport._impl)
+    def __new__(cls, transport: Transport) -> None:
+        if not transport._sasl:
+            sasl = super().__new__(cls)
+            sasl._sasl = pn_sasl(transport._impl)
+            transport._sasl = sasl
+            return sasl
+        else:
+            return transport._sasl
 
     def _check(self, err):
         if err < 0:
