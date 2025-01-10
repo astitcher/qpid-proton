@@ -170,7 +170,6 @@ class Connection(Wrapper, Endpoint):
     get_context = pn_connection_attachments
 
     def __init__(self, impl: Any = None) -> None:
-        Wrapper.__init__(self, impl)
         if self.Uninitialized():
             Endpoint.__init__(self)
             self.offered_capabilities_list = None
@@ -559,7 +558,6 @@ class Session(Wrapper, Endpoint):
     get_context = pn_session_attachments
 
     def __init__(self, impl):
-        Wrapper.__init__(self, impl)
         if self.Uninitialized():
             Endpoint.__init__(self)
 
@@ -729,7 +727,6 @@ class Link(Wrapper, Endpoint):
     get_context = pn_link_attachments
 
     def __init__(self, impl):
-        Wrapper.__init__(self, impl)
         if self.Uninitialized():
             Endpoint.__init__(self)
             self.properties = None

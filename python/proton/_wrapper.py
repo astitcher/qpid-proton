@@ -42,12 +42,12 @@ class Wrapper(object):
 
     __slots__ = ["_impl", "_attrs"]
 
-    def __init__(self, impl: Any = None) -> None:
+    def __new__(cls, impl: Any = None, *kw) -> Any:
         attrs = None
         try:
             if impl is None:
                 # we are constructing a new object
-                impl = self.constructor()
+                impl = cls.constructor()
                 if impl is None:
                     raise ProtonException(
                         "Wrapper failed to create wrapped object. Check for file descriptor or memory exhaustion.")
@@ -55,11 +55,13 @@ class Wrapper(object):
                 # we are wrapping an existing object
                 pn_incref(impl)
 
-            record = self.get_context(impl)
+            record = cls.get_context(impl)
             attrs = pn_record_get_py(record)
         finally:
+            self = object.__new__(cls)
             self._impl = impl
             self._attrs = attrs
+            return self
 
     def Uninitialized(self) -> bool:
         return self._attrs == {}

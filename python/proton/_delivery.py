@@ -287,7 +287,6 @@ class Delivery(Wrapper):
     get_context = pn_delivery_attachments
 
     def __init__(self, impl):
-        Wrapper.__init__(self, impl)
         if self.Uninitialized():
             self.local = Disposition(pn_delivery_local(self._impl), True)
             self.remote = Disposition(pn_delivery_remote(self._impl), False)

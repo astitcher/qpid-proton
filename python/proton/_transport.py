@@ -95,12 +95,18 @@ class Transport(Wrapper):
     constructor = pn_transport
     get_context = pn_transport_attachments
 
+    def __new__(
+            cls,
+            mode: Optional[int] = None,
+            impl=None,
+    ) -> 'Transport':
+        return super().__new__(cls, impl)
+
     def __init__(
             self,
             mode: Optional[int] = None,
             impl=None,
     ) -> None:
-        Wrapper.__init__(self, impl)
         if mode == Transport.SERVER:
             pn_transport_set_server(self._impl)
         elif mode is None or mode == Transport.CLIENT:
