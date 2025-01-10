@@ -40,6 +40,8 @@ class Wrapper(object):
 
     """
 
+    __slots__ = ["_impl", "_attrs"]
+
     def __init__(self, impl: Any = None) -> None:
         attrs = None
         try:
@@ -56,14 +58,14 @@ class Wrapper(object):
             record = self.get_context(impl)
             attrs = pn_record_get_py(record)
         finally:
-            self.__dict__["_impl"] = impl
-            self.__dict__["_attrs"] = attrs
+            self._impl = impl
+            self._attrs = attrs
 
     def Uninitialized(self) -> bool:
         return self._attrs == {}
 
     def __getattr__(self, name: str) -> Any:
-        attrs = self.__dict__["_attrs"]
+        attrs = self._attrs
         if attrs and name in attrs:
             return attrs[name]
         else:
@@ -73,12 +75,12 @@ class Wrapper(object):
         if hasattr(self.__class__, name):
             object.__setattr__(self, name, value)
         else:
-            attrs = self.__dict__["_attrs"]
+            attrs = self._attrs
             if attrs is not None:
                 attrs[name] = value
 
     def __delattr__(self, name: str) -> None:
-        attrs = self.__dict__["_attrs"]
+        attrs = self._attrs
         if attrs:
             del attrs[name]
 
