@@ -20,7 +20,7 @@
 from typing import Any, Callable, ClassVar, Optional
 
 from cproton import addressof, isnull, pn_incref, pn_decref, \
-    pn_record_get_py
+    pn_record_get_py, CData, pn_record_t
 
 from ._exceptions import ProtonException
 
@@ -42,19 +42,19 @@ class Wrapper:
         are already set. Use the Uninitialised method to check if the object is already initialised.
     """
 
-    constructor: ClassVar[Optional[Callable[[], Any]]] = None
-    get_context: ClassVar[Optional[Callable[[Any], dict[str, Any]]]] = None
+    constructor: ClassVar[Optional[Callable[[], CData]]] = None
+    get_context: ClassVar[Optional[Callable[[CData], pn_record_t]]] = None
 
     __slots__ = ["_impl", "_attrs"]
 
     @classmethod
-    def wrap(cls, impl: Any) -> Optional['Wrapper']:
+    def wrap(cls: type['Wrapper'], impl: Any) -> Optional[type['Wrapper']]:
         if isnull(impl):
             return None
         else:
             return cls(impl)
 
-    def __new__(cls, impl: Any = None) -> 'Wrapper':
+    def __new__(cls: type['Wrapper'], impl: Any = None) -> type['Wrapper']:
         attrs = None
         try:
             if impl is None:
@@ -72,7 +72,7 @@ class Wrapper:
             record = cls.get_context(impl)
             attrs = pn_record_get_py(record)
         finally:
-            self = super().__new__(cls)
+            self: type['Wrapper'] = super().__new__(cls)  # type: ignore
             self._impl = impl
             self._attrs = attrs
             return self

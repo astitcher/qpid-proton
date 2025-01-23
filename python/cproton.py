@@ -20,6 +20,8 @@
 # Ignore unused imports in this file
 # flake8: noqa: F401
 
+from typing import Any, Optional, NewType, TypeAlias, Union
+
 import atexit
 from uuid import UUID
 
@@ -160,22 +162,31 @@ from cproton_ffi.lib import (PN_ACCEPTED, PN_ARRAY, PN_BINARY, PN_BOOL, PN_BYTE,
                              pn_transport_set_server, pn_transport_tick, pn_transport_trace,
                              pn_transport_unbind)
 
+# type for pointer to any C object
+CData: TypeAlias = ffi.CData
 
-def isnull(obj):
+pn_bytes_t = NewType('pn_bytes_t', CData)
+pn_uuid_t = NewType('pn_uuid_t', CData)
+pn_decimal128_t = NewType('pn_decimal128_t', CData)
+pn_msgid_t = NewType('pn_msgid_t', CData)
+pn_transport_t = NewType('pn_transport_t', CData)
+pn_record_t = NewType('pn_record_t', CData)
+
+def isnull(obj: CData) -> bool:
     return obj is None or obj == ffi.NULL
 
 
-def addressof(obj):
+def addressof(obj: CData) -> int:
     return int(ffi.cast('uint64_t', obj))
 
 
-def void2py(void):
+def void2py(void: CData) -> Any:
     if void == ffi.NULL:
         return None
     return ffi.from_handle(void)
 
 
-def string2utf8(string):
+def string2utf8(string: Optional[str]) -> Union[CData, bytes]:
     """Convert python string into bytes compatible with char* C string"""
     if string is None:
         return ffi.NULL
@@ -185,26 +196,26 @@ def string2utf8(string):
     raise TypeError("Unrecognized string type: %r (%s)" % (string, type(string)))
 
 
-def utf82string(string):
+def utf82string(string: CData) -> Optional[str]:
     """Convert char* C strings returned from proton-c into python unicode"""
     if string == ffi.NULL:
         return None
     return ffi.string(string).decode('utf8')
 
 
-def bytes2py(b):
+def bytes2py(b: pn_bytes_t) -> memoryview:
     return memoryview(ffi.buffer(b.start, b.size))
 
 
-def bytes2pybytes(b):
+def bytes2pybytes(b: pn_bytes_t) -> bytes:
     return bytes(ffi.buffer(b.start, b.size))
 
 
-def bytes2string(b, encoding='utf8'):
+def bytes2string(b: pn_bytes_t, encoding: str ='utf8') -> str:
     return ffi.unpack(b.start, b.size).decode(encoding)
 
 
-def py2bytes(py):
+def py2bytes(py: Union[bytes, bytearray, memoryview, str]) -> pn_bytes_t:
     if isinstance(py, (bytes, bytearray, memoryview)):
         s = ffi.from_buffer(py)
         return len(s), s
@@ -213,32 +224,32 @@ def py2bytes(py):
         return len(s), s
 
 
-def string2bytes(py, encoding='utf8'):
+def string2bytes(py: str, encoding: str = 'utf8') -> pn_bytes_t:
     s = ffi.from_buffer(py.encode(encoding))
     return len(s), s
 
 
-def UUID2uuid(py):
+def UUID2uuid(py: UUID) -> pn_uuid_t:
     u = ffi.new('pn_uuid_t*')
     ffi.memmove(u.bytes, py.bytes, 16)
     return u[0]
 
 
-def uuid2bytes(uuid):
+def uuid2bytes(uuid: pn_uuid_t) -> bytes:
     return ffi.unpack(uuid.bytes, 16)
 
 
-def decimal1282py(decimal128):
+def decimal1282py(decimal128: pn_decimal128_t) -> bytes:
     return ffi.unpack(decimal128.bytes, 16)
 
 
-def py2decimal128(py):
+def py2decimal128(py: bytes) -> pn_decimal128_t:
     d = ffi.new('pn_decimal128_t*')
     ffi.memmove(d.bytes, py, 16)
     return d[0]
 
 
-def msgid2py(msgid):
+def msgid2py(msgid: pn_msgid_t) -> Optional[Union[int, str, bytes, UUID]]:
     t = msgid.type
     if t == PN_NULL:
         return None
@@ -264,7 +275,7 @@ def msgid2py(msgid):
     return None
 
 
-def py2msgid(py):
+def py2msgid(py: Optional[Union[int, str, bytes, UUID, tuple]]) -> pn_msgid_t:
     if py is None:
         return {'type': PN_NULL}
     elif isinstance(py, int):
@@ -282,7 +293,7 @@ def py2msgid(py):
 
 
 @ffi.def_extern()
-def pn_pytracer(transport, message):
+def _pn_pytracer(transport: pn_transport_t, message: CData) -> None:
     attrs = pn_record_get_py(lib.pn_transport_attachments(transport))
     tracer = attrs['_tracer']
     if tracer:
@@ -300,7 +311,7 @@ def pn_transport_get_pytracer(transport):
 def pn_transport_set_pytracer(transport, tracer):
     attrs = pn_record_get_py(lib.pn_transport_attachments(transport))
     attrs['_tracer'] = tracer
-    lib.pn_transport_set_tracer(transport, lib.pn_pytracer)
+    lib.pn_transport_set_tracer(transport, lib._pn_pytracer)
 
 
 retained_objects = set()

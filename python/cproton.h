@@ -671,7 +671,7 @@ pn_transport_t *pn_cast_pn_transport(void *x);
 
 extern "Python" void pn_pyref_incref(void *object);
 extern "Python" void pn_pyref_decref(void *object);
-extern "Python" void pn_pytracer(pn_transport_t *transport, const char *message);
+extern "Python" void _pn_pytracer(pn_transport_t *transport, const char *message);
 
 pn_event_t *pn_collector_put_py(pn_collector_t *collector, void *context, pn_event_type_t type);
 ssize_t pn_data_format_py(pn_data_t *data, char *bytes, size_t size);

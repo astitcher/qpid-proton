@@ -41,7 +41,7 @@ from cproton import PN_EOS, PN_SASL_AUTH, PN_SASL_NONE, PN_SASL_OK, PN_SASL_PERM
     pn_transport_require_auth, pn_transport_require_encryption, pn_transport_set_channel_max, \
     pn_transport_set_idle_timeout, pn_transport_set_max_frame, pn_transport_set_pytracer, pn_transport_set_server, \
     pn_transport_tick, pn_transport_trace, pn_transport_unbind, \
-    isnull
+    CData, isnull
 
 from ._common import millis2secs, secs2millis
 from ._condition import cond2obj, obj2cond
@@ -86,7 +86,7 @@ class Transport(Wrapper):
     """ Transport mode is as a server. """
 
     @staticmethod
-    def wrap(impl: Optional[Callable]) -> Optional['Transport']:
+    def wrap(impl: Optional[CData]) -> Optional['Transport']:
         if isnull(impl):
             return None
         else:
