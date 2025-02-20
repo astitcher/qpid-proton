@@ -23,18 +23,7 @@ import logging
 import re
 import os
 import queue
-from typing import Any, Dict, Iterator, Optional, List, Union, Callable, TYPE_CHECKING, Tuple, Type
-
-try:
-    from typing import Literal
-except ImportError:
-    # https://www.python.org/dev/peps/pep-0560/#class-getitem
-    class GenericMeta(type):
-        def __getitem__(self, item):
-            pass
-
-    class Literal(metaclass=GenericMeta):
-        pass
+from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union, TYPE_CHECKING, Tuple, Type
 
 import time
 import traceback
@@ -44,7 +33,7 @@ from functools import total_ordering
 from cproton import PN_ACCEPTED, PN_EVENT_NONE
 
 from ._data import Described, symbol, ulong
-from ._delivery import Delivery, GeneralDisposition
+from ._delivery import Delivery, TransactionalDisposition
 from ._endpoints import Connection, Endpoint, Link, Session, Terminus
 from ._events import Collector, EventType, EventBase, Event
 from ._exceptions import SSLUnavailable
@@ -569,11 +558,11 @@ class Transaction(object):
         self.discharge(True)
 
     def declare(self) -> None:
-        self._declare = self._send_ctrl(symbol(u'amqp:declare:list'), [None])
+        self._declare = self._send_ctrl(symbol('amqp:declare:list'), [None])
 
     def discharge(self, failed: bool) -> None:
         self.failed = failed
-        self._discharge = self._send_ctrl(symbol(u'amqp:discharge:list'), [self.id, failed])
+        self._discharge = self._send_ctrl(symbol('amqp:discharge:list'), [self.id, failed])
 
     def _send_ctrl(self, descriptor: 'PythonAMQPData', value: 'PythonAMQPData') -> Delivery:
         delivery = self.txn_ctrl.send(Message(body=Described(descriptor, value)))
@@ -595,7 +584,7 @@ class Transaction(object):
         :return: Delivery object for this message.
         """
         dlv = sender.send(msg, tag=tag)
-        dlv.local = GeneralDisposition(0x34, [self.id])
+        dlv.local = TransactionalDisposition(self.id)
         dlv.update()
         return dlv
 
@@ -613,7 +602,7 @@ class Transaction(object):
 
     def update(self, delivery: Delivery, state: Optional[ulong] = None) -> None:
         if state:
-            delivery.local = GeneralDisposition(0x34, [self.id, Described(ulong(state), [])])
+            delivery.local = TransactionalDisposition( self.id, state)
             delivery.update()
 
     def _release_pending(self):
