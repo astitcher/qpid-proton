@@ -146,6 +146,8 @@ class RemoteDisposition(Disposition):
             return super().__new__(RemoteRejectedDisposition)
         elif state == cls.MODIFIED:
             return super().__new__(RemoteModifiedDisposition)
+        elif state == cls.RELEASED:
+            return super().__new__(RemoteReleasedDisposition)
         elif state == cls.TRANSACTIONAL_STATE:
             return super().__new__(RemoteTransactionalDisposition)
         else:
@@ -222,6 +224,31 @@ class RemoteRejectedDisposition(RemoteDisposition):
 
     def apply_to(self, local_disposition: 'LocalDisposition'):
         RejectedDisposition(self._condition).apply_to(local_disposition)
+
+
+class RemoteReleasedDisposition(RemoteDisposition):
+
+    def __init__(self, delivery_impl):
+        pass
+
+    @property
+    def type(self) -> Union[int, DispositionType]:
+        return Disposition.RELEASED
+
+    @property
+    def failed(self) -> bool:
+        return False
+
+    @property
+    def undeliverable(self) -> bool:
+        return False
+
+    @property
+    def annotations(self) -> Optional[dict['symbol', 'PythonAMQPData']]:
+        return None
+
+    def apply_to(self, local_disposition: 'LocalDisposition'):
+        ModifiedDisposition(False, False, None).apply_to(local_disposition)
 
 
 class RemoteModifiedDisposition(RemoteDisposition):
