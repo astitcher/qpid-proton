@@ -1470,6 +1470,31 @@ void pn_proactor_connect2(pn_proactor_t *p, pn_connection_t *c, pn_transport_t *
   if (notify) notify_poller(p);
 }
 
+void pn_proactor_import_socket(pn_proactor_t *p, pn_connection_t *c, pn_transport_t *t, int fd) {
+
+  pconnection_t *pc = (pconnection_t*) malloc(sizeof(pconnection_t));
+  assert(pc); // TODO: memory safety
+  const char *err = pconnection_setup(pc, p, c, t, false, "", 0);
+  if (err) {
+    PN_LOG_DEFAULT(PN_SUBSYSTEM_EVENT, PN_LEVEL_ERROR, "pn_proactor_connect_fd failure: %s", err);
+    return;
+  }
+  // TODO: check case of proactor shutting down
+
+  proactor_add(&pc->task);
+  pn_connection_open(pc->driver.connection); /* Auto-open */
+
+  configure_socket(fd);
+
+  lock(&pc->task.mutex);
+  pconnection_start(pc, fd);
+  pconnection_connected_lh(pc);
+
+  bool notify = schedule(&pc->task);
+  unlock(&pc->task.mutex);
+  if (notify) notify_poller(p);
+}
+
 static void pconnection_tick(pconnection_t *pc) {
   pn_transport_t *t = pc->driver.transport;
   if (pn_transport_get_idle_timeout(t) || pn_transport_get_remote_idle_timeout(t)) {
