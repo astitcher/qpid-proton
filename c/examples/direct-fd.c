@@ -19,11 +19,6 @@
  *
  */
 
-#ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200809L
-#endif
-#undef _GNU_SOURCE
-
 #include <proton/condition.h>
 #include <proton/connection.h>
 #include <proton/delivery.h>
@@ -40,9 +35,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
+#ifdef _WIN32
+#  include <winsock2.h>
+#  include <ws2tcpip.h>
+#else
+#  ifndef _POSIX_C_SOURCE
+#    define _POSIX_C_SOURCE 200809L
+#  endif
+#  undef _GNU_SOURCE
+#  include <sys/types.h>
+#  include <sys/socket.h>
+#  include <netdb.h>
+#endif // _WIN32
 
 typedef struct app_data_t {
   const char *host, *port;

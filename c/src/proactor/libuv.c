@@ -1195,6 +1195,27 @@ void pn_proactor_connect2(pn_proactor_t *p, pn_connection_t *c, pn_transport_t *
   work_start(&pc->work);
 }
 
+void pn_proactor_import_socket(pn_proactor_t* p, pn_connection_t* c, pn_transport_t* t, int fd) {
+  pconnection_t* pc = pconnection(p, c, t, false);
+  assert(pc);
+  add_active(p);
+  pn_connection_open(pc->driver.connection);
+  int err = pconnection_init(pc);
+  if (err) goto error;
+
+  err = uv_tcp_open(&pc->tcp, fd);
+  if (err) {
+    pconnection_error(pc, err, "uv_tcp_open");
+    goto error;
+  }
+
+  pc->connected = 1;
+  pconnection_addresses(pc);
+
+error:
+  work_start(&pc->work);
+}
+
 void pn_proactor_listen(pn_proactor_t *p, pn_listener_t *l, const char *addr, int backlog) {
   work_init(&l->work, p, T_LISTENER);
   parse_addr(&l->addr, addr);

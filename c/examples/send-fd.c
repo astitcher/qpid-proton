@@ -19,11 +19,6 @@
  *
  */
 
-#ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200809L
-#endif
-#undef _GNU_SOURCE
-
 #include <proton/connection.h>
 #include <proton/condition.h>
 #include <proton/delivery.h>
@@ -36,11 +31,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <errno.h>
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#ifdef _WIN32
+#  include <winsock2.h>
+#  include <ws2tcpip.h>
+#else
+#  ifndef _POSIX_C_SOURCE
+#    define _POSIX_C_SOURCE 200809L
+#  endif
+#  undef _GNU_SOURCE
+#  include <errno.h>
+#  include <netdb.h>
+#  include <sys/types.h>
+#  include <sys/socket.h>
+#  include <unistd.h>
+#endif
 
 typedef struct app_data_t {
   const char *host, *port;
@@ -207,7 +211,6 @@ int main(int argc, char **argv) {
         case ECONNREFUSED:
         case ENETUNREACH:
         case EHOSTUNREACH:
-        case EHOSTDOWN:
         case ETIMEDOUT:
         case EADDRNOTAVAIL:
           ai_ = ai_->ai_next;
