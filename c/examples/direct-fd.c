@@ -39,10 +39,6 @@
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
 #else
-#  ifndef _POSIX_C_SOURCE
-#    define _POSIX_C_SOURCE 200809L
-#  endif
-#  undef _GNU_SOURCE
 #  include <sys/types.h>
 #  include <sys/socket.h>
 #  include <netdb.h>
@@ -323,19 +319,11 @@ inline static void check_error(int err, const char* message) {
   }
 }
 
-int main(int argc, char **argv) {
-  struct app_data_t app = {0};
-  char addr[PN_MAX_ADDR];
-  app.container_id = argv[0];   /* Should be unique */
-  app.host = (argc > 1) ? argv[1] : NULL;
-  app.port = (argc > 2) ? argv[2] : "amqp";
-  app.amqp_address = (argc > 3) ? argv[3] : "examples";
-  app.message_count = (argc > 4) ? atoi(argv[4]) : 10;
-
-  /* Create the proactor and connect */
-  app.proactor = pn_proactor();
+static int accept_socket(const char* host, const char* port) {
   struct addrinfo *ai;
-  int err = getaddrinfo(app.host, app.port, &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM, .ai_flags=AI_PASSIVE}, &ai);
+  int err = getaddrinfo(host, port,
+                        &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM, .ai_flags=AI_PASSIVE},
+                        &ai);
   check_error(err, "getaddrinfo");
   int l = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
   check_error(l, "socket");
@@ -346,7 +334,19 @@ int main(int argc, char **argv) {
   int s = accept(l, NULL, NULL);
   check_error(s, "accept");
   freeaddrinfo(ai);
+  return s;
+}
 
+int main(int argc, char **argv) {
+  struct app_data_t app = {
+    .container_id = argv[0],   /* Should be unique */
+    .host = (argc > 1) ? argv[1] : NULL,
+    .port = (argc > 2) ? argv[2] : "amqp",
+    .amqp_address = (argc > 3) ? argv[3] : "examples",
+    .message_count = (argc > 4) ? atoi(argv[4]) : 10,
+    .proactor = pn_proactor()};
+
+  int s = accept_socket(app.host, app.port);
   pn_transport_t *t = pn_transport();
   pn_transport_set_server(t);
   pn_proactor_import_socket(app.proactor, NULL, t, s);

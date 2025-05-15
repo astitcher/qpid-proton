@@ -140,7 +140,8 @@ PNP_EXTERN void pn_proactor_connect2(pn_proactor_t *proactor, pn_connection_t *c
  * @p proactor *takes ownership* of @p transport, it will be freed even
  * if pn_proactor_release_connection() is called.
  *
- * @param[in] fd the file descriptor of an existing connected socket
+ * @param[in] fd the file descriptor of an existing connected socket. The proactor
+ * will close the socket when the connection is closed.
  *
  */
 PNP_EXTERN void pn_proactor_import_socket(pn_proactor_t *proactor, pn_connection_t *connection, pn_transport_t *transport, int fd);

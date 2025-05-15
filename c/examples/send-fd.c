@@ -35,10 +35,6 @@
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
 #else
-#  ifndef _POSIX_C_SOURCE
-#    define _POSIX_C_SOURCE 200809L
-#  endif
-#  undef _GNU_SOURCE
 #  include <errno.h>
 #  include <netdb.h>
 #  include <sys/types.h>
@@ -185,28 +181,17 @@ inline static void check_error(int err, const char* message) {
   }
 }
 
-int main(int argc, char **argv) {
-  struct app_data_t app = {0};
-  char addr[PN_MAX_ADDR];
-
-  app.container_id = argv[0];   /* Should be unique */
-  app.host = (argc > 1) ? argv[1] : NULL;
-  app.port = (argc > 2) ? argv[2] : "amqp";
-  app.amqp_address = (argc > 3) ? argv[3] : "examples";
-  app.message_count = (argc > 4) ? atoi(argv[4]) : 10;
-  app.message = pn_message();
-
-  app.proactor = pn_proactor();
+static int connect_socket(const char *host, const char *port) {
   struct addrinfo *ai;
   int s;
-  int err = getaddrinfo(app.host, app.port, &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM}, &ai);
+  int err = getaddrinfo(host, port, &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM}, &ai);
   check_error(err, "getaddrinfo");
   struct addrinfo *ai_ = ai;
-  do {
+   while (true) {
     s = socket(ai_->ai_family, ai_->ai_socktype, ai_->ai_protocol);
     check_error(s, "socket");
     err = connect(s, ai_->ai_addr, ai_->ai_addrlen);
-    if (err<0)
+    if (err<0) {
       switch (errno) {
         case ECONNREFUSED:
         case ENETUNREACH:
@@ -223,9 +208,22 @@ int main(int argc, char **argv) {
           close(s);
           exit(-1);
       }
-    break;
-  } while (true);
-  freeaddrinfo(ai);
+    }
+    freeaddrinfo(ai);
+    return s;
+  };
+}
+
+int main(int argc, char **argv) {
+  struct app_data_t app = {
+    .container_id = argv[0],   /* Should be unique */
+    .host = (argc > 1) ? argv[1] : NULL,
+    .port = (argc > 2) ? argv[2] : "amqp",
+    .amqp_address = (argc > 3) ? argv[3] : "examples",
+    .message_count = (argc > 4) ? atoi(argv[4]) : 10,
+    .message = pn_message(),
+    .proactor = pn_proactor()};
+  int s = connect_socket(app.host, app.port);
   pn_proactor_import_socket(app.proactor, NULL, NULL, s);
   run(&app);
   pn_proactor_free(app.proactor);
