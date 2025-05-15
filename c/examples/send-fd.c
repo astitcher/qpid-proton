@@ -37,8 +37,8 @@
 #else
 #  include <errno.h>
 #  include <netdb.h>
-#  include <sys/types.h>
 #  include <sys/socket.h>
+#  include <sys/types.h>
 #  include <unistd.h>
 #endif
 
@@ -174,22 +174,22 @@ void run(app_data_t *app) {
   } while(true);
 }
 
-inline static void check_error(int err, const char* message) {
+inline static int check_error(int err, const char* message) {
   if (err < 0) {
     perror(message);
-    exit(-1);
   }
+  return err < 0;
 }
 
 static int connect_socket(const char *host, const char *port) {
   struct addrinfo *ai;
   int s;
   int err = getaddrinfo(host, port, &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM}, &ai);
-  check_error(err, "getaddrinfo");
+  if (check_error(err, "getaddrinfo")) return err;
   struct addrinfo *ai_ = ai;
    while (true) {
     s = socket(ai_->ai_family, ai_->ai_socktype, ai_->ai_protocol);
-    check_error(s, "socket");
+    if (check_error(s, "socket")) return s;
     err = connect(s, ai_->ai_addr, ai_->ai_addrlen);
     if (err<0) {
       switch (errno) {
@@ -206,7 +206,8 @@ static int connect_socket(const char *host, const char *port) {
         default:
           perror("connect");
           close(s);
-          exit(-1);
+          freeaddrinfo(ai);
+          return err;
       }
     }
     freeaddrinfo(ai);
@@ -223,9 +224,14 @@ int main(int argc, char **argv) {
     .message_count = (argc > 4) ? atoi(argv[4]) : 10,
     .message = pn_message(),
     .proactor = pn_proactor()};
+
   int s = connect_socket(app.host, app.port);
+  if ( s>=0 ) goto error;
+
   pn_proactor_import_socket(app.proactor, NULL, NULL, s);
   run(&app);
+
+error:
   pn_proactor_free(app.proactor);
   free(app.message_buffer.start);
   pn_message_free(app.message);

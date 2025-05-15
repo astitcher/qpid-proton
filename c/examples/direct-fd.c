@@ -39,9 +39,10 @@
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
 #else
-#  include <sys/types.h>
-#  include <sys/socket.h>
 #  include <netdb.h>
+#  include <sys/socket.h>
+#  include <sys/types.h>
+#  include <unistd.h>
 #endif // _WIN32
 
 typedef struct app_data_t {
@@ -312,11 +313,11 @@ void run(app_data_t *app) {
   } while(true);
 }
 
-inline static void check_error(int err, const char* message) {
+inline static int check_error(int err, const char* message) {
   if (err < 0) {
     perror(message);
-    exit(-1);
   }
+  return err < 0;
 }
 
 static int accept_socket(const char* host, const char* port) {
@@ -324,17 +325,23 @@ static int accept_socket(const char* host, const char* port) {
   int err = getaddrinfo(host, port,
                         &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM, .ai_flags=AI_PASSIVE},
                         &ai);
-  check_error(err, "getaddrinfo");
+  if (check_error(err, "getaddrinfo")) goto error1;
   int l = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-  check_error(l, "socket");
+  if (check_error(l, "socket")) {err = l; goto error1;}
   err = bind(l, ai->ai_addr, ai->ai_addrlen);
-  check_error(err, "bind");
+  if (check_error(err, "bind")) goto error2;
   err = listen(l, 8);
-  check_error(err, "listen");
+  if (check_error(err, "listen")) goto error2;
   int s = accept(l, NULL, NULL);
-  check_error(s, "accept");
+  if (check_error(s, "accept")) {err = s; goto error2;}
   freeaddrinfo(ai);
   return s;
+
+error2:
+  close(l);
+error1:
+  freeaddrinfo(ai);
+  return err;
 }
 
 int main(int argc, char **argv) {
@@ -347,10 +354,14 @@ int main(int argc, char **argv) {
     .proactor = pn_proactor()};
 
   int s = accept_socket(app.host, app.port);
+  if (s<0) goto error;
+
   pn_transport_t *t = pn_transport();
   pn_transport_set_server(t);
   pn_proactor_import_socket(app.proactor, NULL, t, s);
   run(&app);
+
+error:
   pn_proactor_free(app.proactor);
   free(app.msgout.start);
   free(app.msgin.start);
