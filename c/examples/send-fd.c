@@ -36,6 +36,30 @@
 #ifdef _WIN32
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
+#  include <windows.h>
+void perror_wsa(const char* message) {
+    char error_msg[256]; // Buffer for the error message
+    DWORD error_code = WSAGetLastError();
+
+    int length = FormatMessage(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        error_code,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        error_msg,
+        sizeof(error_msg),
+        NULL
+    );
+
+    if (length > 0) {
+        fprintf(stderr, "%s: %s\n", message, error_msg);
+    }
+    else {
+        fprintf(stderr, "%s: Unknown error code %ld\n", message, error_code);
+    }
+}
+#  undef perror
+#  define perror perror_wsa
 #else
 #  include <errno.h>
 #  include <netdb.h>
