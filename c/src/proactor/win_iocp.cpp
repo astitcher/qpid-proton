@@ -27,9 +27,9 @@
 #include <proton/netaddr.h>
 #include <proton/object.h>
 #include <proton/proactor.h>
+#include <proton/proactor_ext.h>
 #include <proton/transport.h>
 #include <proton/listener.h>
-#include <proton/proactor.h>
 #include <proton/raw_connection.h>
 
 #include <assert.h>
@@ -2745,7 +2745,7 @@ void pn_proactor_connect2(pn_proactor_t *p, pn_connection_t *c, pn_transport_t *
   }
 }
 
-void pn_proactor_import_socket(pn_proactor_t* proactor, pn_connection_t* connection, pn_transport_t* transport, int fd)
+void pn_proactor_import_socket(pn_proactor_t* proactor, pn_connection_t* connection, pn_transport_t* transport, pn_socket_t fd)
 {
     // Step 1: Setup the pconnection_t structure
     pconnection_t* pc = (pconnection_t*)pn_class_new(&pconnection_class, sizeof(pconnection_t));
@@ -2766,9 +2766,8 @@ void pn_proactor_import_socket(pn_proactor_t* proactor, pn_connection_t* connect
     pc->started = true; // Mark as started, since the socket is already connected
 
     // Step 3: Wrap the socket in an iocpdesc_t and bind to IOCP
-    pn_socket_t sock = (pn_socket_t)fd;
-    pni_configure_sock_2(sock); // Set non-blocking, TCP_NODELAY, etc.
-    pc->psocket.iocpd = pni_iocpdesc_create(proactor->iocp, sock);
+    pni_configure_sock_2(fd); // Set non-blocking, TCP_NODELAY, etc.
+    pc->psocket.iocpd = pni_iocpdesc_create(proactor->iocp, fd);
     if (!pc->psocket.iocpd) {
         PN_LOG_DEFAULT(PN_SUBSYSTEM_EVENT, PN_LEVEL_ERROR, "pn_proactor_import_socket: failed to create iocpdesc");
         return;
@@ -2784,9 +2783,9 @@ void pn_proactor_import_socket(pn_proactor_t* proactor, pn_connection_t* connect
 
     // Step 5: Set local/remote addresses for the connection
     socklen_t len = sizeof(pc->local.ss);
-    getsockname(sock, (struct sockaddr*)&pc->local.ss, &len);
+    getsockname(fd, (struct sockaddr*)&pc->local.ss, &len);
     len = sizeof(pc->remote.ss);
-    getpeername(sock, (struct sockaddr*)&pc->remote.ss, &len);
+    getpeername(fd, (struct sockaddr*)&pc->remote.ss, &len);
 
     // Step 6: Auto-open the connection
     pn_connection_open(pc->driver.connection);

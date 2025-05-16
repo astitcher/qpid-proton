@@ -122,31 +122,6 @@ PNP_EXTERN void pn_proactor_free(pn_proactor_t *proactor);
 PNP_EXTERN void pn_proactor_connect2(pn_proactor_t *proactor, pn_connection_t *connection, pn_transport_t *transport, const char *addr);
 
 /**
- * Connect @p transport to @p addr and bind to @p connection.
- * Errors are returned as  @ref PN_TRANSPORT_CLOSED events by pn_proactor_wait().
- *
- * @note Thread-safe
- *
- * @param[in] proactor the proactor object
- *
- * @param[in] connection If NULL a new connection is created.
- * @p proactor *takes ownership* of @p connection and will
- * automatically call pn_connection_free() after the final @ref
- * PN_TRANSPORT_CLOSED event is handled, or when pn_proactor_free() is
- * called. You can prevent the automatic free with
- * pn_proactor_release_connection()
- *
- * @param[in] transport If NULL a new transport is created.
- * @p proactor *takes ownership* of @p transport, it will be freed even
- * if pn_proactor_release_connection() is called.
- *
- * @param[in] fd the file descriptor of an existing connected socket. The proactor
- * will close the socket when the connection is closed.
- *
- */
-PNP_EXTERN void pn_proactor_import_socket(pn_proactor_t *proactor, pn_connection_t *connection, pn_transport_t *transport, int fd);
-
-/**
  * **Deprecated** - Use ::pn_proactor_connect2()
  */
 PNP_EXTERN void pn_proactor_connect(pn_proactor_t *proactor, pn_connection_t *connection, const char *addr);

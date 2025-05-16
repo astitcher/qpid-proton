@@ -28,10 +28,12 @@
 #include <proton/message.h>
 #include <proton/object.h>
 #include <proton/proactor.h>
+#include <proton/proactor_ext.h>
 #include <proton/sasl.h>
 #include <proton/session.h>
 #include <proton/transport.h>
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -43,6 +45,9 @@
 #  include <sys/socket.h>
 #  include <sys/types.h>
 #  include <unistd.h>
+#  define INVALID_SOCKET (-1)
+#  define SOCKET_ERROR (-1)
+#  define closesocket close
 #endif // _WIN32
 
 typedef struct app_data_t {
@@ -313,55 +318,64 @@ void run(app_data_t *app) {
   } while(true);
 }
 
-inline static int check_error(int err, const char* message) {
-  if (err < 0) {
-    perror(message);
-  }
-  return err < 0;
+inline static bool check_error(int err, const char* message) {
+    if (err == SOCKET_ERROR) {
+        perror(message);
+    }
+    return err == SOCKET_ERROR;
 }
 
-inline static int check_gai_error(int err, const char* message) {
-  if (err != 0) {
-    printf("%s: %s", message, gai_strerror(err));
-  }
-  return err != 0;
+inline static bool check_socket_error(pn_socket_t err, const char* message) {
+    if (err == INVALID_SOCKET) {
+        perror(message);
+    }
+    return err == INVALID_SOCKET;
 }
 
-static int accept_socket(const char* host, const char* port) {
+inline static bool checked_gai(const char* node, const char* port, struct addrinfo* hints, struct addrinfo** ai) {
+    int err = getaddrinfo(node, port, hints, ai);
+    if (err != 0) {
+        printf("getaddrinfo: %s", gai_strerror(err));
+    }
+    return err != 0;
+}
+
+static pn_socket_t accept_socket(const char* host, const char* port) {
   struct addrinfo *ai;
-  int err = getaddrinfo(host, port,
-                        &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM, .ai_flags=AI_PASSIVE | AI_ALL},
-                        &ai);
-  if (check_gai_error(err, "getaddrinfo")) return -1;
-  int l = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-  if (check_error(l, "socket")) {err = l; goto error1;}
-  err = bind(l, ai->ai_addr, ai->ai_addrlen);
+  if (checked_gai(host, port,
+                  &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM, .ai_flags=AI_PASSIVE | AI_ALL},
+                  &ai))
+      return INVALID_SOCKET;
+  pn_socket_t l = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+  if (check_socket_error(l, "socket")) goto error1;
+  int err = bind(l, ai->ai_addr, ai->ai_addrlen);
   if (check_error(err, "bind")) goto error2;
   err = listen(l, 8);
   if (check_error(err, "listen")) goto error2;
-  int s = accept(l, NULL, NULL);
-  if (check_error(s, "accept")) {err = s; goto error2;}
+  pn_socket_t s = accept(l, NULL, NULL);
+  if (check_socket_error(s, "accept")) goto error2;
+  closesocket(l);
   freeaddrinfo(ai);
   return s;
 
 error2:
-  close(l);
+  closesocket(l);
 error1:
   freeaddrinfo(ai);
-  return err;
+  return INVALID_SOCKET;
 }
 
 int main(int argc, char **argv) {
   struct app_data_t app = {
     .container_id = argv[0],   /* Should be unique */
     .host = (argc > 1) ? argv[1] : NULL,
-    .port = (argc > 2) ? argv[2] : "amqp",
+    .port = (argc > 2) ? argv[2] : "5672",
     .amqp_address = (argc > 3) ? argv[3] : "examples",
     .message_count = (argc > 4) ? atoi(argv[4]) : 10,
     .proactor = pn_proactor()};
 
-  int s = accept_socket(app.host, app.port);
-  if (s<0) goto error;
+  pn_socket_t s = accept_socket(app.host, app.port);
+  if (s==INVALID_SOCKET) goto error;
 
   pn_transport_t *t = pn_transport();
   pn_transport_set_server(t);

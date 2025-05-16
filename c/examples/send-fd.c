@@ -25,9 +25,11 @@
 #include <proton/link.h>
 #include <proton/message.h>
 #include <proton/proactor.h>
+#include <proton/proactor_ext.h>
 #include <proton/session.h>
 #include <proton/transport.h>
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -40,6 +42,9 @@
 #  include <sys/socket.h>
 #  include <sys/types.h>
 #  include <unistd.h>
+#  define INVALID_SOCKET (-1)
+#  define SOCKET_ERROR (-1)
+#  define closesocket close
 #endif
 
 typedef struct app_data_t {
@@ -174,69 +179,65 @@ void run(app_data_t *app) {
   } while(true);
 }
 
-inline static int check_error(int err, const char* message) {
-  if (err < 0) {
+inline static bool check_error(int err, const char* message) {
+  if (err == SOCKET_ERROR) {
     perror(message);
   }
-  return err < 0;
+  return err == SOCKET_ERROR;
 }
 
-inline static int check_gai_error(int err, const char* message) {
+inline static bool check_socket_error(pn_socket_t err, const char* message) {
+    if (err == INVALID_SOCKET) {
+        perror(message);
+    }
+    return err == INVALID_SOCKET;
+}
+
+inline static bool checked_gai(const char *node, const char *port, struct addrinfo *hints, struct addrinfo **ai) {
+  int err = getaddrinfo(node, port, hints, ai);
   if (err != 0) {
-    printf("%s: %s", message, gai_strerror(err));
+    printf("getaddrinfo: %s", gai_strerror(err));
   }
   return err != 0;
 }
 
-static int connect_socket(const char *host, const char *port) {
+static pn_socket_t connect_socket(const char *host, const char *port) {
   struct addrinfo *ai;
-  int s;
-  int err = getaddrinfo(host, port, &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM}, &ai);
-  if (check_gai_error(err, "getaddrinfo")) return -1;
+  if (checked_gai(host, port, &(struct addrinfo){.ai_family = AF_UNSPEC, .ai_socktype = SOCK_STREAM}, &ai)) return INVALID_SOCKET;
   struct addrinfo *ai_ = ai;
   while (true) {
-    s = socket(ai_->ai_family, ai_->ai_socktype, ai_->ai_protocol);
-    if (check_error(s, "socket")) {err = s; goto error1;}
-    err = connect(s, ai_->ai_addr, ai_->ai_addrlen);
-    if (err==0) {
-      freeaddrinfo(ai);
-      return s;
-    }
-    switch (errno) {
-    case ECONNREFUSED:
-    case ENETUNREACH:
-    case EHOSTUNREACH:
-    case ETIMEDOUT:
-    case EADDRNOTAVAIL:
-      ai_ = ai_->ai_next;
-      if (ai_) {
-        close(s);
-        continue;
+    pn_socket_t s = socket(ai_->ai_family, ai_->ai_socktype, ai_->ai_protocol);
+    if (s != INVALID_SOCKET) {
+      int err = connect(s, ai_->ai_addr, ai_->ai_addrlen);
+      if (err == 0) {
+        freeaddrinfo(ai);
+        return s;
       }
-    default:
-      perror("connect");
-      goto error2;
     }
+    ai_ = ai_->ai_next;
+    if (ai_) {
+      closesocket(s);
+      continue;
+    } 
+    perror("connect");
+    closesocket(s);
+    freeaddrinfo(ai);
+    return INVALID_SOCKET;
   }
-error2:
-  close(s);
-error1:
-  freeaddrinfo(ai);
-  return err;
 }
 
 int main(int argc, char **argv) {
   struct app_data_t app = {
     .container_id = argv[0],   /* Should be unique */
     .host = (argc > 1) ? argv[1] : NULL,
-    .port = (argc > 2) ? argv[2] : "amqp",
+    .port = (argc > 2) ? argv[2] : "5672",
     .amqp_address = (argc > 3) ? argv[3] : "examples",
     .message_count = (argc > 4) ? atoi(argv[4]) : 10,
     .message = pn_message(),
     .proactor = pn_proactor()};
 
-  int s = connect_socket(app.host, app.port);
-  if ( s<0 ) goto error;
+  pn_socket_t s = connect_socket(app.host, app.port);
+  if (s == INVALID_SOCKET) goto error;
 
   pn_proactor_import_socket(app.proactor, NULL, NULL, s);
   run(&app);
