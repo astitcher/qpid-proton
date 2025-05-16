@@ -21,6 +21,7 @@
  */
 
 #include <proton/import_export.h>
+#include <proton/types.h>
 
 #ifdef _WIN32
 #include <stdint.h>
@@ -38,11 +39,6 @@ extern "C" {
  * @brief Extended proactor functions for native or implementation-specific integration.
  */
 
-/* Forward declarations for opaque types */
-typedef struct pn_proactor_t pn_proactor_t;
-typedef struct pn_connection_t pn_connection_t;
-typedef struct pn_transport_t pn_transport_t;
-
 /**
  * Import an existing connected socket into the @p proactor and bind to a @p connection and @p transport.
  * Errors are returned as  @ref PN_TRANSPORT_CLOSED events by pn_proactor_wait().
@@ -55,7 +51,7 @@ typedef struct pn_transport_t pn_transport_t;
  *
  * The @p proactor *takes ownership* of @p transport, it will be freed even
  * if pn_proactor_release_connection() is called.
- * 
+ *
  * The @p proactor takes ownership of the socket and will close it when the connection is closed.
  *
  * @note Thread-safe

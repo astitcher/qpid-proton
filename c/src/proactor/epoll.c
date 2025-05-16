@@ -71,11 +71,12 @@
 #include <proton/condition.h>
 #include <proton/connection_driver.h>
 #include <proton/engine.h>
-#include <proton/proactor.h>
-#include <proton/transport.h>
 #include <proton/listener.h>
 #include <proton/netaddr.h>
+#include <proton/proactor.h>
+#include <proton/proactor_ext.h>
 #include <proton/raw_connection.h>
+#include <proton/transport.h>
 
 #include <assert.h>
 #include <stddef.h>
