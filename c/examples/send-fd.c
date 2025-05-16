@@ -181,38 +181,48 @@ inline static int check_error(int err, const char* message) {
   return err < 0;
 }
 
+inline static int check_gai_error(int err, const char* message) {
+  if (err != 0) {
+    printf("%s: %s", message, gai_strerror(err));
+  }
+  return err != 0;
+}
+
 static int connect_socket(const char *host, const char *port) {
   struct addrinfo *ai;
   int s;
   int err = getaddrinfo(host, port, &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM}, &ai);
-  if (check_error(err, "getaddrinfo")) return err;
+  if (check_gai_error(err, "getaddrinfo")) return -1;
   struct addrinfo *ai_ = ai;
-   while (true) {
+  while (true) {
     s = socket(ai_->ai_family, ai_->ai_socktype, ai_->ai_protocol);
-    if (check_error(s, "socket")) return s;
+    if (check_error(s, "socket")) {err = s; goto error1;}
     err = connect(s, ai_->ai_addr, ai_->ai_addrlen);
-    if (err<0) {
-      switch (errno) {
-        case ECONNREFUSED:
-        case ENETUNREACH:
-        case EHOSTUNREACH:
-        case ETIMEDOUT:
-        case EADDRNOTAVAIL:
-          ai_ = ai_->ai_next;
-          if (ai_) {
-            close(s);
-            continue;
-          }
-        default:
-          perror("connect");
-          close(s);
-          freeaddrinfo(ai);
-          return err;
-      }
+    if (err==0) {
+      freeaddrinfo(ai);
+      return s;
     }
-    freeaddrinfo(ai);
-    return s;
-  };
+    switch (errno) {
+    case ECONNREFUSED:
+    case ENETUNREACH:
+    case EHOSTUNREACH:
+    case ETIMEDOUT:
+    case EADDRNOTAVAIL:
+      ai_ = ai_->ai_next;
+      if (ai_) {
+        close(s);
+        continue;
+      }
+    default:
+      perror("connect");
+      goto error2;
+    }
+  }
+error2:
+  close(s);
+error1:
+  freeaddrinfo(ai);
+  return err;
 }
 
 int main(int argc, char **argv) {
@@ -226,7 +236,7 @@ int main(int argc, char **argv) {
     .proactor = pn_proactor()};
 
   int s = connect_socket(app.host, app.port);
-  if ( s>=0 ) goto error;
+  if ( s<0 ) goto error;
 
   pn_proactor_import_socket(app.proactor, NULL, NULL, s);
   run(&app);

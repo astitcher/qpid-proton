@@ -320,12 +320,19 @@ inline static int check_error(int err, const char* message) {
   return err < 0;
 }
 
+inline static int check_gai_error(int err, const char* message) {
+  if (err != 0) {
+    printf("%s: %s", message, gai_strerror(err));
+  }
+  return err != 0;
+}
+
 static int accept_socket(const char* host, const char* port) {
   struct addrinfo *ai;
   int err = getaddrinfo(host, port,
-                        &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM, .ai_flags=AI_PASSIVE},
+                        &(struct addrinfo){.ai_family=AF_UNSPEC, .ai_socktype=SOCK_STREAM, .ai_flags=AI_PASSIVE | AI_ALL},
                         &ai);
-  if (check_error(err, "getaddrinfo")) goto error1;
+  if (check_gai_error(err, "getaddrinfo")) return -1;
   int l = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
   if (check_error(l, "socket")) {err = l; goto error1;}
   err = bind(l, ai->ai_addr, ai->ai_addrlen);
