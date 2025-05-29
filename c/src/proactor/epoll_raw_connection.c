@@ -242,6 +242,26 @@ void pn_proactor_raw_connect(pn_proactor_t *p, pn_raw_connection_t *rc, const ch
 
   if (notify) notify_poller(p);
 }
+void pn_raw_connection_import_socket(pn_proactor_t *p, pn_raw_connection_t *rc, int fd) {
+    assert(p);
+    assert(rc);
+    assert(fd >= 0);
+
+    praw_connection_t *prc = containerof(rc, praw_connection_t, raw_connection);
+    praw_connection_init(prc, p, rc);
+
+    configure_socket(fd);
+
+    lock(&prc->task.mutex);
+    proactor_add(&prc->task);
+    praw_connection_start(prc, fd);
+    praw_connection_connected_lh(prc);
+
+    bool notify = schedule(&prc->task);
+    unlock(&prc->task.mutex);
+
+    if (notify) notify_poller(p);
+}
 
 void pn_listener_raw_accept(pn_listener_t *l, pn_raw_connection_t *rc) {
   assert(rc);
