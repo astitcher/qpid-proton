@@ -44,8 +44,8 @@ class Wrapper:
         are already set. Use the Uninitialised method to check if the object is already initialised.
     """
 
-    constructor: ClassVar[Optional[Callable[[], Any]]] = None
-    get_context: ClassVar[Callable[[Any], Any]]
+    constructor: ClassVar[Optional[staticmethod[[], Any]]] = None
+    get_context: ClassVar[staticmethod[[Any], Any]]
 
     __slots__ = ["_impl", "_attrs"]
 
@@ -61,7 +61,8 @@ class Wrapper:
         try:
             if impl is None:
                 # we are constructing a new object
-                assert cls.constructor
+                assert cls.constructor is not None, \
+                    "Wrapper class %s does not have a constructor defined." % cls.__name__
                 impl = cls.constructor()
                 if impl is None:
                     raise ProtonException(
@@ -70,7 +71,8 @@ class Wrapper:
                 # we are wrapping an existing object
                 pn_incref(impl)
 
-            assert cls.get_context
+            assert cls.get_context is not None, \
+                "Wrapper class %s does not have a get_context method defined." % cls.__name__
             record = cls.get_context(impl)
             attrs = pn_record_get_py(record)
         finally:
