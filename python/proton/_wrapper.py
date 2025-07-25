@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, ClassVar, Optional
+from typing import Any, ClassVar, Optional
 
 from cproton import addressof, isnull, pn_incref, pn_decref, \
     pn_record_get_py

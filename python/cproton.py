@@ -22,6 +22,7 @@
 
 import atexit
 from uuid import UUID
+from typing import Any, Optional, Union
 
 from cproton_ffi import ffi, lib
 from cproton_ffi.lib import (PN_ACCEPTED, PN_ARRAY, PN_BINARY, PN_BOOL, PN_BYTE, PN_CHAR,
@@ -183,21 +184,21 @@ from cproton_ffi.lib import (PN_ACCEPTED, PN_ARRAY, PN_BINARY, PN_BOOL, PN_BYTE,
                              pn_declared_disposition)
 
 
-def isnull(obj):
+def isnull(obj: Any) -> bool:
     return obj is None or obj == ffi.NULL
 
 
-def addressof(obj):
+def addressof(obj) -> int:
     return int(ffi.cast('uint64_t', obj))
 
 
-def void2py(void):
+def void2py(void) -> Any:
     if void == ffi.NULL:
         return None
     return ffi.from_handle(void)
 
 
-def string2utf8(string):
+def string2utf8(string: str) -> bytes:
     """Convert python string into bytes compatible with char* C string"""
     if string is None:
         return ffi.NULL
@@ -207,26 +208,26 @@ def string2utf8(string):
     raise TypeError("Unrecognized string type: %r (%s)" % (string, type(string)))
 
 
-def utf82string(string):
+def utf82string(string) -> Optional[str]:
     """Convert char* C strings returned from proton-c into python unicode"""
     if string == ffi.NULL:
         return None
     return ffi.string(string).decode('utf8')
 
 
-def bytes2py(b):
+def bytes2py(b) -> memoryview:
     return memoryview(ffi.buffer(b.start, b.size))
 
 
-def bytes2pybytes(b):
+def bytes2pybytes(b) -> bytes:
     return bytes(ffi.buffer(b.start, b.size))
 
 
-def bytes2string(b, encoding='utf8', errors='surrogateescape'):
+def bytes2string(b, encoding='utf8', errors='surrogateescape') -> str:
     return ffi.unpack(b.start, b.size).decode(encoding, errors)
 
 
-def py2bytes(py):
+def py2bytes(py: Union[bytes, bytearray, memoryview, str]) -> 'lib.pn_bytes_t':
     if isinstance(py, (bytes, bytearray, memoryview)):
         s = ffi.from_buffer(py)
         return len(s), s
@@ -235,18 +236,18 @@ def py2bytes(py):
         return len(s), s
 
 
-def string2bytes(py, encoding='utf8', errors='surrogateescape'):
+def string2bytes(py, encoding='utf8', errors='surrogateescape') -> 'lib.pn_bytes_t':
     s = ffi.from_buffer(py.encode(encoding, errors))
     return len(s), s
 
 
-def UUID2uuid(py):
-    u = ffi.new('pn_uuid_t*')
+def UUID2uuid(py: UUID) -> 'lib.pn_uuid_t':
+    u: 'lib.pn_uuid_t' = ffi.new('pn_uuid_t*')
     ffi.memmove(u.bytes, py.bytes, 16)
     return u[0]
 
 
-def uuid2bytes(uuid):
+def uuid2bytes(uuid: 'lib.pn_uuid_t') -> bytes:
     return ffi.unpack(uuid.bytes, 16)
 
 
@@ -254,13 +255,13 @@ def decimal1282py(decimal128):
     return ffi.unpack(decimal128.bytes, 16)
 
 
-def py2decimal128(py):
-    d = ffi.new('pn_decimal128_t*')
+def py2decimal128(py) -> 'lib.pn_decimal128_t':
+    d: 'lib.pn_decimal128_t' = ffi.new('pn_decimal128_t*')
     ffi.memmove(d.bytes, py, 16)
     return d[0]
 
 
-def msgid2py(msgid):
+def msgid2py(msgid: 'lib.pn_msgid_t') -> Union[int, str, bytes, UUID, None]:
     t = msgid.type
     if t == PN_NULL:
         return None
@@ -286,7 +287,7 @@ def msgid2py(msgid):
     return None
 
 
-def py2msgid(py):
+def py2msgid(py) -> 'lib.pn_msgid_t':
     if py is None:
         return {'type': PN_NULL}
     elif isinstance(py, int):
@@ -732,7 +733,7 @@ def pn_ssl_domain_set_ciphers(domain, ciphers):
 
 # _Bool pn_ssl_get_cipher_name(pn_ssl_t *ssl, char *buffer, size_t size);
 def pn_ssl_get_cipher_name(ssl, size):
-    buff = ffi.new('char[]', size)
+    buff: bytes = ffi.new('char[]', size)
     r = lib.pn_ssl_get_cipher_name(ssl, buff, size)
     if r:
         return utf82string(buff)
@@ -741,7 +742,7 @@ def pn_ssl_get_cipher_name(ssl, size):
 
 # _Bool pn_ssl_get_protocol_name(pn_ssl_t *ssl, char *buffer, size_t size);
 def pn_ssl_get_protocol_name(ssl, size):
-    buff = ffi.new('char[]', size)
+    buff: bytes = ffi.new('char[]', size)
     r = lib.pn_ssl_get_protocol_name(ssl, buff, size)
     if r:
         return utf82string(buff)
@@ -750,7 +751,7 @@ def pn_ssl_get_protocol_name(ssl, size):
 
 # int pn_ssl_get_cert_fingerprint(pn_ssl_t *ssl, char *fingerprint, size_t fingerprint_len, pn_ssl_hash_alg hash_alg);
 def pn_ssl_get_cert_fingerprint(ssl, fingerprint_len, hash_alg):
-    buff = ffi.new('char[]', fingerprint_len)
+    buff:bytes = ffi.new('char[]', fingerprint_len)
     r = lib.pn_ssl_get_cert_fingerprint(ssl, buff, fingerprint_len, hash_alg)
     if r == PN_OK:
         return utf82string(buff)
@@ -759,7 +760,7 @@ def pn_ssl_get_cert_fingerprint(ssl, fingerprint_len, hash_alg):
 
 # int pn_ssl_get_peer_hostname(pn_ssl_t *ssl, char *hostname, size_t *bufsize);
 def pn_ssl_get_peer_hostname(ssl, size):
-    buff = ffi.new('char[]', size)
+    buff: bytes = ffi.new('char[]', size)
     r = lib.pn_ssl_get_peer_hostname_py(ssl, buff, size)
     if r == PN_OK:
         return r, utf82string(buff)

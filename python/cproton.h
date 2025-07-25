@@ -29,7 +29,7 @@ typedef struct pn_collector_t pn_collector_t;
 typedef struct pn_condition_t pn_condition_t;
 typedef struct pn_connection_t pn_connection_t;
 typedef struct pn_data_t pn_data_t;
-typedef struct
+typedef struct pn_decimal128_t
 {
   char bytes[16];
 } pn_decimal128_t;
@@ -38,13 +38,13 @@ typedef uint64_t pn_decimal64_t;
 typedef struct pn_delivery_t pn_delivery_t;
 typedef pn_bytes_t pn_delivery_tag_t;
 typedef struct pn_disposition_t pn_disposition_t;
-typedef enum
+typedef enum pn_distribution_mode_t
 {
   PN_DIST_MODE_UNSPECIFIED = 0,
   PN_DIST_MODE_COPY = 1,
   PN_DIST_MODE_MOVE = 2
 } pn_distribution_mode_t;
-typedef enum
+typedef enum pn_durability_t
 {
   PN_NONDURABLE = 0,
   PN_CONFIGURATION = 1,
@@ -52,7 +52,7 @@ typedef enum
 } pn_durability_t;
 typedef struct pn_error_t pn_error_t;
 typedef struct pn_event_t pn_event_t;
-typedef enum
+typedef enum pn_event_type_t
 {
   PN_EVENT_NONE = 0,
   PN_REACTOR_INIT,
@@ -114,7 +114,7 @@ typedef enum
   PN_RAW_CONNECTION_WAKE,
   PN_RAW_CONNECTION_DRAIN_BUFFERS
 } pn_event_type_t;
-typedef enum
+typedef enum pn_expiry_policy_t
 {
   PN_EXPIRE_WITH_LINK,
   PN_EXPIRE_WITH_SESSION,
@@ -124,13 +124,13 @@ typedef enum
 typedef struct pn_link_t pn_link_t;
 typedef struct pn_message_t pn_message_t;
 typedef uint32_t pn_millis_t;
-typedef enum
+typedef enum pn_rcv_settle_mode_t
 {
   PN_RCV_FIRST = 0,
   PN_RCV_SECOND = 1
 } pn_rcv_settle_mode_t;
 typedef struct pn_record_t pn_record_t;
-typedef enum
+typedef enum pn_sasl_outcome_t
 {
   PN_SASL_NONE = -1,
   PN_SASL_OK = 0,
@@ -143,13 +143,13 @@ typedef struct pn_sasl_t pn_sasl_t;
 typedef uint32_t pn_seconds_t;
 typedef uint32_t pn_sequence_t;
 typedef struct pn_session_t pn_session_t;
-typedef enum
+typedef enum pn_snd_settle_mode_t
 {
   PN_SND_UNSETTLED = 0,
   PN_SND_SETTLED = 1,
   PN_SND_MIXED = 2
 } pn_snd_settle_mode_t;
-typedef enum
+typedef enum pn_ssl_cert_subject_subfield
 {
   PN_SSL_CERT_SUBJECT_COUNTRY_NAME,
   PN_SSL_CERT_SUBJECT_STATE_OR_PROVINCE,
@@ -159,26 +159,26 @@ typedef enum
   PN_SSL_CERT_SUBJECT_COMMON_NAME
 } pn_ssl_cert_subject_subfield;
 typedef struct pn_ssl_domain_t pn_ssl_domain_t;
-typedef enum
+typedef enum pn_ssl_hash_alg
 {
   PN_SSL_SHA1,
   PN_SSL_SHA256,
   PN_SSL_SHA512,
   PN_SSL_MD5
 } pn_ssl_hash_alg;
-typedef enum
+typedef enum pn_ssl_mode_t
 {
   PN_SSL_MODE_CLIENT = 1,
   PN_SSL_MODE_SERVER
 } pn_ssl_mode_t;
-typedef enum
+typedef enum pn_ssl_resume_status_t
 {
   PN_SSL_RESUME_UNKNOWN,
   PN_SSL_RESUME_NEW,
   PN_SSL_RESUME_REUSED
 } pn_ssl_resume_status_t;
 typedef struct pn_ssl_t pn_ssl_t;
-typedef enum
+typedef enum pn_ssl_verify_mode_t
 {
   PN_SSL_VERIFY_NULL = 0,
   PN_SSL_VERIFY_PEER,
@@ -187,7 +187,7 @@ typedef enum
 } pn_ssl_verify_mode_t;
 typedef int pn_state_t;
 typedef struct pn_terminus_t pn_terminus_t;
-typedef enum
+typedef enum pn_terminus_type_t
 {
   PN_UNSPECIFIED = 0,
   PN_SOURCE = 1,
@@ -197,7 +197,7 @@ typedef enum
 typedef int64_t pn_timestamp_t;
 typedef int pn_trace_t;
 typedef struct pn_transport_t pn_transport_t;
-typedef enum
+typedef enum pn_type_t
 {
   PN_NULL = 1,
   PN_BOOL = 2,
@@ -226,11 +226,11 @@ typedef enum
   PN_MAP = 25,
   PN_INVALID = -1
 } pn_type_t;
-typedef struct
+typedef struct pn_uuid_t
 {
   char bytes[16];
 } pn_uuid_t;
-typedef struct {
+typedef struct pn_atom_t {
   pn_type_t type;
   union {
     _Bool as_bool;
