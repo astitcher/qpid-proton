@@ -720,4 +720,4 @@ void *pn_record_get_py(pn_record_t *record);
 void pn_record_set_py(pn_record_t *record, void *value);
 int pn_ssl_get_peer_hostname_py(pn_ssl_t *ssl, char *hostname, size_t size);
 
-void free(void*);
+void free(void* object);

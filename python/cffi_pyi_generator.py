@@ -83,11 +83,14 @@ class CFFIToPyiConverter:
         self.typedefs: Dict[str, str] = {}
         self.functions: List[Tuple[str, str, List[Tuple[str, str]]]] = []
         self.constants: List[Tuple[str, str]] = []
+        self.macros: Dict[str, str] = {}
 
     def parse_c_code(self, c_code: str) -> None:
         """Parse C code and extract declarations."""
         # Preprocess the code to handle common CFFI patterns
         c_code, macros = self._preprocess_c_code(c_code)
+
+        self.macros = macros
 
         try:
             parser = CParser()
@@ -97,7 +100,7 @@ class CFFIToPyiConverter:
             print(f"Warning: Failed to parse some C code: {e}", file=sys.stderr)
             raise e
 
-    def _preprocess_c_code(self, c_code: str) -> str:
+    def _preprocess_c_code(self, c_code: str) -> Tuple[str, Dict[str, str]]:
         """Preprocess C code to make it more parseable."""
         # Add fake includes for common types
         fake_includes = """
@@ -258,7 +261,7 @@ class CFFIToPyiConverter:
         elif isinstance(type_node, c_ast.PtrDecl):
             # Pointer types
             pointed_type = self._get_type_annotation(type_node.type)
-            if pointed_type == 'int' and isinstance(type_node.type, c_ast.TypeDecl) \
+            if isinstance(type_node.type, c_ast.TypeDecl) \
                and isinstance(type_node.type.type, c_ast.IdentifierType):
                 base_type = ' '.join(type_node.type.type.names)
                 if base_type == 'char':
@@ -272,11 +275,14 @@ class CFFIToPyiConverter:
 
         elif isinstance(type_node, c_ast.ArrayDecl):
             # Array types
+            base_type = ' '.join(type_node.type.type.names)
+            if base_type == 'char':
+                return 'bytes'
             return 'Any'  # Arrays are typically handled as pointers in CFFI
 
         elif isinstance(type_node, c_ast.FuncDecl):
             # Function pointer
-            return 'Any'  # Function pointers are complex
+            return 'Callable'  # Function pointers are complex
 
         elif isinstance(type_node, c_ast.Struct):
             return type_node.name if type_node.name else 'Any'
@@ -302,21 +308,48 @@ class CFFIToPyiConverter:
         lines.append('This file was automatically generated from C declarations.')
         lines.append('"""')
         lines.append('')
-        lines.append('from typing import Any, Literal, Optional, Union')
-        lines.append('from cffi import FFI')
+        lines.append('from typing import Any, Callable, Final, Literal, TypeAlias, Union')
+        lines.append('from cffi import CData')
+        lines.append('')
+
+        if self.macros:
+            lines.append('')
+            lines.append('# Unknown macro values')
+            for macro_name, macro_value in self.macros.items():
+                # Use Final to indicate these are constants
+                lines.append(f'{macro_name}: Final[int]')
+            lines.append('')
+
+        # Typedefs (only for non-struct/union types)
+        typedef_aliases = {}
+        for typedef_name, underlying_type in self.typedefs.items():
+            # Don't create aliases for structs/unions/enums of the same name as they're already defined
+            if typedef_name not in self.structs and \
+               typedef_name not in self.unions and \
+               typedef_name not in self.enums and \
+               typedef_name not in self.typedefs_to_ignore:
+                typedef_aliases[typedef_name] = underlying_type
+
+        if typedef_aliases:
+            lines.append('')
+            lines.append('# Type aliases')
+            for typedef_name, underlying_type in typedef_aliases.items():
+                if underlying_type in ('int', 'float', 'bool', 'None', 'Any'):
+                    lines.append(f'{typedef_name} = {underlying_type}')
+            lines.append('')
 
         # Enums (define first as they might be used by other types)
         if self.enums:
             lines.append('')
-            lines.append('')
             lines.append('# Enums')
             for enum_name, values in self.enums.items():
                 for name, value in values:
-                    lines.append(f'{name}: Literal[{value}]  # {enum_name}')
+                    lines.append(f'{name}: TypeAlias = Literal[{value}]  # {enum_name}')
+                lines.append(f'{enum_name} = Union[{", ".join(name for name, _ in values)}]')
+                lines.append('')
 
         # Structs (define before typedefs that might reference them)
         if self.structs:
-            lines.append('')
             lines.append('')
             lines.append('# Structures')
             for struct_name, fields in self.structs.items():
@@ -328,10 +361,10 @@ class CFFIToPyiConverter:
                     lines.append('')
                 else:
                     lines.append(f'class {struct_name}: ...')
+            lines.append('')
 
         # Unions
         if self.unions:
-            lines.append('')
             lines.append('')
             lines.append('# Unions')
             for union_name, fields in self.unions.items():
@@ -343,33 +376,26 @@ class CFFIToPyiConverter:
                     lines.append('    pass')
                 lines.append('')
                 lines.append('')
-
-        # Typedefs (only for non-struct/union types)
-        typedef_aliases = {}
-        for typedef_name, underlying_type in self.typedefs.items():
-            # Don't create aliases for structs/unions as they're already defined as classes
-            if typedef_name not in self.structs and typedef_name not in self.unions \
-               and typedef_name not in self.typedefs_to_ignore:
-                typedef_aliases[typedef_name] = underlying_type
+            lines.append('')
 
         if typedef_aliases:
             lines.append('')
-            lines.append('')
-            lines.append('# Type aliases')
+            lines.append('# More type aliases')
             for typedef_name, underlying_type in typedef_aliases.items():
-                lines.append(f'{typedef_name} = {underlying_type}')
+                if underlying_type not in ('int', 'float', 'bool', 'None', 'Any'):
+                    lines.append(f'{typedef_name} = {underlying_type}')
+            lines.append('')
 
         # Constants
         if self.constants:
             lines.append('')
-            lines.append('')
             lines.append('# Constants')
             for const_name, const_type in self.constants:
                 lines.append(f'{const_name}: {const_type}')
+            lines.append('')
 
         # Functions
         if self.functions:
-            lines.append('')
             lines.append('')
             lines.append('# Functions')
             for func_name, return_type, params in self.functions:
@@ -382,13 +408,7 @@ class CFFIToPyiConverter:
 
                 param_list = ', '.join(param_strs)
                 lines.append(f'def {func_name}({param_list}) -> {return_type}: ...')
-
-        # CFFI objects
-        lines.append('')
-        lines.append('')
-        lines.append('# CFFI objects')
-        lines.append('ffi: FFI')
-        lines.append('lib: Any')
+            lines.append('')
 
         return '\n'.join(lines)
 

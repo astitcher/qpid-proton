@@ -3,200 +3,218 @@ CFFI-generated stub file.
 This file was automatically generated from C declarations.
 """
 
-from typing import Any, Literal, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Final, Literal, TypeAlias, TypedDict, Union
+from cffi import FFI
+from _typeshed import Self
 
-# Enums
-PN_DIST_MODE_UNSPECIFIED: Literal[0]  # pn_distribution_mode_t
-PN_DIST_MODE_COPY: Literal[1]  # pn_distribution_mode_t
-PN_DIST_MODE_MOVE: Literal[2]  # pn_distribution_mode_t
-PN_NONDURABLE: Literal[0]  # pn_durability_t
-PN_CONFIGURATION: Literal[1]  # pn_durability_t
-PN_DELIVERIES: Literal[2]  # pn_durability_t
-PN_EVENT_NONE: Literal[0]  # pn_event_type_t
-PN_REACTOR_INIT: Literal[1]  # pn_event_type_t
-PN_REACTOR_QUIESCED: Literal[2]  # pn_event_type_t
-PN_REACTOR_FINAL: Literal[3]  # pn_event_type_t
-PN_TIMER_TASK: Literal[4]  # pn_event_type_t
-PN_CONNECTION_INIT: Literal[5]  # pn_event_type_t
-PN_CONNECTION_BOUND: Literal[6]  # pn_event_type_t
-PN_CONNECTION_UNBOUND: Literal[7]  # pn_event_type_t
-PN_CONNECTION_LOCAL_OPEN: Literal[8]  # pn_event_type_t
-PN_CONNECTION_REMOTE_OPEN: Literal[9]  # pn_event_type_t
-PN_CONNECTION_LOCAL_CLOSE: Literal[10]  # pn_event_type_t
-PN_CONNECTION_REMOTE_CLOSE: Literal[11]  # pn_event_type_t
-PN_CONNECTION_FINAL: Literal[12]  # pn_event_type_t
-PN_SESSION_INIT: Literal[13]  # pn_event_type_t
-PN_SESSION_LOCAL_OPEN: Literal[14]  # pn_event_type_t
-PN_SESSION_REMOTE_OPEN: Literal[15]  # pn_event_type_t
-PN_SESSION_LOCAL_CLOSE: Literal[16]  # pn_event_type_t
-PN_SESSION_REMOTE_CLOSE: Literal[17]  # pn_event_type_t
-PN_SESSION_FINAL: Literal[18]  # pn_event_type_t
-PN_LINK_INIT: Literal[19]  # pn_event_type_t
-PN_LINK_LOCAL_OPEN: Literal[20]  # pn_event_type_t
-PN_LINK_REMOTE_OPEN: Literal[21]  # pn_event_type_t
-PN_LINK_LOCAL_CLOSE: Literal[22]  # pn_event_type_t
-PN_LINK_REMOTE_CLOSE: Literal[23]  # pn_event_type_t
-PN_LINK_LOCAL_DETACH: Literal[24]  # pn_event_type_t
-PN_LINK_REMOTE_DETACH: Literal[25]  # pn_event_type_t
-PN_LINK_FLOW: Literal[26]  # pn_event_type_t
-PN_LINK_FINAL: Literal[27]  # pn_event_type_t
-PN_DELIVERY: Literal[28]  # pn_event_type_t
-PN_TRANSPORT: Literal[29]  # pn_event_type_t
-PN_TRANSPORT_AUTHENTICATED: Literal[30]  # pn_event_type_t
-PN_TRANSPORT_ERROR: Literal[31]  # pn_event_type_t
-PN_TRANSPORT_HEAD_CLOSED: Literal[32]  # pn_event_type_t
-PN_TRANSPORT_TAIL_CLOSED: Literal[33]  # pn_event_type_t
-PN_TRANSPORT_CLOSED: Literal[34]  # pn_event_type_t
-PN_SELECTABLE_INIT: Literal[35]  # pn_event_type_t
-PN_SELECTABLE_UPDATED: Literal[36]  # pn_event_type_t
-PN_SELECTABLE_READABLE: Literal[37]  # pn_event_type_t
-PN_SELECTABLE_WRITABLE: Literal[38]  # pn_event_type_t
-PN_SELECTABLE_ERROR: Literal[39]  # pn_event_type_t
-PN_SELECTABLE_EXPIRED: Literal[40]  # pn_event_type_t
-PN_SELECTABLE_FINAL: Literal[41]  # pn_event_type_t
-PN_CONNECTION_WAKE: Literal[42]  # pn_event_type_t
-PN_LISTENER_ACCEPT: Literal[43]  # pn_event_type_t
-PN_LISTENER_CLOSE: Literal[44]  # pn_event_type_t
-PN_PROACTOR_INTERRUPT: Literal[45]  # pn_event_type_t
-PN_PROACTOR_TIMEOUT: Literal[46]  # pn_event_type_t
-PN_PROACTOR_INACTIVE: Literal[47]  # pn_event_type_t
-PN_LISTENER_OPEN: Literal[48]  # pn_event_type_t
-PN_RAW_CONNECTION_CONNECTED: Literal[49]  # pn_event_type_t
-PN_RAW_CONNECTION_CLOSED_READ: Literal[50]  # pn_event_type_t
-PN_RAW_CONNECTION_CLOSED_WRITE: Literal[51]  # pn_event_type_t
-PN_RAW_CONNECTION_DISCONNECTED: Literal[52]  # pn_event_type_t
-PN_RAW_CONNECTION_NEED_READ_BUFFERS: Literal[53]  # pn_event_type_t
-PN_RAW_CONNECTION_NEED_WRITE_BUFFERS: Literal[54]  # pn_event_type_t
-PN_RAW_CONNECTION_READ: Literal[55]  # pn_event_type_t
-PN_RAW_CONNECTION_WRITTEN: Literal[56]  # pn_event_type_t
-PN_RAW_CONNECTION_WAKE: Literal[57]  # pn_event_type_t
-PN_RAW_CONNECTION_DRAIN_BUFFERS: Literal[58]  # pn_event_type_t
-PN_EXPIRE_WITH_LINK: Literal[0]  # pn_expiry_policy_t
-PN_EXPIRE_WITH_SESSION: Literal[1]  # pn_expiry_policy_t
-PN_EXPIRE_WITH_CONNECTION: Literal[2]  # pn_expiry_policy_t
-PN_EXPIRE_NEVER: Literal[3]  # pn_expiry_policy_t
-PN_RCV_FIRST: Literal[0]  # pn_rcv_settle_mode_t
-PN_RCV_SECOND: Literal[1]  # pn_rcv_settle_mode_t
-PN_SASL_NONE: Literal[-1]  # pn_sasl_outcome_t
-PN_SASL_OK: Literal[0]  # pn_sasl_outcome_t
-PN_SASL_AUTH: Literal[1]  # pn_sasl_outcome_t
-PN_SASL_SYS: Literal[2]  # pn_sasl_outcome_t
-PN_SASL_PERM: Literal[3]  # pn_sasl_outcome_t
-PN_SASL_TEMP: Literal[4]  # pn_sasl_outcome_t
-PN_SND_UNSETTLED: Literal[0]  # pn_snd_settle_mode_t
-PN_SND_SETTLED: Literal[1]  # pn_snd_settle_mode_t
-PN_SND_MIXED: Literal[2]  # pn_snd_settle_mode_t
-PN_SSL_CERT_SUBJECT_COUNTRY_NAME: Literal[0]  # pn_ssl_cert_subject_subfield
-PN_SSL_CERT_SUBJECT_STATE_OR_PROVINCE: Literal[1]  # pn_ssl_cert_subject_subfield
-PN_SSL_CERT_SUBJECT_CITY_OR_LOCALITY: Literal[2]  # pn_ssl_cert_subject_subfield
-PN_SSL_CERT_SUBJECT_ORGANIZATION_NAME: Literal[3]  # pn_ssl_cert_subject_subfield
-PN_SSL_CERT_SUBJECT_ORGANIZATION_UNIT: Literal[4]  # pn_ssl_cert_subject_subfield
-PN_SSL_CERT_SUBJECT_COMMON_NAME: Literal[5]  # pn_ssl_cert_subject_subfield
-PN_SSL_SHA1: Literal[0]  # pn_ssl_hash_alg
-PN_SSL_SHA256: Literal[1]  # pn_ssl_hash_alg
-PN_SSL_SHA512: Literal[2]  # pn_ssl_hash_alg
-PN_SSL_MD5: Literal[3]  # pn_ssl_hash_alg
-PN_SSL_MODE_CLIENT: Literal[1]  # pn_ssl_mode_t
-PN_SSL_MODE_SERVER: Literal[2]  # pn_ssl_mode_t
-PN_SSL_RESUME_UNKNOWN: Literal[0]  # pn_ssl_resume_status_t
-PN_SSL_RESUME_NEW: Literal[1]  # pn_ssl_resume_status_t
-PN_SSL_RESUME_REUSED: Literal[2]  # pn_ssl_resume_status_t
-PN_SSL_VERIFY_NULL: Literal[0]  # pn_ssl_verify_mode_t
-PN_SSL_VERIFY_PEER: Literal[1]  # pn_ssl_verify_mode_t
-PN_SSL_ANONYMOUS_PEER: Literal[2]  # pn_ssl_verify_mode_t
-PN_SSL_VERIFY_PEER_NAME: Literal[3]  # pn_ssl_verify_mode_t
-PN_UNSPECIFIED: Literal[0]  # pn_terminus_type_t
-PN_SOURCE: Literal[1]  # pn_terminus_type_t
-PN_TARGET: Literal[2]  # pn_terminus_type_t
-PN_COORDINATOR: Literal[3]  # pn_terminus_type_t
-PN_NULL: Literal[1]  # pn_type_t
-PN_BOOL: Literal[2]  # pn_type_t
-PN_UBYTE: Literal[3]  # pn_type_t
-PN_BYTE: Literal[4]  # pn_type_t
-PN_USHORT: Literal[5]  # pn_type_t
-PN_SHORT: Literal[6]  # pn_type_t
-PN_UINT: Literal[7]  # pn_type_t
-PN_INT: Literal[8]  # pn_type_t
-PN_CHAR: Literal[9]  # pn_type_t
-PN_ULONG: Literal[10]  # pn_type_t
-PN_LONG: Literal[11]  # pn_type_t
-PN_TIMESTAMP: Literal[12]  # pn_type_t
-PN_FLOAT: Literal[13]  # pn_type_t
-PN_DOUBLE: Literal[14]  # pn_type_t
-PN_DECIMAL32: Literal[15]  # pn_type_t
-PN_DECIMAL64: Literal[16]  # pn_type_t
-PN_DECIMAL128: Literal[17]  # pn_type_t
-PN_UUID: Literal[18]  # pn_type_t
-PN_BINARY: Literal[19]  # pn_type_t
-PN_STRING: Literal[20]  # pn_type_t
-PN_SYMBOL: Literal[21]  # pn_type_t
-PN_DESCRIBED: Literal[22]  # pn_type_t
-PN_ARRAY: Literal[23]  # pn_type_t
-PN_LIST: Literal[24]  # pn_type_t
-PN_MAP: Literal[25]  # pn_type_t
-PN_INVALID: Literal[-1]  # pn_type_t
+CData = FFI.CData
 
-# Macro defined constants
-PN_RECEIVED: ...
-PN_ACCEPTED: ...
-PN_REJECTED: ...
-PN_RELEASED: ...
-PN_MODIFIED: ...
-PN_DECLARED: ...
-PN_TRANSACTIONAL_STATE: ...
-PN_DEFAULT_PRIORITY: ...
-PN_OK: ...
-PN_EOS: ...
-PN_OVERFLOW: ...
-PN_TIMEOUT: ...
-PN_INTR: ...
-PN_LOCAL_UNINIT:  ...
-PN_LOCAL_ACTIVE:  ...
-PN_LOCAL_CLOSED:  ...
-PN_REMOTE_UNINIT: ...
-PN_REMOTE_ACTIVE: ...
-PN_REMOTE_CLOSED: ...
-PN_TRACE_OFF: ...
-PN_TRACE_RAW: ...
-PN_TRACE_FRM: ...
-PN_TRACE_DRV: ...
-PN_VERSION_MAJOR: ...
-PN_VERSION_MINOR: ...
-PN_VERSION_POINT: ...
+# Unknown macro values
+PN_RECEIVED: Final[int]
+PN_ACCEPTED: Final[int]
+PN_REJECTED: Final[int]
+PN_RELEASED: Final[int]
+PN_MODIFIED: Final[int]
+PN_DECLARED: Final[int]
+PN_TRANSACTIONAL_STATE: Final[int]
+PN_DEFAULT_PRIORITY: Final[int]
+PN_OK: Final[int]
+PN_EOS: Final[int]
+PN_OVERFLOW: Final[int]
+PN_TIMEOUT: Final[int]
+PN_INTR: Final[int]
+PN_LOCAL_UNINIT: Final[int]
+PN_LOCAL_ACTIVE: Final[int]
+PN_LOCAL_CLOSED: Final[int]
+PN_REMOTE_UNINIT: Final[int]
+PN_REMOTE_ACTIVE: Final[int]
+PN_REMOTE_CLOSED: Final[int]
+PN_TRACE_OFF: Final[int]
+PN_TRACE_RAW: Final[int]
+PN_TRACE_FRM: Final[int]
+PN_TRACE_DRV: Final[int]
+PN_VERSION_MAJOR: Final[int]
+PN_VERSION_MINOR: Final[int]
+PN_VERSION_POINT: Final[int]
 
 
 # Type aliases
 pn_char_t = int
 pn_decimal32_t = int
 pn_decimal64_t = int
-pn_distribution_mode_t = int
-pn_durability_t = int
-pn_event_type_t = int
-pn_expiry_policy_t = int
 pn_millis_t = int
-pn_rcv_settle_mode_t = int
-pn_sasl_outcome_t = int
 pn_seconds_t = int
 pn_sequence_t = int
-pn_snd_settle_mode_t = int
-pn_ssl_cert_subject_subfield = int
-pn_ssl_hash_alg = int
-pn_ssl_mode_t = int
-pn_ssl_resume_status_t = int
-pn_ssl_verify_mode_t = int
 pn_state_t = int
-pn_terminus_type_t = int
 pn_timestamp_t = int
 pn_trace_t = int
-pn_type_t = int
-pn_tracer_t = Any
+
+
+# Enums
+PN_DIST_MODE_UNSPECIFIED: TypeAlias = Literal[0]  # pn_distribution_mode_t
+PN_DIST_MODE_COPY: TypeAlias = Literal[1]  # pn_distribution_mode_t
+PN_DIST_MODE_MOVE: TypeAlias = Literal[2]  # pn_distribution_mode_t
+pn_distribution_mode_t = Union[PN_DIST_MODE_UNSPECIFIED, PN_DIST_MODE_COPY, PN_DIST_MODE_MOVE]
+
+PN_NONDURABLE: TypeAlias = Literal[0]  # pn_durability_t
+PN_CONFIGURATION: TypeAlias = Literal[1]  # pn_durability_t
+PN_DELIVERIES: TypeAlias = Literal[2]  # pn_durability_t
+pn_durability_t = Union[PN_NONDURABLE, PN_CONFIGURATION, PN_DELIVERIES]
+
+PN_EVENT_NONE: TypeAlias = Literal[0]  # pn_event_type_t
+PN_REACTOR_INIT: TypeAlias = Literal[1]  # pn_event_type_t
+PN_REACTOR_QUIESCED: TypeAlias = Literal[2]  # pn_event_type_t
+PN_REACTOR_FINAL: TypeAlias = Literal[3]  # pn_event_type_t
+PN_TIMER_TASK: TypeAlias = Literal[4]  # pn_event_type_t
+PN_CONNECTION_INIT: TypeAlias = Literal[5]  # pn_event_type_t
+PN_CONNECTION_BOUND: TypeAlias = Literal[6]  # pn_event_type_t
+PN_CONNECTION_UNBOUND: TypeAlias = Literal[7]  # pn_event_type_t
+PN_CONNECTION_LOCAL_OPEN: TypeAlias = Literal[8]  # pn_event_type_t
+PN_CONNECTION_REMOTE_OPEN: TypeAlias = Literal[9]  # pn_event_type_t
+PN_CONNECTION_LOCAL_CLOSE: TypeAlias = Literal[10]  # pn_event_type_t
+PN_CONNECTION_REMOTE_CLOSE: TypeAlias = Literal[11]  # pn_event_type_t
+PN_CONNECTION_FINAL: TypeAlias = Literal[12]  # pn_event_type_t
+PN_SESSION_INIT: TypeAlias = Literal[13]  # pn_event_type_t
+PN_SESSION_LOCAL_OPEN: TypeAlias = Literal[14]  # pn_event_type_t
+PN_SESSION_REMOTE_OPEN: TypeAlias = Literal[15]  # pn_event_type_t
+PN_SESSION_LOCAL_CLOSE: TypeAlias = Literal[16]  # pn_event_type_t
+PN_SESSION_REMOTE_CLOSE: TypeAlias = Literal[17]  # pn_event_type_t
+PN_SESSION_FINAL: TypeAlias = Literal[18]  # pn_event_type_t
+PN_LINK_INIT: TypeAlias = Literal[19]  # pn_event_type_t
+PN_LINK_LOCAL_OPEN: TypeAlias = Literal[20]  # pn_event_type_t
+PN_LINK_REMOTE_OPEN: TypeAlias = Literal[21]  # pn_event_type_t
+PN_LINK_LOCAL_CLOSE: TypeAlias = Literal[22]  # pn_event_type_t
+PN_LINK_REMOTE_CLOSE: TypeAlias = Literal[23]  # pn_event_type_t
+PN_LINK_LOCAL_DETACH: TypeAlias = Literal[24]  # pn_event_type_t
+PN_LINK_REMOTE_DETACH: TypeAlias = Literal[25]  # pn_event_type_t
+PN_LINK_FLOW: TypeAlias = Literal[26]  # pn_event_type_t
+PN_LINK_FINAL: TypeAlias = Literal[27]  # pn_event_type_t
+PN_DELIVERY: TypeAlias = Literal[28]  # pn_event_type_t
+PN_TRANSPORT: TypeAlias = Literal[29]  # pn_event_type_t
+PN_TRANSPORT_AUTHENTICATED: TypeAlias = Literal[30]  # pn_event_type_t
+PN_TRANSPORT_ERROR: TypeAlias = Literal[31]  # pn_event_type_t
+PN_TRANSPORT_HEAD_CLOSED: TypeAlias = Literal[32]  # pn_event_type_t
+PN_TRANSPORT_TAIL_CLOSED: TypeAlias = Literal[33]  # pn_event_type_t
+PN_TRANSPORT_CLOSED: TypeAlias = Literal[34]  # pn_event_type_t
+PN_SELECTABLE_INIT: TypeAlias = Literal[35]  # pn_event_type_t
+PN_SELECTABLE_UPDATED: TypeAlias = Literal[36]  # pn_event_type_t
+PN_SELECTABLE_READABLE: TypeAlias = Literal[37]  # pn_event_type_t
+PN_SELECTABLE_WRITABLE: TypeAlias = Literal[38]  # pn_event_type_t
+PN_SELECTABLE_ERROR: TypeAlias = Literal[39]  # pn_event_type_t
+PN_SELECTABLE_EXPIRED: TypeAlias = Literal[40]  # pn_event_type_t
+PN_SELECTABLE_FINAL: TypeAlias = Literal[41]  # pn_event_type_t
+PN_CONNECTION_WAKE: TypeAlias = Literal[42]  # pn_event_type_t
+PN_LISTENER_ACCEPT: TypeAlias = Literal[43]  # pn_event_type_t
+PN_LISTENER_CLOSE: TypeAlias = Literal[44]  # pn_event_type_t
+PN_PROACTOR_INTERRUPT: TypeAlias = Literal[45]  # pn_event_type_t
+PN_PROACTOR_TIMEOUT: TypeAlias = Literal[46]  # pn_event_type_t
+PN_PROACTOR_INACTIVE: TypeAlias = Literal[47]  # pn_event_type_t
+PN_LISTENER_OPEN: TypeAlias = Literal[48]  # pn_event_type_t
+PN_RAW_CONNECTION_CONNECTED: TypeAlias = Literal[49]  # pn_event_type_t
+PN_RAW_CONNECTION_CLOSED_READ: TypeAlias = Literal[50]  # pn_event_type_t
+PN_RAW_CONNECTION_CLOSED_WRITE: TypeAlias = Literal[51]  # pn_event_type_t
+PN_RAW_CONNECTION_DISCONNECTED: TypeAlias = Literal[52]  # pn_event_type_t
+PN_RAW_CONNECTION_NEED_READ_BUFFERS: TypeAlias = Literal[53]  # pn_event_type_t
+PN_RAW_CONNECTION_NEED_WRITE_BUFFERS: TypeAlias = Literal[54]  # pn_event_type_t
+PN_RAW_CONNECTION_READ: TypeAlias = Literal[55]  # pn_event_type_t
+PN_RAW_CONNECTION_WRITTEN: TypeAlias = Literal[56]  # pn_event_type_t
+PN_RAW_CONNECTION_WAKE: TypeAlias = Literal[57]  # pn_event_type_t
+PN_RAW_CONNECTION_DRAIN_BUFFERS: TypeAlias = Literal[58]  # pn_event_type_t
+pn_event_type_t = Union[PN_EVENT_NONE, PN_REACTOR_INIT, PN_REACTOR_QUIESCED, PN_REACTOR_FINAL, PN_TIMER_TASK, PN_CONNECTION_INIT, PN_CONNECTION_BOUND, PN_CONNECTION_UNBOUND, PN_CONNECTION_LOCAL_OPEN, PN_CONNECTION_REMOTE_OPEN, PN_CONNECTION_LOCAL_CLOSE, PN_CONNECTION_REMOTE_CLOSE, PN_CONNECTION_FINAL, PN_SESSION_INIT, PN_SESSION_LOCAL_OPEN, PN_SESSION_REMOTE_OPEN, PN_SESSION_LOCAL_CLOSE, PN_SESSION_REMOTE_CLOSE, PN_SESSION_FINAL, PN_LINK_INIT, PN_LINK_LOCAL_OPEN, PN_LINK_REMOTE_OPEN, PN_LINK_LOCAL_CLOSE, PN_LINK_REMOTE_CLOSE, PN_LINK_LOCAL_DETACH, PN_LINK_REMOTE_DETACH, PN_LINK_FLOW, PN_LINK_FINAL, PN_DELIVERY, PN_TRANSPORT, PN_TRANSPORT_AUTHENTICATED, PN_TRANSPORT_ERROR, PN_TRANSPORT_HEAD_CLOSED, PN_TRANSPORT_TAIL_CLOSED, PN_TRANSPORT_CLOSED, PN_SELECTABLE_INIT, PN_SELECTABLE_UPDATED, PN_SELECTABLE_READABLE, PN_SELECTABLE_WRITABLE, PN_SELECTABLE_ERROR, PN_SELECTABLE_EXPIRED, PN_SELECTABLE_FINAL, PN_CONNECTION_WAKE, PN_LISTENER_ACCEPT, PN_LISTENER_CLOSE, PN_PROACTOR_INTERRUPT, PN_PROACTOR_TIMEOUT, PN_PROACTOR_INACTIVE, PN_LISTENER_OPEN, PN_RAW_CONNECTION_CONNECTED, PN_RAW_CONNECTION_CLOSED_READ, PN_RAW_CONNECTION_CLOSED_WRITE, PN_RAW_CONNECTION_DISCONNECTED, PN_RAW_CONNECTION_NEED_READ_BUFFERS, PN_RAW_CONNECTION_NEED_WRITE_BUFFERS, PN_RAW_CONNECTION_READ, PN_RAW_CONNECTION_WRITTEN, PN_RAW_CONNECTION_WAKE, PN_RAW_CONNECTION_DRAIN_BUFFERS]
+
+PN_EXPIRE_WITH_LINK: TypeAlias = Literal[0]  # pn_expiry_policy_t
+PN_EXPIRE_WITH_SESSION: TypeAlias = Literal[1]  # pn_expiry_policy_t
+PN_EXPIRE_WITH_CONNECTION: TypeAlias = Literal[2]  # pn_expiry_policy_t
+PN_EXPIRE_NEVER: TypeAlias = Literal[3]  # pn_expiry_policy_t
+pn_expiry_policy_t = Union[PN_EXPIRE_WITH_LINK, PN_EXPIRE_WITH_SESSION, PN_EXPIRE_WITH_CONNECTION, PN_EXPIRE_NEVER]
+
+PN_RCV_FIRST: TypeAlias = Literal[0]  # pn_rcv_settle_mode_t
+PN_RCV_SECOND: TypeAlias = Literal[1]  # pn_rcv_settle_mode_t
+pn_rcv_settle_mode_t = Union[PN_RCV_FIRST, PN_RCV_SECOND]
+
+PN_SASL_NONE: TypeAlias = Literal[-1]  # pn_sasl_outcome_t
+PN_SASL_OK: TypeAlias = Literal[0]  # pn_sasl_outcome_t
+PN_SASL_AUTH: TypeAlias = Literal[1]  # pn_sasl_outcome_t
+PN_SASL_SYS: TypeAlias = Literal[2]  # pn_sasl_outcome_t
+PN_SASL_PERM: TypeAlias = Literal[3]  # pn_sasl_outcome_t
+PN_SASL_TEMP: TypeAlias = Literal[4]  # pn_sasl_outcome_t
+pn_sasl_outcome_t = Union[PN_SASL_NONE, PN_SASL_OK, PN_SASL_AUTH, PN_SASL_SYS, PN_SASL_PERM, PN_SASL_TEMP]
+
+PN_SND_UNSETTLED: TypeAlias = Literal[0]  # pn_snd_settle_mode_t
+PN_SND_SETTLED: TypeAlias = Literal[1]  # pn_snd_settle_mode_t
+PN_SND_MIXED: TypeAlias = Literal[2]  # pn_snd_settle_mode_t
+pn_snd_settle_mode_t = Union[PN_SND_UNSETTLED, PN_SND_SETTLED, PN_SND_MIXED]
+
+PN_SSL_CERT_SUBJECT_COUNTRY_NAME: TypeAlias = Literal[0]  # pn_ssl_cert_subject_subfield
+PN_SSL_CERT_SUBJECT_STATE_OR_PROVINCE: TypeAlias = Literal[1]  # pn_ssl_cert_subject_subfield
+PN_SSL_CERT_SUBJECT_CITY_OR_LOCALITY: TypeAlias = Literal[2]  # pn_ssl_cert_subject_subfield
+PN_SSL_CERT_SUBJECT_ORGANIZATION_NAME: TypeAlias = Literal[3]  # pn_ssl_cert_subject_subfield
+PN_SSL_CERT_SUBJECT_ORGANIZATION_UNIT: TypeAlias = Literal[4]  # pn_ssl_cert_subject_subfield
+PN_SSL_CERT_SUBJECT_COMMON_NAME: TypeAlias = Literal[5]  # pn_ssl_cert_subject_subfield
+pn_ssl_cert_subject_subfield = Union[PN_SSL_CERT_SUBJECT_COUNTRY_NAME, PN_SSL_CERT_SUBJECT_STATE_OR_PROVINCE, PN_SSL_CERT_SUBJECT_CITY_OR_LOCALITY, PN_SSL_CERT_SUBJECT_ORGANIZATION_NAME, PN_SSL_CERT_SUBJECT_ORGANIZATION_UNIT, PN_SSL_CERT_SUBJECT_COMMON_NAME]
+
+PN_SSL_SHA1: TypeAlias = Literal[0]  # pn_ssl_hash_alg
+PN_SSL_SHA256: TypeAlias = Literal[1]  # pn_ssl_hash_alg
+PN_SSL_SHA512: TypeAlias = Literal[2]  # pn_ssl_hash_alg
+PN_SSL_MD5: TypeAlias = Literal[3]  # pn_ssl_hash_alg
+pn_ssl_hash_alg = Union[PN_SSL_SHA1, PN_SSL_SHA256, PN_SSL_SHA512, PN_SSL_MD5]
+
+PN_SSL_MODE_CLIENT: TypeAlias = Literal[1]  # pn_ssl_mode_t
+PN_SSL_MODE_SERVER: TypeAlias = Literal[2]  # pn_ssl_mode_t
+pn_ssl_mode_t = Union[PN_SSL_MODE_CLIENT, PN_SSL_MODE_SERVER]
+
+PN_SSL_RESUME_UNKNOWN: TypeAlias = Literal[0]  # pn_ssl_resume_status_t
+PN_SSL_RESUME_NEW: TypeAlias = Literal[1]  # pn_ssl_resume_status_t
+PN_SSL_RESUME_REUSED: TypeAlias = Literal[2]  # pn_ssl_resume_status_t
+pn_ssl_resume_status_t = Union[PN_SSL_RESUME_UNKNOWN, PN_SSL_RESUME_NEW, PN_SSL_RESUME_REUSED]
+
+PN_SSL_VERIFY_NULL: TypeAlias = Literal[0]  # pn_ssl_verify_mode_t
+PN_SSL_VERIFY_PEER: TypeAlias = Literal[1]  # pn_ssl_verify_mode_t
+PN_SSL_ANONYMOUS_PEER: TypeAlias = Literal[2]  # pn_ssl_verify_mode_t
+PN_SSL_VERIFY_PEER_NAME: TypeAlias = Literal[3]  # pn_ssl_verify_mode_t
+pn_ssl_verify_mode_t = Union[PN_SSL_VERIFY_NULL, PN_SSL_VERIFY_PEER, PN_SSL_ANONYMOUS_PEER, PN_SSL_VERIFY_PEER_NAME]
+
+PN_UNSPECIFIED: TypeAlias = Literal[0]  # pn_terminus_type_t
+PN_SOURCE: TypeAlias = Literal[1]  # pn_terminus_type_t
+PN_TARGET: TypeAlias = Literal[2]  # pn_terminus_type_t
+PN_COORDINATOR: TypeAlias = Literal[3]  # pn_terminus_type_t
+pn_terminus_type_t = Union[PN_UNSPECIFIED, PN_SOURCE, PN_TARGET, PN_COORDINATOR]
+
+PN_NULL: TypeAlias = Literal[1]  # pn_type_t
+PN_BOOL: TypeAlias = Literal[2]  # pn_type_t
+PN_UBYTE: TypeAlias = Literal[3]  # pn_type_t
+PN_BYTE: TypeAlias = Literal[4]  # pn_type_t
+PN_USHORT: TypeAlias = Literal[5]  # pn_type_t
+PN_SHORT: TypeAlias = Literal[6]  # pn_type_t
+PN_UINT: TypeAlias = Literal[7]  # pn_type_t
+PN_INT: TypeAlias = Literal[8]  # pn_type_t
+PN_CHAR: TypeAlias = Literal[9]  # pn_type_t
+PN_ULONG: TypeAlias = Literal[10]  # pn_type_t
+PN_LONG: TypeAlias = Literal[11]  # pn_type_t
+PN_TIMESTAMP: TypeAlias = Literal[12]  # pn_type_t
+PN_FLOAT: TypeAlias = Literal[13]  # pn_type_t
+PN_DOUBLE: TypeAlias = Literal[14]  # pn_type_t
+PN_DECIMAL32: TypeAlias = Literal[15]  # pn_type_t
+PN_DECIMAL64: TypeAlias = Literal[16]  # pn_type_t
+PN_DECIMAL128: TypeAlias = Literal[17]  # pn_type_t
+PN_UUID: TypeAlias = Literal[18]  # pn_type_t
+PN_BINARY: TypeAlias = Literal[19]  # pn_type_t
+PN_STRING: TypeAlias = Literal[20]  # pn_type_t
+PN_SYMBOL: TypeAlias = Literal[21]  # pn_type_t
+PN_DESCRIBED: TypeAlias = Literal[22]  # pn_type_t
+PN_ARRAY: TypeAlias = Literal[23]  # pn_type_t
+PN_LIST: TypeAlias = Literal[24]  # pn_type_t
+PN_MAP: TypeAlias = Literal[25]  # pn_type_t
+PN_INVALID: TypeAlias = Literal[-1]  # pn_type_t
+pn_type_t = Union[PN_NULL, PN_BOOL, PN_UBYTE, PN_BYTE, PN_USHORT, PN_SHORT, PN_UINT, PN_INT, PN_CHAR, PN_ULONG, PN_LONG, PN_TIMESTAMP, PN_FLOAT, PN_DOUBLE, PN_DECIMAL32, PN_DECIMAL64, PN_DECIMAL128, PN_UUID, PN_BINARY, PN_STRING, PN_SYMBOL, PN_DESCRIBED, PN_ARRAY, PN_LIST, PN_MAP, PN_INVALID]
 
 
 # Structures
+@dataclass
 class pn_bytes_t:
     size: int
-    start: bytes
-    def __init__(self, bytes: Any) -> None: ...
+    start: CData
 
 
 class pn_collector_t: ...
@@ -206,8 +224,8 @@ class pn_data_t: ...
 
 
 class pn_decimal128_t:
-    bytes: bytes
-    def __getitem__(self, index: int) -> pn_decimal128_t: ...
+    bytes: CData
+    def __getitem__(self: Self, index: int) -> Self: ...
 
 
 class pn_delivery_t: ...
@@ -226,14 +244,14 @@ class pn_transport_t: ...
 
 
 class pn_uuid_t:
-    bytes: bytes
-    def __getitem__(self, index: int) -> pn_uuid_t: ...
+    bytes: CData
+    def __getitem__(self: Self, index: int) -> Self: ...
 
 
 class pn_atom_t:
     type: pn_type_t
     u: Any
-    def __init__(self, value: Any) -> None: ...
+
 
 class pn_custom_disposition_t: ...
 class pn_received_disposition_t: ...
@@ -246,6 +264,7 @@ class pn_transactional_disposition_t: ...
 # More type aliases
 pn_delivery_tag_t = pn_bytes_t
 pn_msgid_t = pn_atom_t
+pn_tracer_t = Callable
 
 
 # Functions
@@ -293,9 +312,9 @@ def pn_connection_transport(connection: pn_connection_t) -> pn_transport_t: ...
 def pn_data(capacity: int) -> pn_data_t: ...
 def pn_data_clear(data: pn_data_t) -> None: ...
 def pn_data_copy(data: pn_data_t, src: pn_data_t) -> int: ...
-def pn_data_decode(data: pn_data_t, bytes: bytes, size: int) -> int: ...
+def pn_data_decode(data: pn_data_t, bytes: CData, size: int) -> int: ...
 def pn_data_dump(data: pn_data_t) -> None: ...
-def pn_data_encode(data: pn_data_t, bytes: bytes, size: int) -> int: ...
+def pn_data_encode(data: pn_data_t, bytes: CData, size: int) -> int: ...
 def pn_data_encoded_size(data: pn_data_t) -> int: ...
 def pn_data_enter(data: pn_data_t) -> bool: ...
 def pn_data_error(data: pn_data_t) -> pn_error_t: ...
@@ -360,8 +379,8 @@ def pn_data_put_uuid(data: pn_data_t, u: pn_uuid_t) -> int: ...
 def pn_data_rewind(data: pn_data_t) -> None: ...
 def pn_data_type(data: pn_data_t) -> pn_type_t: ...
 def pn_data_widen(data: pn_data_t) -> None: ...
-def pn_decref(object: None) -> int: ...
-def pn_tostring(object: None) -> bytes: ...
+def pn_decref(object: Any) -> int: ...
+def pn_tostring(object: Any) -> CData: ...
 def pn_delivery(link: pn_link_t, tag: pn_bytes_t) -> pn_delivery_t: ...
 def pn_delivery_abort(delivery: pn_delivery_t) -> None: ...
 def pn_delivery_aborted(delivery: pn_delivery_t) -> bool: ...
@@ -420,14 +439,14 @@ def pn_transactional_disposition_set_outcome_type(disposition: pn_transactional_
 def pn_error_code(error: pn_error_t) -> int: ...
 def pn_error_text(error: pn_error_t) -> bytes: ...
 def pn_event_connection(event: pn_event_t) -> pn_connection_t: ...
-def pn_event_context(event: pn_event_t) -> None: ...
+def pn_event_context(event: pn_event_t) -> Any: ...
 def pn_event_delivery(event: pn_event_t) -> pn_delivery_t: ...
 def pn_event_link(event: pn_event_t) -> pn_link_t: ...
 def pn_event_session(event: pn_event_t) -> pn_session_t: ...
 def pn_event_transport(event: pn_event_t) -> pn_transport_t: ...
 def pn_event_type(event: pn_event_t) -> pn_event_type_t: ...
 def pn_event_type_name(type: pn_event_type_t) -> bytes: ...
-def pn_incref(object: None) -> None: ...
+def pn_incref(object: Any) -> Any: ...
 def pn_link_advance(link: pn_link_t) -> bool: ...
 def pn_link_attachments(link: pn_link_t) -> pn_record_t: ...
 def pn_link_available(link: pn_link_t) -> int: ...
@@ -454,7 +473,7 @@ def pn_link_open(link: pn_link_t) -> None: ...
 def pn_link_properties(link: pn_link_t) -> pn_data_t: ...
 def pn_link_queued(link: pn_link_t) -> int: ...
 def pn_link_rcv_settle_mode(link: pn_link_t) -> pn_rcv_settle_mode_t: ...
-def pn_link_recv(receiver: pn_link_t, bytes: bytes, n: int) -> int: ...
+def pn_link_recv(receiver: pn_link_t, bytes: CData, n: int) -> int: ...
 def pn_link_remote_condition(link: pn_link_t) -> pn_condition_t: ...
 def pn_link_remote_max_message_size(link: pn_link_t) -> int: ...
 def pn_link_remote_properties(link: pn_link_t) -> pn_data_t: ...
@@ -462,7 +481,7 @@ def pn_link_remote_rcv_settle_mode(link: pn_link_t) -> pn_rcv_settle_mode_t: ...
 def pn_link_remote_snd_settle_mode(link: pn_link_t) -> pn_snd_settle_mode_t: ...
 def pn_link_remote_source(link: pn_link_t) -> pn_terminus_t: ...
 def pn_link_remote_target(link: pn_link_t) -> pn_terminus_t: ...
-def pn_link_send(sender: pn_link_t, bytes: bytes, n: int) -> int: ...
+def pn_link_send(sender: pn_link_t, bytes: CData, n: int) -> int: ...
 def pn_link_session(link: pn_link_t) -> pn_session_t: ...
 def pn_link_set_drain(receiver: pn_link_t, drain: bool) -> None: ...
 def pn_link_set_max_message_size(link: pn_link_t, size: int) -> None: ...
@@ -477,7 +496,7 @@ def pn_message() -> pn_message_t: ...
 def pn_message_annotations(msg: pn_message_t) -> pn_data_t: ...
 def pn_message_body(msg: pn_message_t) -> pn_data_t: ...
 def pn_message_clear(msg: pn_message_t) -> None: ...
-def pn_message_decode(msg: pn_message_t, bytes: bytes, size: int) -> int: ...
+def pn_message_decode(msg: pn_message_t, bytes: CData, size: int) -> int: ...
 def pn_message_error(msg: pn_message_t) -> pn_error_t: ...
 def pn_message_free(msg: pn_message_t) -> None: ...
 def pn_message_get_address(msg: pn_message_t) -> bytes: ...
@@ -611,10 +630,10 @@ def pn_transport_get_user(transport: pn_transport_t) -> bytes: ...
 def pn_transport_is_authenticated(transport: pn_transport_t) -> bool: ...
 def pn_transport_is_encrypted(transport: pn_transport_t) -> bool: ...
 def pn_transport_log(transport: pn_transport_t, message: bytes) -> None: ...
-def pn_transport_peek(transport: pn_transport_t, dst: bytes, size: int) -> int: ...
+def pn_transport_peek(transport: pn_transport_t, dst: CData, size: int) -> int: ...
 def pn_transport_pending(transport: pn_transport_t) -> int: ...
 def pn_transport_pop(transport: pn_transport_t, size: int) -> None: ...
-def pn_transport_push(transport: pn_transport_t, src: bytes, size: int) -> int: ...
+def pn_transport_push(transport: pn_transport_t, src: CData, size: int) -> int: ...
 def pn_transport_remote_channel_max(transport: pn_transport_t) -> int: ...
 def pn_transport_require_auth(transport: pn_transport_t, required: bool) -> None: ...
 def pn_transport_require_encryption(transport: pn_transport_t, required: bool) -> None: ...
@@ -622,25 +641,27 @@ def pn_transport_set_channel_max(transport: pn_transport_t, channel_max: int) ->
 def pn_transport_set_idle_timeout(transport: pn_transport_t, timeout: int) -> None: ...
 def pn_transport_set_max_frame(transport: pn_transport_t, size: int) -> None: ...
 def pn_transport_set_server(transport: pn_transport_t) -> None: ...
-def pn_transport_set_tracer(transport: pn_transport_t, tracer: Any) -> None: ...
+def pn_transport_set_tracer(transport: pn_transport_t, tracer: Callable) -> None: ...
 def pn_transport_tick(transport: pn_transport_t, now: int) -> int: ...
 def pn_transport_trace(transport: pn_transport_t, trace: int) -> None: ...
 def pn_transport_unbind(transport: pn_transport_t) -> int: ...
+
+
 def init() -> None: ...
-def pn_cast_pn_connection(x: None) -> pn_connection_t: ...
-def pn_cast_pn_session(x: None) -> pn_session_t: ...
-def pn_cast_pn_link(x: None) -> pn_link_t: ...
-def pn_cast_pn_delivery(x: None) -> pn_delivery_t: ...
-def pn_cast_pn_transport(x: None) -> pn_transport_t: ...
-def pn_pyref_incref(object: None) -> None: ...
-def pn_pyref_decref(object: None) -> None: ...
+def pn_cast_pn_connection(x: Any) -> pn_connection_t: ...
+def pn_cast_pn_session(x: Any) -> pn_session_t: ...
+def pn_cast_pn_link(x: Any) -> pn_link_t: ...
+def pn_cast_pn_delivery(x: Any) -> pn_delivery_t: ...
+def pn_cast_pn_transport(x: Any) -> pn_transport_t: ...
+def pn_pyref_incref(object: Any) -> None: ...
+def pn_pyref_decref(object: Any) -> None: ...
 def pn_pytracer(transport: pn_transport_t, message: bytes) -> None: ...
-def pn_collector_put_py(collector: pn_collector_t, context: None, type: pn_event_type_t) -> pn_event_t: ...
-def pn_data_format_py(data: pn_data_t, bytes: bytes, size: int) -> int: ...
-def pn_event_class_name_py(event: pn_event_t) -> bytes: ...
-def pn_message_encode_py(msg: pn_message_t, bytes: bytes, size: int) -> int: ...
+def pn_collector_put_py(collector: pn_collector_t, context: Any, type: pn_event_type_t) -> pn_event_t: ...
+def pn_data_format_py(data: pn_data_t, bytes: CData, size: int) -> int: ...
+def pn_event_class_name_py(event: pn_event_t) -> CData: ...
+def pn_message_encode_py(msg: pn_message_t, bytes: CData, size: int) -> int: ...
 def pn_record_def_py(record: pn_record_t) -> None: ...
-def pn_record_get_py(record: pn_record_t) -> None: ...
-def pn_record_set_py(record: pn_record_t, value: None) -> None: ...
+def pn_record_get_py(record: pn_record_t) -> Any: ...
+def pn_record_set_py(record: pn_record_t, value: Any) -> None: ...
 def pn_ssl_get_peer_hostname_py(ssl: pn_ssl_t, hostname: bytes, size: int) -> int: ...
-def free() -> None: ...
+def free(object: Any) -> None: ...
