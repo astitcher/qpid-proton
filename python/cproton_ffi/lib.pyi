@@ -3,9 +3,8 @@ CFFI-generated stub file.
 This file was automatically generated from C declarations.
 """
 
-from dataclasses import dataclass
-from typing import Any, Callable, Final, Literal, TypeAlias, TypedDict, Union
-from cffi import FFI
+from typing import Any, Callable, Final, Literal, TypeAlias, Union
+from _cffi_backend import FFI
 from _typeshed import Self
 
 CData = FFI.CData
@@ -52,10 +51,10 @@ pn_trace_t = int
 
 
 # Enums
-PN_DIST_MODE_UNSPECIFIED: TypeAlias = Literal[0]  # pn_distribution_mode_t
-PN_DIST_MODE_COPY: TypeAlias = Literal[1]  # pn_distribution_mode_t
-PN_DIST_MODE_MOVE: TypeAlias = Literal[2]  # pn_distribution_mode_t
-pn_distribution_mode_t = Union[PN_DIST_MODE_UNSPECIFIED, PN_DIST_MODE_COPY, PN_DIST_MODE_MOVE]
+PN_DIST_MODE_UNSPECIFIED = Literal[0]  # pn_distribution_mode_t
+PN_DIST_MODE_COPY = Literal[1]  # pn_distribution_mode_t
+PN_DIST_MODE_MOVE = Literal[2]  # pn_distribution_mode_t
+pn_distribution_mode_t = PN_DIST_MODE_UNSPECIFIED | PN_DIST_MODE_COPY | PN_DIST_MODE_MOVE
 
 PN_NONDURABLE: TypeAlias = Literal[0]  # pn_durability_t
 PN_CONFIGURATION: TypeAlias = Literal[1]  # pn_durability_t
@@ -211,7 +210,6 @@ pn_type_t = Union[PN_NULL, PN_BOOL, PN_UBYTE, PN_BYTE, PN_USHORT, PN_SHORT, PN_U
 
 
 # Structures
-@dataclass
 class pn_bytes_t:
     size: int
     start: CData

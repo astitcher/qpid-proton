@@ -26,7 +26,7 @@ import atexit
 from uuid import UUID
 from typing import cast, Any, Optional, Union
 
-from cproton_ffi import FFI, ffi, lib
+from cproton_ffi import ffi, lib
 from cproton_ffi.lib import (PN_ACCEPTED, PN_ARRAY, PN_BINARY, PN_BOOL, PN_BYTE, PN_CHAR,
                              PN_CONFIGURATION, PN_CONNECTION_BOUND, PN_CONNECTION_FINAL,
                              PN_CONNECTION_INIT, PN_CONNECTION_LOCAL_CLOSE,
