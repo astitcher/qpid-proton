@@ -232,33 +232,33 @@ def bytes2string(b: lib.pn_bytes_t, encoding='utf8', errors='surrogateescape') -
 def py2bytes(py: Union[bytes, bytearray, memoryview, str]) -> lib.pn_bytes_t:
     if isinstance(py, (bytes, bytearray, memoryview)):
         s = ffi.from_buffer(py)
-        return cast(lib.pn_bytes_t, (len(s), s))
+        return len(s), s # type: ignore[assignment]
     elif isinstance(py, str):
         s = ffi.from_buffer(py.encode('utf8'))
-        return cast(lib.pn_bytes_t, (len(s), s))
+        return len(s), s # type: ignore[assignment]
 
 
 def string2bytes(py, encoding='utf8', errors='surrogateescape') -> lib.pn_bytes_t:
     s = ffi.from_buffer(py.encode(encoding, errors))
-    return cast(lib.pn_bytes_t, (len(s), s))
+    return len(s), s # type: ignore[assignment]
 
 
-def UUID2uuid(py: UUID) -> 'lib.pn_uuid_t':
-    u: 'lib.pn_uuid_t' = cast('lib.pn_uuid_t', ffi.new('pn_uuid_t*'))
+def UUID2uuid(py: UUID) -> lib.pn_uuid_t:
+    u: lib.pn_uuid_t = ffi.new('pn_uuid_t*') # type: ignore[assignment]
     ffi.memmove(u.bytes, py.bytes, 16)
     return u[0]
 
 
-def uuid2bytes(uuid: 'lib.pn_uuid_t') -> bytes:
-    return cast(bytes, ffi.unpack(uuid.bytes, 16))
+def uuid2bytes(uuid: lib.pn_uuid_t) -> bytes:
+    return ffi.unpack(uuid.bytes, 16) # type: ignore[assignment]
 
 
-def decimal1282py(decimal128: 'lib.pn_decimal128_t') -> bytes:
-    return cast(bytes, ffi.unpack(decimal128.bytes, 16))
+def decimal1282py(decimal128: lib.pn_decimal128_t) -> bytes:
+    return ffi.unpack(decimal128.bytes, 16) # type: ignore[assignment]
 
 
-def py2decimal128(py) -> 'lib.pn_decimal128_t':
-    d: 'lib.pn_decimal128_t' = cast('lib.pn_decimal128_t', ffi.new('pn_decimal128_t*'))
+def py2decimal128(py) -> lib.pn_decimal128_t:
+    d: lib.pn_decimal128_t = ffi.new('pn_decimal128_t*') # type: ignore[assignment]
     ffi.memmove(d.bytes, py, 16)
     return d[0]
 
@@ -291,19 +291,19 @@ def msgid2py(msgid: lib.pn_msgid_t) -> Union[int, str, bytes, UUID, None]:
 
 def py2msgid(py: Union[int, str, bytes, UUID, None]) -> lib.pn_msgid_t:
     if py is None:
-        return cast(lib.pn_msgid_t, {'type': PN_NULL})
+        return {'type': PN_NULL} # type: ignore[return-value]
     elif isinstance(py, int):
-        return cast(lib.pn_msgid_t, {'type': PN_ULONG, 'u': {'as_ulong': py}})
+        return {'type': PN_ULONG, 'u': {'as_ulong': py}} # type: ignore[return-value]
     elif isinstance(py, str):
-        return cast(lib.pn_msgid_t, {'type': PN_STRING, 'u': {'as_bytes': string2bytes(py)}})
+        return {'type': PN_STRING, 'u': {'as_bytes': string2bytes(py)}} # type: ignore[return-value]
     elif isinstance(py, bytes):
-        return cast(lib.pn_msgid_t, {'type': PN_BINARY, 'u': {'as_bytes': py2bytes(py)}})
+        return {'type': PN_BINARY, 'u': {'as_bytes': py2bytes(py)}} # type: ignore[return-value]
     elif isinstance(py, UUID):
-        return cast(lib.pn_msgid_t, {'type': PN_UUID, 'u': {'as_uuid': {'bytes': py.bytes}}})
+        return {'type': PN_UUID, 'u': {'as_uuid': {'bytes': py.bytes}}} # type: ignore[return-value]
     elif isinstance(py, tuple):
         if py[0] == PN_UUID:
-            return cast(lib.pn_msgid_t, {'type': PN_UUID, 'u': {'as_uuid': {'bytes': py[1]}}})
-    return cast(lib.pn_msgid_t, {'type': PN_NULL})
+            return {'type': PN_UUID, 'u': {'as_uuid': {'bytes': py[1]}}} # type: ignore[return-value]
+    return {'type': PN_NULL} # type: ignore[return-value]
 
 
 @ffi.def_extern()
