@@ -298,6 +298,18 @@ class CFFIToPyiConverter:
 
         return 'Any'
 
+    def _adjust_struct_field_type(self, type: str) -> str:
+        if type == 'bytes':
+            return 'CData'
+        else:
+            return type
+
+    def _adjust_return_type(self, type: str) -> str:
+        if type == 'bytes':
+            return 'CData'
+        else:
+            return type
+
     def generate_pyi(self) -> str:
         """Generate .pyi stub file content."""
         lines = []
@@ -308,9 +320,11 @@ class CFFIToPyiConverter:
         lines.append('This file was automatically generated from C declarations.')
         lines.append('"""')
         lines.append('')
-        lines.append('from typing import Any, Callable, Final, Literal, TypeAlias, Union')
-        lines.append('from cffi import CData')
+        lines.append('from typing import Any, Callable, Final, Literal')
+        lines.append('from _cffi_backend import FFI')
+        lines.append('from _typeshed import Self')
         lines.append('')
+        lines.append('CData = FFI.CData')
 
         if self.macros:
             lines.append('')
@@ -344,8 +358,8 @@ class CFFIToPyiConverter:
             lines.append('# Enums')
             for enum_name, values in self.enums.items():
                 for name, value in values:
-                    lines.append(f'{name}: TypeAlias = Literal[{value}]  # {enum_name}')
-                lines.append(f'{enum_name} = Union[{", ".join(name for name, _ in values)}]')
+                    lines.append(f'{name}: Literal[{value}]  # {enum_name}')
+                lines.append(f'{enum_name} = Literal[{", ".join(str(value) for _, value in values)}]')
                 lines.append('')
 
         # Structs (define before typedefs that might reference them)
@@ -356,7 +370,8 @@ class CFFIToPyiConverter:
                 if fields:
                     lines.append(f'class {struct_name}:')
                     for field_name, field_type in fields:
-                        lines.append(f'    {field_name}: {field_type}')
+                        lines.append(f'    {field_name}: {self._adjust_struct_field_type(field_type)}')
+                    lines.append('    def __getitem__(self: Self, index: int) -> Self: ...')
                     lines.append('')
                     lines.append('')
                 else:
@@ -400,14 +415,17 @@ class CFFIToPyiConverter:
             lines.append('# Functions')
             for func_name, return_type, params in self.functions:
                 param_strs = []
-                for param_name, param_type in params:
+                for i, (param_name, param_type) in enumerate(params):
+                    # Ad hoc handling for parameter char* followed by int
+                    if param_type == 'bytes' and i + 1 < len(params) and params[i + 1][1] == 'int':
+                        param_type = 'CData'
                     if param_type.startswith('*args'):
                         param_strs.append(param_type)
                     else:
                         param_strs.append(f'{param_name}: {param_type}')
 
                 param_list = ', '.join(param_strs)
-                lines.append(f'def {func_name}({param_list}) -> {return_type}: ...')
+                lines.append(f'def {func_name}({param_list}) -> {self._adjust_return_type(return_type)}: ...')
             lines.append('')
 
         return '\n'.join(lines)

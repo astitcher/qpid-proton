@@ -26,6 +26,7 @@ import atexit
 from uuid import UUID
 from typing import cast, Any, Optional, Union
 
+from _cffi_backend import FFI
 from cproton_ffi import ffi, lib
 from cproton_ffi.lib import (PN_ACCEPTED, PN_ARRAY, PN_BINARY, PN_BOOL, PN_BYTE, PN_CHAR,
                              PN_CONFIGURATION, PN_CONNECTION_BOUND, PN_CONNECTION_FINAL,
@@ -185,6 +186,7 @@ from cproton_ffi.lib import (PN_ACCEPTED, PN_ARRAY, PN_BINARY, PN_BOOL, PN_BYTE,
                              pn_modified_disposition_annotations,
                              pn_declared_disposition)
 
+CData = FFI.CData
 
 def isnull(obj: Any) -> bool:
     return obj is None or obj == ffi.NULL
@@ -210,7 +212,7 @@ def string2utf8(string: str) -> bytes:
     raise TypeError("Unrecognized string type: %r (%s)" % (string, type(string)))
 
 
-def utf82string(string) -> Optional[str]:
+def utf82string(string: CData) -> Optional[str]:
     """Convert char* C strings returned from proton-c into python unicode"""
     if string == ffi.NULL:
         return None
@@ -307,7 +309,7 @@ def py2msgid(py: Union[int, str, bytes, UUID, None]) -> lib.pn_msgid_t:
 
 
 @ffi.def_extern()
-def pn_pytracer(transport, message):
+def pn_pytracer(transport, message) -> None:
     attrs = pn_record_get_py(lib.pn_transport_attachments(transport))
     tracer = attrs['_tracer']
     if tracer:
@@ -735,7 +737,7 @@ def pn_ssl_domain_set_ciphers(domain, ciphers):
 
 # _Bool pn_ssl_get_cipher_name(pn_ssl_t *ssl, char *buffer, size_t size);
 def pn_ssl_get_cipher_name(ssl, size):
-    buff: bytes = cast(bytes, ffi.new('char[]', size))
+    buff = ffi.new('char[]', size)
     r = lib.pn_ssl_get_cipher_name(ssl, buff, size)
     if r:
         return utf82string(buff)
@@ -744,7 +746,7 @@ def pn_ssl_get_cipher_name(ssl, size):
 
 # _Bool pn_ssl_get_protocol_name(pn_ssl_t *ssl, char *buffer, size_t size);
 def pn_ssl_get_protocol_name(ssl, size):
-    buff: bytes = cast(bytes, ffi.new('char[]', size))
+    buff = ffi.new('char[]', size)
     r = lib.pn_ssl_get_protocol_name(ssl, buff, size)
     if r:
         return utf82string(buff)
@@ -753,7 +755,7 @@ def pn_ssl_get_protocol_name(ssl, size):
 
 # int pn_ssl_get_cert_fingerprint(pn_ssl_t *ssl, char *fingerprint, size_t fingerprint_len, pn_ssl_hash_alg hash_alg);
 def pn_ssl_get_cert_fingerprint(ssl, fingerprint_len, hash_alg):
-    buff:bytes = cast(bytes, ffi.new('char[]', fingerprint_len))
+    buff = ffi.new('char[]', fingerprint_len)
     r = lib.pn_ssl_get_cert_fingerprint(ssl, buff, fingerprint_len, hash_alg)
     if r == PN_OK:
         return utf82string(buff)
@@ -762,7 +764,7 @@ def pn_ssl_get_cert_fingerprint(ssl, fingerprint_len, hash_alg):
 
 # int pn_ssl_get_peer_hostname(pn_ssl_t *ssl, char *hostname, size_t *bufsize);
 def pn_ssl_get_peer_hostname(ssl, size):
-    buff: bytes = cast(bytes, ffi.new('char[]', size))
+    buff = ffi.new('char[]', size)
     r = lib.pn_ssl_get_peer_hostname_py(ssl, buff, size)
     if r == PN_OK:
         return r, utf82string(buff)
