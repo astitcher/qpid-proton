@@ -68,13 +68,23 @@ from ._wrapper import Wrapper
 
 from collections.abc import Iterator
 from enum import IntFlag
-from typing import Any, Callable, ClassVar, Optional, Union, TYPE_CHECKING, overload
+from typing import Any, Callable, Optional, Union, TypeVar, TYPE_CHECKING, overload
 
 if TYPE_CHECKING:
     from ._condition import Condition
     from ._data import Array, PythonAMQPData, symbol
     from ._events import Collector
     from ._message import Message
+    from cproton_ffi import lib
+    pn_condition_t = lib.pn_condition_t
+    pn_connection_t = lib.pn_connection_t
+    pn_session_t = lib.pn_session_t
+    pn_link_t = lib.pn_link_t
+else:
+    pn_condition_t = object  # runtime placeholder for type checking
+    pn_connection_t = object
+    pn_session_t = object
+    pn_link_t = object
 
 
 class EndpointState(IntFlag):
@@ -103,7 +113,10 @@ class EndpointState(IntFlag):
     """ The remote endpoint state is closed. """
 
 
-class Endpoint(Wrapper):
+EndpointType = TypeVar('EndpointType')
+
+
+class Endpoint(Wrapper[EndpointType]):
     """
     Abstract class from which :class:`Connection`, :class:`Session`
     and :class:`Link` are derived, and which defines the state
@@ -131,9 +144,9 @@ class Endpoint(Wrapper):
     LOCAL_CLOSED = EndpointState.LOCAL_CLOSED
     REMOTE_CLOSED = EndpointState.REMOTE_CLOSED
 
-    get_condition: ClassVar[Callable[[Any], Any]]
-    get_remote_condition: ClassVar[Callable[[Any], Any]]
-    get_state: ClassVar[Callable[[Any], EndpointState]]
+    get_condition: Callable[[EndpointType], pn_condition_t]
+    get_remote_condition: Callable[[EndpointType], pn_condition_t]
+    get_state: Callable[[EndpointType], EndpointState]
 
     def __init__(self) -> None:
         self.condition: Optional['Condition'] = None
@@ -181,7 +194,7 @@ class Endpoint(Wrapper):
             self._handler.add(handler)
 
 
-class Connection(Endpoint):
+class Connection(Endpoint[pn_connection_t]):
     """
     A representation of an AMQP connection.
     """
@@ -573,7 +586,7 @@ class Connection(Endpoint):
             self.properties_dict = properties_dict
 
 
-class Session(Endpoint):
+class Session(Endpoint[pn_session_t]):
     """A container of links"""
 
     get_context = pn_session_attachments
@@ -703,7 +716,7 @@ class Session(Endpoint):
         pn_session_free(self._impl)
 
 
-class Link(Endpoint):
+class Link(Endpoint[pn_link_t]):
     """
     A representation of an AMQP link (a unidirectional channel for
     transferring messages), of which there are two concrete
@@ -727,7 +740,7 @@ class Link(Endpoint):
     get_remote_condition = pn_link_remote_condition
     get_state = pn_link_state
 
-    def __new__(cls, impl) -> Link:
+    def __new__(cls, impl: pn_link_t) -> Link:
         if pn_link_is_sender(impl):
             return super().__new__(Sender, impl)
         else:

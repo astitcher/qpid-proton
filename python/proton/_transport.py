@@ -42,8 +42,7 @@ from cproton import PN_EOS, PN_SASL_AUTH, PN_SASL_NONE, PN_SASL_OK, PN_SASL_PERM
     pn_transport_peek, pn_transport_pending, pn_transport_pop, pn_transport_push, pn_transport_remote_channel_max, \
     pn_transport_require_auth, pn_transport_require_encryption, pn_transport_set_channel_max, \
     pn_transport_set_idle_timeout, pn_transport_set_max_frame, pn_transport_set_pytracer, pn_transport_set_server, \
-    pn_transport_tick, pn_transport_trace, pn_transport_unbind, \
-    isnull
+    pn_transport_tick, pn_transport_trace, pn_transport_unbind
 
 from ._common import millis2secs, secs2millis
 from ._condition import cond2obj, obj2cond
@@ -53,18 +52,22 @@ from ._wrapper import Wrapper
 if TYPE_CHECKING:
     from ._condition import Condition
     from ._endpoints import Connection  # would produce circular import
+    from cproton_ffi import lib
+    pn_transport_t = lib.pn_transport_t
+else:
+    pn_transport_t = object  # runtime placeholder for type checking
 
 
 class TraceAdapter:
 
-    def __init__(self, tracer: Callable[['Transport', str], None]) -> None:
+    def __init__(self, tracer: Callable[[Transport, str], None]) -> None:
         self.tracer = tracer
 
-    def __call__(self, trans_impl, message):
+    def __call__(self, trans_impl: lib.pn_transport_t, message: str) -> None:
         self.tracer(Transport.wrap(trans_impl), message)
 
 
-class Transport(Wrapper):
+class Transport(Wrapper[pn_transport_t]):
     """
     A network channel supporting an AMQP connection.
     """
@@ -86,13 +89,6 @@ class Transport(Wrapper):
 
     SERVER = 2
     """ Transport mode is as a server. """
-
-    @staticmethod
-    def wrap(impl: Optional[Callable]) -> Optional['Transport']:
-        if isnull(impl):
-            return None
-        else:
-            return Transport(impl=impl)
 
     constructor = pn_transport
     get_context = pn_transport_attachments

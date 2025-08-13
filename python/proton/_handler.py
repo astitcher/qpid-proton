@@ -19,24 +19,24 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional
 from types import TracebackType
-
-
-class LazyHandlers:
-    def __get__(self, obj: Handler, clazz: Any) -> Union[LazyHandlers, list[Any]]:
-        if obj is None:
-            return self
-        ret = []
-        obj.__dict__['handlers'] = ret
-        return ret
 
 
 class Handler:
     """
     An abstract handler for events which supports child handlers.
     """
-    handlers = LazyHandlers()
+
+    @property
+    def handlers(self) -> list[Handler]:
+        if not hasattr(self, "_handlers"):
+            self._handlers = []
+        return self._handlers
+
+    @handlers.setter
+    def handlers(self, value: list[Handler]) -> None:
+        self._handlers = value
 
     # TODO What to do with on_error?
     def add(

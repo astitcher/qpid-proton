@@ -19,15 +19,21 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional
+from typing import Any, Callable, Generic, Optional, TypeVar, TYPE_CHECKING
 
 from cproton import addressof, isnull, pn_incref, pn_decref, \
     pn_record_get_py
 
 from ._exceptions import ProtonException
 
+if TYPE_CHECKING:
+    from cproton_ffi import lib
+    from typing_extensions import Self
 
-class Wrapper:
+NativeType = TypeVar('NativeType')
+
+
+class Wrapper(Generic[NativeType]):
     """ Wrapper for python objects that need to be stored in event contexts and be retrieved again from them
         Quick note on how this works:
         The actual *python* object has only 2 attributes which redirect into the wrapped C objects:
@@ -36,7 +42,7 @@ class Wrapper:
                 every attribute in the python object is actually looked up here
 
         Because the objects actual attributes are stored away they must be initialised *after* the wrapping. This is
-        achieved by using the __new__ method of Wrapper to create the object with the actiual attributes before the
+        achieved by using the __new__ method of Wrapper to create the object with the actual attributes before the
         __init__ method is called.
 
         In the case where an existing object is being wrapped, the __init__ method is called with the existing object
@@ -44,19 +50,19 @@ class Wrapper:
         are already set. Use the Uninitialised method to check if the object is already initialised.
     """
 
-    constructor: ClassVar[Optional[staticmethod[[], Any]]] = None
-    get_context: ClassVar[staticmethod[[Any], Any]]
+    constructor: Optional[Callable[..., NativeType]] = None
+    get_context: Callable[[NativeType], lib.pn_record_t]
 
     __slots__ = ["_impl", "_attrs"]
 
     @classmethod
-    def wrap(cls, impl: Any) -> Optional[Wrapper]:
+    def wrap(cls, impl: NativeType) -> Optional[Self]:
         if isnull(impl):
             return None
         else:
-            return cls(impl)
+            return cls(impl=impl)
 
-    def __new__(cls, impl: Any = None) -> Wrapper:
+    def __new__(cls, impl: Optional[NativeType] = None) -> Self:
         attrs = None
         try:
             if impl is None:
@@ -79,7 +85,7 @@ class Wrapper:
             self = super().__new__(cls)
             self._impl = impl
             self._attrs = attrs
-            return self
+        return self
 
     def Uninitialized(self) -> bool:
         return self._attrs == {}

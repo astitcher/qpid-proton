@@ -52,7 +52,7 @@ class Collector:
     def put(self, obj: Any, etype: EventType) -> None:
         pn_collector_put_pyref(self._impl, obj, etype)
 
-    def peek(self) -> Optional['Event']:
+    def peek(self) -> Optional[EventBase]:
         return Event.wrap(pn_collector_peek(self._impl))
 
     def more(self) -> bool:
@@ -69,18 +69,6 @@ class Collector:
         del self._impl
 
 
-if "TypeExtender" not in globals():
-    class TypeExtender:
-        def __init__(self, number: int) -> None:
-            self.number = number
-
-        def next(self) -> int:
-            try:
-                return self.number
-            finally:
-                self.number += 1
-
-
 class EventType:
     """
     Connects an event number to an event name, and is used
@@ -91,19 +79,21 @@ class EventType:
     internal event number starting at 10000.
     """
     _lock = threading.Lock()
-    _extended = TypeExtender(10000)
-    TYPES = {}
+    _extended: int = 10000
+    TYPES: dict[int, EventType] = {}
 
     def __init__(self, name: Optional[str] = None, number: Optional[int] = None, method: Optional[str] = None) -> None:
         if name is None and number is None:
             raise TypeError("extended events require a name")
-        try:
-            self._lock.acquire()
+
+        with type(self)._lock:
             if name is None:
                 name = pn_event_type_name(number)
+            assert name is not None
 
             if number is None:
-                number = self._extended.next()
+                number = type(self)._extended
+                type(self)._extended += 1
 
             if method is None:
                 method = "on_%s" % name
@@ -113,8 +103,6 @@ class EventType:
             self.method = method
 
             self.TYPES[number] = self
-        finally:
-            self._lock.release()
 
     def __repr__(self):
         return "EventType(name=%s, number=%d)" % (self.name, self.number)
