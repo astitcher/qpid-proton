@@ -18,6 +18,7 @@
  * under the License.
  *
  */
+typedef void* pn_object_t;
 
 typedef struct pn_bytes_t
 {

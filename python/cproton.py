@@ -24,7 +24,10 @@ from __future__ import annotations
 
 import atexit
 from uuid import UUID
-from typing import cast, Any, Optional, Union
+from typing import cast, Any, Callable, Optional, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from proton import EventType
 
 from _cffi_backend import FFI
 from cproton_ffi import ffi, lib
@@ -309,14 +312,14 @@ def py2msgid(py: Union[int, str, bytes, UUID, None]) -> lib.pn_msgid_t:
 
 
 @ffi.def_extern()
-def pn_pytracer(transport, message) -> None:
+def pn_pytracer(transport: lib.pn_transport_t, message: CData) -> None:
     attrs = pn_record_get_py(lib.pn_transport_attachments(transport))
     tracer = attrs['_tracer']
     if tracer:
         tracer(transport, utf82string(message))
 
 
-def pn_transport_get_pytracer(transport):
+def pn_transport_get_pytracer(transport: lib.pn_transport_t) -> Optional[Callable[[lib.pn_transport_t,str], None]]:
     attrs = pn_record_get_py(lib.pn_transport_attachments(transport))
     if '_tracer' in attrs:
         return attrs['_tracer']
@@ -324,50 +327,50 @@ def pn_transport_get_pytracer(transport):
         return None
 
 
-def pn_transport_set_pytracer(transport, tracer):
+def pn_transport_set_pytracer(transport: lib.pn_transport_t, tracer: Callable[[lib.pn_transport_t,str], None]) -> None:
     attrs = pn_record_get_py(lib.pn_transport_attachments(transport))
     attrs['_tracer'] = tracer
     lib.pn_transport_set_tracer(transport, lib.pn_pytracer)
 
 
-retained_objects = set()
+retained_objects: set[CData] = set()
 lib.init()
 
 
 @atexit.register
-def clear_retained_objects():
+def clear_retained_objects() -> None:
     retained_objects.clear()
 
 
-def retained_count():
+def retained_count() -> int:
     """ Debugging aid to give the number of wrapper objects retained by the bindings"""
     return len(retained_objects)
 
 
 @ffi.def_extern()
-def pn_pyref_incref(obj):
+def pn_pyref_incref(obj: CData) -> None:
     retained_objects.add(obj)
 
 
 @ffi.def_extern()
-def pn_pyref_decref(obj):
+def pn_pyref_decref(obj: CData) -> None:
     retained_objects.discard(obj)
 
 
-def pn_tostring(obj):
+def pn_tostring(obj: lib.pn_object_t) -> str:
     cs = lib.pn_tostring(obj)
     s = cast(bytes, ffi.string(cs)).decode('utf8')
     lib.free(cs)
     return s
 
 
-def pn_collector_put_pyref(collector, obj, etype):
+def pn_collector_put_pyref(collector: lib.pn_collector_t, obj: Any, etype: EventType) -> None:
     d = ffi.new_handle(obj)
     retained_objects.add(d)
     lib.pn_collector_put_py(collector, d, etype.number)
 
 
-def pn_record_get_py(record):
+def pn_record_get_py(record: lib.pn_record_t) -> dict:
     d = lib.pn_record_get_py(record)
     if d == ffi.NULL:
         d = ffi.new_handle({})
@@ -377,12 +380,12 @@ def pn_record_get_py(record):
     return ffi.from_handle(d)
 
 
-def pn_event_class_name(event):
+def pn_event_class_name(event: lib.pn_event_t) -> str:
     return cast(bytes, ffi.string(lib.pn_event_class_name_py(event))).decode('utf8')
 
 
 # size_t pn_transport_peek(pn_transport_t *transport, char *dst, size_t size);
-def pn_transport_peek(transport, size):
+def pn_transport_peek(transport: lib.pn_transport_t, size: int) -> tuple[int, bytearray]:
     buff = bytearray(size)
     cd = lib.pn_transport_peek(transport, ffi.from_buffer(buff), size)
     if cd >= 0:
@@ -391,17 +394,17 @@ def pn_transport_peek(transport, size):
 
 
 # ssize_t pn_transport_push(pn_transport_t *transport, const char *src, size_t size);
-def pn_transport_push(transport, src):
+def pn_transport_push(transport: lib.pn_transport_t, src: bytes | bytearray | memoryview) -> int:
     return lib.pn_transport_push(transport, ffi.from_buffer(src), len(src))
 
 
 # int pn_message_decode(pn_message_t *msg, const char *bytes, size_t size);
-def pn_message_decode(msg, buff):
+def pn_message_decode(msg: lib.pn_message_t, buff: bytes | bytearray | memoryview) -> int:
     return lib.pn_message_decode(msg, ffi.from_buffer(buff), len(buff))
 
 
 # int pn_message_encode_py(pn_message_t *msg, char *bytes, size_t size);
-def pn_message_encode(msg, size):
+def pn_message_encode(msg: lib.pn_message_t, size: int) -> tuple[int, bytearray]:
     buff = bytearray(size)
     err = lib.pn_message_encode_py(msg, ffi.from_buffer(buff), size)
     if err >= 0:
@@ -410,12 +413,12 @@ def pn_message_encode(msg, size):
 
 
 # ssize_t pn_data_decode(pn_data_t *data, const char *bytes, size_t size);
-def pn_data_decode(data, buff):
+def pn_data_decode(data: lib.pn_data_t, buff: bytes | bytearray | memoryview) -> int:
     return lib.pn_data_decode(data, ffi.from_buffer(buff), len(buff))
 
 
 # ssize_t pn_data_encode(pn_data_t *data, char *bytes, size_t size);
-def pn_data_encode(data, size):
+def pn_data_encode(data: lib.pn_data_t, size: int) -> tuple[int, bytearray]:
     buff = bytearray(size)
     err = lib.pn_data_encode(data, ffi.from_buffer(buff), size)
     if err >= 0:
@@ -424,7 +427,7 @@ def pn_data_encode(data, size):
 
 
 # int pn_data_format(pn_data_t *data, char *bytes, size_t *size);
-def pn_data_format(data, size):
+def pn_data_format(data: lib.pn_data_t, size: int) -> tuple[int, bytearray]:
     buff = bytearray(size)
     err = lib.pn_data_format_py(data, ffi.from_buffer(buff), size)
     if err >= 0:
@@ -433,7 +436,7 @@ def pn_data_format(data, size):
 
 
 # ssize_t pn_link_recv(pn_link_t *receiver, char *bytes, size_t n);
-def pn_link_recv(receiver, limit):
+def pn_link_recv(receiver: lib.pn_link_t, limit: int) -> tuple[int, bytearray]:
     buff = bytearray(limit)
     err = lib.pn_link_recv(receiver, ffi.from_buffer(buff), limit)
     if err >= 0:
@@ -442,7 +445,7 @@ def pn_link_recv(receiver, limit):
 
 
 # ssize_t pn_link_send(pn_link_t *sender, const char *bytes, size_t n);
-def pn_link_send(sender, buff):
+def pn_link_send(sender: lib.pn_link_t, buff: bytes | bytearray | memoryview) -> int:
     return lib.pn_link_send(sender, ffi.from_buffer(buff), len(buff))
 
 
@@ -585,8 +588,8 @@ def pn_terminus_set_address(terminus, address):
     return lib.pn_terminus_set_address(terminus, string2utf8(address))
 
 
-def pn_event_type_name(number):
-    return utf82string(lib.pn_event_type_name(number))
+def pn_event_type_name(number: lib.pn_event_type_t | int) -> str:
+    return utf82string(lib.pn_event_type_name(number)) # type: ignore[assignment]
 
 
 def pn_message_get_id(message):
@@ -709,34 +712,34 @@ def pn_ssl_domain_set_trusted_ca_db(domain, certificate_db):
     return lib.pn_ssl_domain_set_trusted_ca_db(domain, string2utf8(certificate_db))
 
 
-def pn_ssl_domain_set_peer_authentication(domain, verify_mode, trusted_CAs):
+def pn_ssl_domain_set_peer_authentication(domain: lib.pn_ssl_domain_t, verify_mode: lib.pn_ssl_verify_mode_t, trusted_CAs: str) -> int:
     return lib.pn_ssl_domain_set_peer_authentication(domain, verify_mode, string2utf8(trusted_CAs))
 
 
-def pn_ssl_init(ssl, domain, session_id):
+def pn_ssl_init(ssl: lib.pn_ssl_t, domain: lib.pn_ssl_domain_t, session_id: str) -> None:
     lib.pn_ssl_init(ssl, domain, string2utf8(session_id))
 
 
-def pn_ssl_get_remote_subject_subfield(ssl, subfield_name):
+def pn_ssl_get_remote_subject_subfield(ssl: lib.pn_ssl_t, subfield_name: lib.pn_ssl_cert_subject_subfield) -> Optional[str]:
     return utf82string(lib.pn_ssl_get_remote_subject_subfield(ssl, subfield_name))
 
 
-def pn_ssl_get_remote_subject(ssl):
+def pn_ssl_get_remote_subject(ssl: lib.pn_ssl_t) -> Optional[str]:
     return utf82string(lib.pn_ssl_get_remote_subject(ssl))
 
 
 # int pn_ssl_domain_set_protocols(pn_ssl_domain_t *domain, const char *protocols);
-def pn_ssl_domain_set_protocols(domain, protocols):
+def pn_ssl_domain_set_protocols(domain: lib.pn_ssl_domain_t, protocols: str) -> int:
     return lib.pn_ssl_domain_set_protocols(domain, string2utf8(protocols))
 
 
 # int pn_ssl_domain_set_ciphers(pn_ssl_domain_t *domain, const char *ciphers);
-def pn_ssl_domain_set_ciphers(domain, ciphers):
+def pn_ssl_domain_set_ciphers(domain: lib.pn_ssl_domain_t, ciphers: str) -> int:
     return lib.pn_ssl_domain_set_ciphers(domain, string2utf8(ciphers))
 
 
 # _Bool pn_ssl_get_cipher_name(pn_ssl_t *ssl, char *buffer, size_t size);
-def pn_ssl_get_cipher_name(ssl, size):
+def pn_ssl_get_cipher_name(ssl: lib.pn_ssl_t, size: int) -> Optional[str]:
     buff = ffi.new('char[]', size)
     r = lib.pn_ssl_get_cipher_name(ssl, buff, size)
     if r:
@@ -745,7 +748,7 @@ def pn_ssl_get_cipher_name(ssl, size):
 
 
 # _Bool pn_ssl_get_protocol_name(pn_ssl_t *ssl, char *buffer, size_t size);
-def pn_ssl_get_protocol_name(ssl, size):
+def pn_ssl_get_protocol_name(ssl: lib.pn_ssl_t, size: int) -> Optional[str]:
     buff = ffi.new('char[]', size)
     r = lib.pn_ssl_get_protocol_name(ssl, buff, size)
     if r:
@@ -754,7 +757,7 @@ def pn_ssl_get_protocol_name(ssl, size):
 
 
 # int pn_ssl_get_cert_fingerprint(pn_ssl_t *ssl, char *fingerprint, size_t fingerprint_len, pn_ssl_hash_alg hash_alg);
-def pn_ssl_get_cert_fingerprint(ssl, fingerprint_len, hash_alg):
+def pn_ssl_get_cert_fingerprint(ssl: lib.pn_ssl_t, fingerprint_len: int, hash_alg: lib.pn_ssl_hash_alg) -> Optional[str]:
     buff = ffi.new('char[]', fingerprint_len)
     r = lib.pn_ssl_get_cert_fingerprint(ssl, buff, fingerprint_len, hash_alg)
     if r == PN_OK:
@@ -763,7 +766,7 @@ def pn_ssl_get_cert_fingerprint(ssl, fingerprint_len, hash_alg):
 
 
 # int pn_ssl_get_peer_hostname(pn_ssl_t *ssl, char *hostname, size_t *bufsize);
-def pn_ssl_get_peer_hostname(ssl, size):
+def pn_ssl_get_peer_hostname(ssl: lib.pn_ssl_t, size: int) -> tuple[int, Optional[str]]:
     buff = ffi.new('char[]', size)
     r = lib.pn_ssl_get_peer_hostname_py(ssl, buff, size)
     if r == PN_OK:
@@ -771,21 +774,21 @@ def pn_ssl_get_peer_hostname(ssl, size):
     return r, None
 
 
-def pn_ssl_set_peer_hostname(ssl, hostname):
+def pn_ssl_set_peer_hostname(ssl: lib.pn_ssl_t, hostname: str) -> int:
     return lib.pn_ssl_set_peer_hostname(ssl, string2utf8(hostname))
 
 
-def pn_transactional_disposition_get_id(disp):
+def pn_transactional_disposition_get_id(disp: lib.pn_transactional_disposition_t) -> bytes:
     return bytes2pybytes(lib.pn_transactional_disposition_get_id(disp))
 
 
-def pn_transactional_disposition_set_id(disp, id):
+def pn_transactional_disposition_set_id(disp: lib.pn_transactional_disposition_t, id: bytes | bytearray | memoryview | str) -> None:
     return lib.pn_transactional_disposition_set_id(disp, py2bytes(id))
 
 
-def pn_declared_disposition_get_id(disp):
+def pn_declared_disposition_get_id(disp: lib.pn_declared_disposition_t) -> bytes:
     return bytes2pybytes(lib.pn_declared_disposition_get_id(disp))
 
 
-def pn_declared_disposition_set_id(disp, id):
+def pn_declared_disposition_set_id(disp: lib.pn_declared_disposition_t, id: bytes | bytearray | memoryview | str) -> None:
     return lib.pn_declared_disposition_set_id(disp, py2bytes(id))
