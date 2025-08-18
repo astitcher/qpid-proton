@@ -243,7 +243,7 @@ def py2bytes(py: Union[bytes, bytearray, memoryview, str]) -> lib.pn_bytes_t:
         return len(s), s # type: ignore[assignment]
 
 
-def string2bytes(py, encoding='utf8', errors='surrogateescape') -> lib.pn_bytes_t:
+def string2bytes(py: str, encoding='utf8', errors='surrogateescape') -> lib.pn_bytes_t:
     s = ffi.from_buffer(py.encode(encoding, errors))
     return len(s), s # type: ignore[assignment]
 
@@ -262,7 +262,7 @@ def decimal1282py(decimal128: lib.pn_decimal128_t) -> bytes:
     return ffi.unpack(decimal128.bytes, 16) # type: ignore[assignment]
 
 
-def py2decimal128(py) -> lib.pn_decimal128_t:
+def py2decimal128(py: bytes) -> lib.pn_decimal128_t:
     d: lib.pn_decimal128_t = ffi.new('pn_decimal128_t*') # type: ignore[assignment]
     ffi.memmove(d.bytes, py, 16)
     return d[0]
@@ -450,141 +450,141 @@ def pn_link_send(sender: lib.pn_link_t, buff: bytes | bytearray | memoryview) ->
 
 
 # pn_condition bindings
-def pn_condition_set_name(cond, name):
+def pn_condition_set_name(cond: lib.pn_condition_t, name: str) -> int:
     return lib.pn_condition_set_name(cond, string2utf8(name))
 
 
-def pn_condition_set_description(cond, description):
+def pn_condition_set_description(cond: lib.pn_condition_t, description: str) -> int:
     return lib.pn_condition_set_description(cond, string2utf8(description))
 
 
-def pn_condition_get_name(cond):
+def pn_condition_get_name(cond: lib.pn_condition_t) -> Optional[str]:
     return utf82string(lib.pn_condition_get_name(cond))
 
 
-def pn_condition_get_description(cond):
+def pn_condition_get_description(cond: lib.pn_condition_t) -> Optional[str]:
     return utf82string(lib.pn_condition_get_description(cond))
 
 
 # pn_error bindings
-def pn_error_text(error):
+def pn_error_text(error: lib.pn_error_t) -> Optional[str]:
     return utf82string(lib.pn_error_text(error))
 
 
 # pn_data bindings
-def pn_data_lookup(data, name):
+def pn_data_lookup(data: lib.pn_data_t, name: str) -> bool:
     return lib.pn_data_lookup(data, string2utf8(name))
 
 
-def pn_data_put_decimal128(data, d):
+def pn_data_put_decimal128(data: lib.pn_data_t, d: bytes) -> int:
     return lib.pn_data_put_decimal128(data, py2decimal128(d))
 
 
-def pn_data_put_uuid(data, u):
+def pn_data_put_uuid(data: lib.pn_data_t, u: UUID) -> int:
     return lib.pn_data_put_uuid(data, UUID2uuid(u))
 
 
-def pn_data_put_binary(data, b):
+def pn_data_put_binary(data: lib.pn_data_t, b: bytes | bytearray | memoryview | str) -> int:
     return lib.pn_data_put_binary(data, py2bytes(b))
 
 
-def pn_data_put_string(data, s):
+def pn_data_put_string(data: lib.pn_data_t, s: str) -> int:
     return lib.pn_data_put_string(data, string2bytes(s))
 
 
-def pn_data_put_symbol(data, s):
+def pn_data_put_symbol(data: lib.pn_data_t, s: str) -> int:
     return lib.pn_data_put_symbol(data, string2bytes(s, 'ascii'))
 
 
-def pn_data_get_decimal128(data):
+def pn_data_get_decimal128(data: lib.pn_data_t) -> bytes:
     return decimal1282py(lib.pn_data_get_decimal128(data))
 
 
-def pn_data_get_uuid(data):
+def pn_data_get_uuid(data: lib.pn_data_t) -> UUID:
     return UUID(bytes=uuid2bytes(lib.pn_data_get_uuid(data)))
 
 
-def pn_data_get_binary(data):
+def pn_data_get_binary(data: lib.pn_data_t) -> memoryview:
     return bytes2py(lib.pn_data_get_binary(data))
 
 
-def pn_data_get_string(data):
+def pn_data_get_string(data: lib.pn_data_t) -> str:
     return bytes2string(lib.pn_data_get_string(data))
 
 
-def pn_data_get_symbol(data):
+def pn_data_get_symbol(data: lib.pn_data_t) -> str:
     return bytes2string(lib.pn_data_get_symbol(data), 'ascii')
 
 
-def pn_delivery_tag(delivery):
+def pn_delivery_tag(delivery: lib.pn_delivery_t) -> str:
     return bytes2string(lib.pn_delivery_tag(delivery))
 
 
-def pn_connection_get_container(connection):
+def pn_connection_get_container(connection: lib.pn_connection_t) -> Optional[str]:
     return utf82string(lib.pn_connection_get_container(connection))
 
 
-def pn_connection_set_container(connection, name):
+def pn_connection_set_container(connection: lib.pn_connection_t, name: str) -> None:
     lib.pn_connection_set_container(connection, string2utf8(name))
 
 
-def pn_connection_get_hostname(connection):
+def pn_connection_get_hostname(connection: lib.pn_connection_t) -> Optional[str]:
     return utf82string(lib.pn_connection_get_hostname(connection))
 
 
-def pn_connection_set_hostname(connection, name):
+def pn_connection_set_hostname(connection: lib.pn_connection_t, name: str) -> None:
     lib.pn_connection_set_hostname(connection, string2utf8(name))
 
 
-def pn_connection_get_user(connection):
+def pn_connection_get_user(connection: lib.pn_connection_t) -> Optional[str]:
     return utf82string(lib.pn_connection_get_user(connection))
 
 
-def pn_connection_set_user(connection, name):
+def pn_connection_set_user(connection: lib.pn_connection_t, name: str):
     lib.pn_connection_set_user(connection, string2utf8(name))
 
 
-def pn_connection_get_authorization(connection):
+def pn_connection_get_authorization(connection: lib.pn_connection_t) -> Optional[str]:
     return utf82string(lib.pn_connection_get_authorization(connection))
 
 
-def pn_connection_set_authorization(connection, name):
+def pn_connection_set_authorization(connection: lib.pn_connection_t, name: str) -> None:
     lib.pn_connection_set_authorization(connection, string2utf8(name))
 
 
-def pn_connection_set_password(connection, name):
+def pn_connection_set_password(connection: lib.pn_connection_t, name: str) -> None:
     lib.pn_connection_set_password(connection, string2utf8(name))
 
 
-def pn_connection_remote_container(connection):
+def pn_connection_remote_container(connection: lib.pn_connection_t) -> Optional[str]:
     return utf82string(lib.pn_connection_remote_container(connection))
 
 
-def pn_connection_remote_hostname(connection):
+def pn_connection_remote_hostname(connection: lib.pn_connection_t) -> Optional[str]:
     return utf82string(lib.pn_connection_remote_hostname(connection))
 
 
-def pn_sender(session, name):
+def pn_sender(session: lib.pn_session_t, name: str) -> lib.pn_link_t:
     return lib.pn_sender(session, string2utf8(name))
 
 
-def pn_receiver(session, name):
+def pn_receiver(session: lib.pn_session_t, name: str) -> lib.pn_link_t:
     return lib.pn_receiver(session, string2utf8(name))
 
 
-def pn_delivery(link, tag):
+def pn_delivery(link: lib.pn_link_t, tag: bytes):
     return lib.pn_delivery(link, py2bytes(tag))
 
 
-def pn_link_name(link):
+def pn_link_name(link: lib.pn_link_t) -> Optional[str]:
     return utf82string(lib.pn_link_name(link))
 
 
-def pn_terminus_get_address(terminus):
+def pn_terminus_get_address(terminus: lib.pn_terminus_t) -> Optional[str]:
     return utf82string(lib.pn_terminus_get_address(terminus))
 
 
-def pn_terminus_set_address(terminus, address):
+def pn_terminus_set_address(terminus: lib.pn_terminus_t, address: str) -> int:
     return lib.pn_terminus_set_address(terminus, string2utf8(address))
 
 
@@ -592,123 +592,123 @@ def pn_event_type_name(number: lib.pn_event_type_t | int) -> str:
     return utf82string(lib.pn_event_type_name(number)) # type: ignore[assignment]
 
 
-def pn_message_get_id(message):
+def pn_message_get_id(message: lib.pn_message_t) -> int | str | bytes | UUID | None:
     return msgid2py(lib.pn_message_get_id(message))
 
 
-def pn_message_set_id(message, value):
+def pn_message_set_id(message: lib.pn_message_t, value: int | str | bytes | UUID | None) -> None:
     lib.pn_message_set_id(message, py2msgid(value))
 
 
-def pn_message_get_user_id(message):
+def pn_message_get_user_id(message: lib.pn_message_t) -> bytes:
     return bytes2pybytes(lib.pn_message_get_user_id(message))
 
 
-def pn_message_set_user_id(message, value):
+def pn_message_set_user_id(message: lib.pn_message_t, value: bytes) -> int:
     return lib.pn_message_set_user_id(message, py2bytes(value))
 
 
-def pn_message_get_address(message):
+def pn_message_get_address(message: lib.pn_message_t) -> Optional[str]:
     return utf82string(lib.pn_message_get_address(message))
 
 
-def pn_message_set_address(message, value):
+def pn_message_set_address(message: lib.pn_message_t, value: str) -> int:
     return lib.pn_message_set_address(message, string2utf8(value))
 
 
-def pn_message_get_subject(message):
+def pn_message_get_subject(message: lib.pn_message_t) -> Optional[str]:
     return utf82string(lib.pn_message_get_subject(message))
 
 
-def pn_message_set_subject(message, value):
+def pn_message_set_subject(message: lib.pn_message_t, value:str) -> int:
     return lib.pn_message_set_subject(message, string2utf8(value))
 
 
-def pn_message_get_reply_to(message):
+def pn_message_get_reply_to(message: lib.pn_message_t) -> Optional[str]:
     return utf82string(lib.pn_message_get_reply_to(message))
 
 
-def pn_message_set_reply_to(message, value):
+def pn_message_set_reply_to(message: lib.pn_message_t, value: str) -> int:
     return lib.pn_message_set_reply_to(message, string2utf8(value))
 
 
-def pn_message_get_correlation_id(message):
+def pn_message_get_correlation_id(message: lib.pn_message_t) -> int | str | bytes | UUID | None:
     return msgid2py(lib.pn_message_get_correlation_id(message))
 
 
-def pn_message_set_correlation_id(message, value):
+def pn_message_set_correlation_id(message: lib.pn_message_t, value: int | str | bytes | UUID | None) -> None:
     lib.pn_message_set_correlation_id(message, py2msgid(value))
 
 
-def pn_message_get_content_type(message):
+def pn_message_get_content_type(message: lib.pn_message_t) -> Optional[str]:
     return utf82string(lib.pn_message_get_content_type(message))
 
 
-def pn_message_set_content_type(message, value):
+def pn_message_set_content_type(message: lib.pn_message_t, value: str) -> int:
     return lib.pn_message_set_content_type(message, string2utf8(value))
 
 
-def pn_message_get_content_encoding(message):
+def pn_message_get_content_encoding(message: lib.pn_message_t) -> Optional[str]:
     return utf82string(lib.pn_message_get_content_encoding(message))
 
 
-def pn_message_set_content_encoding(message, value):
+def pn_message_set_content_encoding(message: lib.pn_message_t, value: str) -> int:
     return lib.pn_message_set_content_encoding(message, string2utf8(value))
 
 
-def pn_message_get_group_id(message):
+def pn_message_get_group_id(message: lib.pn_message_t) -> Optional[str]:
     return utf82string(lib.pn_message_get_group_id(message))
 
 
-def pn_message_set_group_id(message, value):
+def pn_message_set_group_id(message: lib.pn_message_t, value) -> int:
     return lib.pn_message_set_group_id(message, string2utf8(value))
 
 
-def pn_message_get_reply_to_group_id(message):
+def pn_message_get_reply_to_group_id(message: lib.pn_message_t) -> Optional[str]:
     return utf82string(lib.pn_message_get_reply_to_group_id(message))
 
 
-def pn_message_set_reply_to_group_id(message, value):
+def pn_message_set_reply_to_group_id(message: lib.pn_message_t, value: str) -> int:
     return lib.pn_message_set_reply_to_group_id(message, string2utf8(value))
 
 
-def pn_transport_log(transport, message):
+def pn_transport_log(transport: lib.pn_transport_t, message: str) -> None:
     lib.pn_transport_log(transport, string2utf8(message))
 
 
-def pn_transport_get_user(transport):
+def pn_transport_get_user(transport: lib.pn_transport_t) -> Optional[str]:
     return utf82string(lib.pn_transport_get_user(transport))
 
 
-def pn_sasl_get_user(sasl):
+def pn_sasl_get_user(sasl: lib.pn_sasl_t) -> Optional[str]:
     return utf82string(lib.pn_sasl_get_user(sasl))
 
 
-def pn_sasl_get_authorization(sasl):
+def pn_sasl_get_authorization(sasl: lib.pn_sasl_t) -> Optional[str]:
     return utf82string(lib.pn_sasl_get_authorization(sasl))
 
 
-def pn_sasl_get_mech(sasl):
+def pn_sasl_get_mech(sasl: lib.pn_sasl_t) -> Optional[str]:
     return utf82string(lib.pn_sasl_get_mech(sasl))
 
 
-def pn_sasl_allowed_mechs(sasl, mechs):
+def pn_sasl_allowed_mechs(sasl: lib.pn_sasl_t, mechs: str) -> None:
     lib.pn_sasl_allowed_mechs(sasl, string2utf8(mechs))
 
 
-def pn_sasl_config_name(sasl, name):
+def pn_sasl_config_name(sasl: lib.pn_sasl_t, name: str) -> None:
     lib.pn_sasl_config_name(sasl, string2utf8(name))
 
 
-def pn_sasl_config_path(sasl, path):
+def pn_sasl_config_path(sasl: lib.pn_sasl_t, path: str) -> None:
     lib.pn_sasl_config_path(sasl, string2utf8(path))
 
 
-def pn_ssl_domain_set_credentials(domain, cert_file, key_file, password):
+def pn_ssl_domain_set_credentials(domain: lib.pn_ssl_domain_t, cert_file: str, key_file: str, password: str) -> int:
     return lib.pn_ssl_domain_set_credentials(domain, string2utf8(cert_file), string2utf8(key_file), string2utf8(password))
 
 
-def pn_ssl_domain_set_trusted_ca_db(domain, certificate_db):
+def pn_ssl_domain_set_trusted_ca_db(domain: lib.pn_ssl_domain_t, certificate_db: str) -> int:
     return lib.pn_ssl_domain_set_trusted_ca_db(domain, string2utf8(certificate_db))
 
 
