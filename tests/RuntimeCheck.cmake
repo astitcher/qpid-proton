@@ -44,7 +44,7 @@ if((CMAKE_C_COMPILER_ID MATCHES "GNU"
 endif()
 
 # Valid values for RUNTIME_CHECK
-set(runtime_checks OFF asan tsan memcheck helgrind)
+set(runtime_checks OFF asan tsan fuzzer memcheck helgrind)
 
 # Set the default
 if(NOT CMAKE_BUILD_TYPE MATCHES "Coverage" AND VALGRIND_EXECUTABLE)
@@ -112,6 +112,11 @@ elseif(RUNTIME_CHECK STREQUAL "tsan")
   set(SANITIZE_FLAGS "-g -fno-omit-frame-pointer -fsanitize=thread")
   set(TEST_WRAP_PREFIX "${PROJECT_SOURCE_DIR}/tests/preload_tsan.sh $<TARGET_FILE:qpid-proton-core>")
   list(APPEND TEST_ENV "TSAN_OPTIONS=second_deadlock_stack=1 suppressions=${PROJECT_SOURCE_DIR}/tests/tsan.supp")
+
+elseif(RUNTIME_CHECK STREQUAL "fuzzer")
+  assert_has_sanitizers()
+  message(STATUS "Runtime fuzzer: gcc/clang fuzzer")
+  set(SANITIZE_FLAGS "-g -fno-omit-frame-pointer -fsanitize=fuzzer,address,undefined")
 
 elseif(RUNTIME_CHECK)
   message(FATAL_ERROR "'RUNTIME_CHECK=${RUNTIME_CHECK}' is invalid, valid values: ${runtime_checks}")

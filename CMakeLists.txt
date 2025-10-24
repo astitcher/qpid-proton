@@ -107,6 +107,8 @@ else (CMAKE_CONFIGURATION_TYPES)
   # See https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
   set (COVERAGE_COMPILE_FLAGS_GNU "-g -Og --coverage -fprofile-update=atomic")
   set (COVERAGE_LINK_FLAGS_GNU "--coverage")
+  set (COVERAGE_COMPILE_FLAGS_Clang "-g -Og --coverage -fprofile-update=atomic")
+  set (COVERAGE_LINK_FLAGS_Clang "--coverage")
 
   set (CMAKE_C_FLAGS_COVERAGE "${COVERAGE_COMPILE_FLAGS_${CMAKE_C_COMPILER_ID}}" CACHE STRING
        "Flags used by the C compiler during COVERAGE builds." FORCE)

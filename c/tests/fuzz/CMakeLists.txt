@@ -33,16 +33,15 @@ else()
   set(FUZZING_QPID_PROTON_PROACTOR_LIBRARY qpid-proton-proactor)
 endif()
 
-set(FUZZING_LIB_LibFuzzer FuzzingEngine)
+set(FUZZING_LIB_LibFuzzer -fsanitize=fuzzer)
 set(FUZZING_LIB_AFL -fsanitize=fuzzer)
 
 if (FUZZ_REGRESSION_TESTS)
+  add_library (StandaloneFuzzTargetMain STATIC StandaloneFuzzTargetMain.c StandaloneFuzzTargetInit.c)
   set(FUZZING_LIBRARY StandaloneFuzzTargetMain)
 else ()
   set(FUZZING_LIBRARY ${FUZZING_LIB_${FUZZER}})
 endif ()
-
-add_library (StandaloneFuzzTargetMain STATIC StandaloneFuzzTargetMain.c StandaloneFuzzTargetInit.c)
 
 macro (pn_add_fuzz_test test)
   add_executable (${test} ${ARGN})
