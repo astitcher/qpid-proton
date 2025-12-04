@@ -224,20 +224,26 @@ class CodecTest(Test):
         assert self.msg.subject == msg2.subject, (self.msg.subject, msg2.subject)
         assert self.msg.body == msg2.body, (self.msg.body, msg2.body)
 
+    def _skip_to_properties(self, data):
+        """Skip past any sections until we find PROPERTIES (descriptor 0x73).
+        HEADER (0x70) may or may not be present depending on whether it has non-default values."""
+        decoder = Data()
+        while data:
+            consumed = decoder.decode(data)
+            described = decoder.get_py_described()
+            if described.descriptor == 0x73:  # PROPERTIES
+                return described
+            decoder.clear()
+            data = data[consumed:]
+        return None
+
     def testExpiryEncodeAsNull(self):
         self.msg.group_id = "A"  # Force creation and expiry fields to be present
         data = self.msg.encode()
 
-        decoder = Data()
-
-        # Skip past the headers
-        consumed = decoder.decode(data)
-        decoder.clear()
-        data = data[consumed:]
-
-        decoder.decode(data)
-        dproperties = decoder.get_py_described()
+        dproperties = self._skip_to_properties(data)
         # Check we've got the correct described list
+        assert dproperties is not None, "PROPERTIES section not found"
         assert dproperties.descriptor == 0x73, (dproperties.descriptor)
 
         properties = dproperties.value
@@ -247,16 +253,9 @@ class CodecTest(Test):
         self.msg.group_id = "A"  # Force creation and expiry fields to be present
         data = self.msg.encode()
 
-        decoder = Data()
-
-        # Skip past the headers
-        consumed = decoder.decode(data)
-        decoder.clear()
-        data = data[consumed:]
-
-        decoder.decode(data)
-        dproperties = decoder.get_py_described()
+        dproperties = self._skip_to_properties(data)
         # Check we've got the correct described list
+        assert dproperties is not None, "PROPERTIES section not found"
         assert dproperties.descriptor == 0x73, (dproperties.descriptor)
 
         properties = dproperties.value
@@ -266,16 +265,9 @@ class CodecTest(Test):
         self.msg.reply_to_group_id = "R"  # Force group_id and group_sequence fields to be present
         data = self.msg.encode()
 
-        decoder = Data()
-
-        # Skip past the headers
-        consumed = decoder.decode(data)
-        decoder.clear()
-        data = data[consumed:]
-
-        decoder.decode(data)
-        dproperties = decoder.get_py_described()
+        dproperties = self._skip_to_properties(data)
         # Check we've got the correct described list
+        assert dproperties is not None, "PROPERTIES section not found"
         assert dproperties.descriptor == 0x73, (dproperties.descriptor)
 
         properties = dproperties.value
@@ -287,16 +279,9 @@ class CodecTest(Test):
         self.msg.reply_to_group_id = "R"  # Force group_id and group_sequence fields to be present
         data = self.msg.encode()
 
-        decoder = Data()
-
-        # Skip past the headers
-        consumed = decoder.decode(data)
-        decoder.clear()
-        data = data[consumed:]
-
-        decoder.decode(data)
-        dproperties = decoder.get_py_described()
+        dproperties = self._skip_to_properties(data)
         # Check we've got the correct described list
+        assert dproperties is not None, "PROPERTIES section not found"
         assert dproperties.descriptor == 0x73, (dproperties.descriptor)
 
         properties = dproperties.value
