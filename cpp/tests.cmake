@@ -101,6 +101,9 @@ target_link_libraries(cpp-test qpid-proton-cpp ${PLATFORM_LIBS})
 # tests that require access to pn_ functions in qpid-proton-core
 add_executable(cpp-core-test src/cpp-test.cpp src/object_test.cpp)
 target_link_libraries(cpp-core-test qpid-proton-cpp qpid-proton-core ${PLATFORM_LIBS})
+# Separate test executable for TestBroker (basic and transaction tests)
+add_executable(cpp-test-broker-test src/cpp-test.cpp src/test_broker_test.cpp src/test_broker.cpp)
+target_link_libraries(cpp-test-broker-test qpid-proton-cpp qpid-proton-core ${PLATFORM_LIBS})
 
 macro(add_catch_test tag)
   pn_add_test(
