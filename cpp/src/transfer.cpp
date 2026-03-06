@@ -19,10 +19,9 @@
  *
  */
 
-#include "proton/delivery.hpp"
+#include "proton/transfer.hpp"
 
 #include "proton/connection.hpp"
-#include "proton/link.hpp"
 #include "proton/session.hpp"
 
 #include <proton/delivery.h>
@@ -58,6 +57,14 @@ void transfer::user_data(void* user_data) const {
 void* transfer::user_data() const {
     transfer_context& cc = transfer_context::get(pn_object());
     return cc.user_data_;
+}
+
+transfer_iterator transfer_iterator::operator++() {
+    if (!!obj_) {
+        pn_delivery_t* next = pn_unsettled_next(unwrap(obj_));
+        obj_ = make_wrapper<transfer>(next);
+    }
+    return *this;
 }
 
 }

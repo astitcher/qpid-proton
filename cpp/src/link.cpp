@@ -19,19 +19,16 @@
  *
  */
 
-#include "proton_bits.hpp"
-
 #include "proton/codec/map.hpp"
 #include "proton/link.hpp"
-#include "proton/error.hpp"
 #include "proton/connection.hpp"
+#include "proton/transfer.hpp"
 
 #include <proton/connection.h>
 #include <proton/session.h>
 #include <proton/link.h>
 
 #include "contexts.hpp"
-#include "msg.hpp"
 #include "proton_bits.hpp"
 
 namespace proton {
@@ -106,6 +103,11 @@ void* link::user_data() const {
     pn_link_t* lnk = pn_object();
     link_context& lctx = link_context::get(lnk);
     return lctx.user_data_;
+}
+
+transfer_range link::unsettled_transfers() const {
+    pn_delivery_t* d = pn_unsettled_head(pn_object());
+    return transfer_range(transfer_iterator(make_wrapper<transfer>(d)));
 }
 
 }

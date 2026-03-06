@@ -26,6 +26,7 @@
 #include "./internal/export.hpp"
 #include "./endpoint.hpp"
 #include "./internal/object.hpp"
+#include "./transfer.hpp"
 
 #include <map>
 #include <string>
@@ -99,6 +100,10 @@ PN_CPP_CLASS_EXTERN link : public internal::object<pn_link_t> , public endpoint 
 
     /// Get user data from this link.
     PN_CPP_EXTERN void* user_data() const;
+
+    /// **Unsettled API** - Get a range of unsettled transfers on this link.
+    /// Settled deliveries are not included.
+    PN_CPP_EXTERN transfer_range unsettled_transfers() const;
 
   protected:
     /// @cond INTERNAL

@@ -22,6 +22,7 @@
  *
  */
 
+#include "./endpoint.hpp"
 #include "./fwd.hpp"
 #include "./internal/export.hpp"
 #include "./internal/object.hpp"
@@ -92,6 +93,27 @@ class transfer : public internal::object<pn_delivery_t> {
 PN_CPP_EXTERN std::string to_string(enum transfer::state);
 /// Human-readalbe name of the transfer::state
 PN_CPP_EXTERN std::ostream& operator<<(std::ostream&, const enum transfer::state);
+
+/// @cond INTERNAL
+
+/// An iterator of unsettled transfers on a link.
+class transfer_iterator : public internal::iter_base<transfer, transfer_iterator> {
+  transfer_iterator(transfer t) :
+      internal::iter_base<transfer, transfer_iterator>(t) {}
+
+public:
+  explicit transfer_iterator() :
+      internal::iter_base<transfer, transfer_iterator>(transfer()) {}
+  /// Advance to the next unsettled transfer.
+  PN_CPP_EXTERN transfer_iterator operator++();
+
+  friend class link;
+};
+
+/// A range of unsettled transfers.
+typedef internal::iter_range<transfer_iterator> transfer_range;
+
+/// @endcond
 
 } // proton
 

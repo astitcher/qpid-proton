@@ -87,13 +87,13 @@ PN_CPP_CLASS_EXTERN sender : public link {
 
 /// An iterator of senders.
 class sender_iterator : public internal::iter_base<sender, sender_iterator> {
-    sender_iterator(sender snd, pn_session_t* s = 0) :
+    sender_iterator(sender snd, pn_session_t* s = nullptr) :
         internal::iter_base<sender, sender_iterator>(snd), session_(s) {}
 
   public:
     /// Create an iterator of senders.
-    sender_iterator() :
-        internal::iter_base<sender, sender_iterator>(0), session_(0) {}
+    explicit sender_iterator() :
+        internal::iter_base<sender, sender_iterator>(nullptr), session_(nullptr) {}
     /// Advance to the next sender.
     PN_CPP_EXTERN sender_iterator operator++();
 
