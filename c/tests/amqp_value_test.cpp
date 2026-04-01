@@ -27,6 +27,17 @@
 
 using namespace pn_test;
 
+namespace {
+
+/// Layout-compatible with pn_amqp_value_t; same as existing uses of pn_atom_t in varargs.
+inline pn_amqp_value_t amqp(pn_atom_t a) {
+  pn_amqp_value_t v;
+  std::memcpy(&v, &a, sizeof(v));
+  return v;
+}
+
+} // namespace
+
 using std::string;
 using Catch::Matchers::Equals;
 using Catch::Matchers::StartsWith;
@@ -354,4 +365,119 @@ TEST_CASE("Symbol_arrays") {
   );
 
   pn_amqp_array_free(symbols);
+}
+
+TEST_CASE("amqp_map_build") {
+  pn_amqp_list_t *inner =
+      pn_amqp_list_build(nullptr, pn_atom(false), pn_atom_invalid());
+  pn_amqp_map_t *map = pn_amqp_map_build(
+      nullptr,
+      amqp("flag"_a_sym), amqp(pn_atom(true)),
+      amqp("sub"_a_sym), amqp(pn_atom(inner)),
+      amqp(pn_atom_invalid()));
+  pn_amqp_list_free(inner);
+
+  CHECK(map);
+  CHECK(
+      to_string(pn_amqp_map_bytes(map)) ==
+      R"({:flag=true, :sub=[false]})");
+
+  pn_amqp_value_t key{};
+  pn_amqp_value_t value{};
+  auto i = pn_amqp_map_iterator(map);
+  CHECK(pn_amqp_map_next(&i, &key, &value));
+  CHECK(key.value_type == PN_SYMBOL);
+  CHECK(key.u.as_bytes == "flag"_b);
+  CHECK(value.value_type == PN_BOOL);
+  CHECK(value.u.as_bool);
+  CHECK(pn_amqp_map_next(&i, &key, &value));
+  CHECK(key.value_type == PN_SYMBOL);
+  CHECK(key.u.as_bytes == "sub"_b);
+  CHECK(value.value_type == PN_LIST);
+  CHECK_FALSE(pn_amqp_map_next(&i, &key, &value));
+
+  pn_amqp_map_free(map);
+}
+
+TEST_CASE("amqp_null_iterators") {
+  pn_amqp_value_t v{};
+  pn_amqp_value_t k{}, val{};
+  pn_bytes_t sym{};
+  pn_bytes_t pkey{};
+
+  auto li = pn_amqp_list_iterator(nullptr);
+  CHECK_FALSE(pn_amqp_list_next(&li, &v));
+
+  auto mi = pn_amqp_map_iterator(nullptr);
+  CHECK_FALSE(pn_amqp_map_next(&mi, &k, &val));
+
+  auto pi = pn_amqp_map_iterator(nullptr);
+  CHECK_FALSE(pn_message_properties_next(&pi, &pkey, &v));
+
+  auto fi = pn_amqp_map_iterator(nullptr);
+  CHECK_FALSE(pn_amqp_fields_next(&fi, &pkey, &v));
+
+  auto ai = pn_amqp_array_iterator(nullptr);
+  CHECK_FALSE(pn_amqp_symbol_array_next(&ai, &sym));
+}
+
+TEST_CASE("symbol_array_extras") {
+  CHECK(pn_amqp_symbol_array_buildn(0, nullptr) == nullptr);
+
+  pn_amqp_array_t *symbols =
+      pn_amqp_symbol_array_build(nullptr, "n"_b, "m"_b, pn_bytes_null);
+  CHECK(pn_amqp_array_count(symbols) == 2);
+  CHECK(
+      to_string(pn_amqp_array_bytes(symbols)) ==
+      R"(@<symbol>[:n, :m])");
+  pn_amqp_array_free(symbols);
+}
+
+TEST_CASE("amqp_value_bytes_and_tostring") {
+  pn_amqp_list_t *empty_inner =
+      pn_amqp_list_build(nullptr, pn_atom_invalid());
+  pn_amqp_list_t *outer =
+      pn_amqp_list_build(nullptr, pn_atom(empty_inner), pn_atom_invalid());
+  pn_amqp_list_free(empty_inner);
+
+  auto i = pn_amqp_list_iterator(outer);
+  pn_amqp_value_t v{};
+  CHECK(pn_amqp_list_next(&i, &v));
+  CHECK(v.value_type == PN_LIST);
+  pn_bytes_t raw = pn_amqp_value_bytes(&v);
+  CHECK(raw.size > 0);
+
+  char *s = pn_amqp_value_tostring(&v);
+  CHECK(s != nullptr);
+  CHECK(string(s) == R"([])");
+  free(s);
+
+  pn_amqp_list_free(outer);
+}
+
+TEST_CASE("amqp_fields_nested_map_value") {
+  pn_amqp_map_t *inner = pn_amqp_map_build(
+      nullptr,
+      amqp("k"_a_sym), amqp("inner-val"_a),
+      amqp(pn_atom_invalid()));
+
+  pn_amqp_map_t *fields = pn_amqp_fields_build(
+      nullptr,
+      "wrap"_b, amqp(pn_atom(inner)),
+      pn_bytes_null);
+  pn_amqp_map_free(inner);
+
+  CHECK(
+      to_string(pn_amqp_map_bytes(fields)) ==
+      R"({:wrap={:k="inner-val"}})");
+
+  pn_bytes_t key{};
+  pn_amqp_value_t val{};
+  auto it = pn_amqp_map_iterator(fields);
+  CHECK(pn_amqp_fields_next(&it, &key, &val));
+  CHECK(key == "wrap"_b);
+  CHECK(val.value_type == PN_MAP);
+  CHECK_FALSE(pn_amqp_fields_next(&it, &key, &val));
+
+  pn_amqp_map_free(fields);
 }
