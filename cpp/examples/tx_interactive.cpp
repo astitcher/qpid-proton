@@ -40,17 +40,19 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <cctype>
 #include <cstddef>
 #include <exception>
 #include <iostream>
 #include <mutex>
-#include <sstream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
 
 #if defined(_WIN32) || defined(_WIN64)
+#  define NOMINMAX
 #  include <windows.h>
 #else
 #  include <csignal>
@@ -61,13 +63,14 @@ constexpr std::string_view NO_TO_ADDRESS = "<none>";
 
 // Interactive tester for AMQP transactions: declare/commit/abort transactions, receive
 // messages (with optional timeout), send to the default or a given queue (or omit 'to'
-// for rejection testing), wait for disposition updates, and release unsettled. Type
-// 'help' for commands. Received messages are accepted on receipt.
+// for rejection testing), wait for declare completion or disposition updates, and
+// accept/reject/modify/release unsettled. Type 'help' for commands. Received messages
+// are accepted on receipt.
 
 class tx_recv_interactive : public proton::messaging_handler {
   private:
-    std::string conn_url_;
-    std::string addr_;
+    std::string connection_url_;
+    std::string receiver_addr_;
 
     proton::connection connection_;
     proton::receiver receiver_;
@@ -75,23 +78,27 @@ class tx_recv_interactive : public proton::messaging_handler {
     proton::session session_;
     proton::work_queue* work_queue_ = nullptr;
 
-    int send_pending_ = 0;
-    int send_next_id_ = 0;
-    std::string send_to_addr_;
-
     mutable std::mutex wait_mutex_;
     std::condition_variable wait_cv_;
-    bool ready_ = false;
-    bool sleep_done_ = true;
-    bool timed_out_ = false;
+    std::string last_error_;
+    std::string send_to_addr_;
+    int send_pending_ = 0;
+    int send_next_id_ = 0;
     int fetch_expected_ = 0;
     int fetch_received_ = 0;
-    bool fetch_done_ = false;
     int settled_expected_ = 0;
     int settled_received_ = 0;
-    bool settled_done_ = false;
+    bool session_ready_ = false;
+    bool sleep_done_ = true;
+    bool timed_out_ = false;
     bool interrupt_requested_ = false;
-    std::string last_error_;
+    bool fetch_done_ = false;
+    bool settled_done_ = false;
+    bool declared_done_ = false;
+
+    std::mutex sync_mutex_;
+    std::condition_variable sync_cv_;
+    bool sync_done_ = false;
 
     /// Run f() in a try block; on error, record the message for later reporting.
     template <typename F>
@@ -104,17 +111,19 @@ class tx_recv_interactive : public proton::messaging_handler {
         }
     }
 
-    std::mutex sync_mutex_;
-    std::condition_variable sync_cv_;
-    bool sync_done_ = false;
-
-    void timeout_fired() {
+    void do_timeout() {
         auto l = std::lock_guard(wait_mutex_);
         timed_out_ = true;
         wait_cv_.notify_all();
     }
 
+    // session_.transaction_declare() is only valid when no transaction is already open on this
+    // session; the next declare must follow commit or abort (discharge) of the previous one.
     void do_declare() {
+        {
+            auto l = std::lock_guard(wait_mutex_);
+            declared_done_ = false;
+        }
         catch_any_error([this]() { session_.transaction_declare(); });
     }
 
@@ -138,23 +147,51 @@ class tx_recv_interactive : public proton::messaging_handler {
         }
     }
 
+    void do_accept() {
+        for (auto rcv : session_.receivers()) {
+            for (auto d : rcv.unsettled_deliveries()) {
+                d.accept();
+            }
+        }
+    }
+
+    void do_reject() {
+        for (auto rcv : session_.receivers()) {
+            for (auto d : rcv.unsettled_deliveries()) {
+                d.reject();
+            }
+        }
+    }
+
+    void do_modify() {
+        for (auto rcv : session_.receivers()) {
+            for (auto d : rcv.unsettled_deliveries()) {
+                d.modify();
+            }
+        }
+    }
+
     void do_quit() {
         connection_.close();
     }
 
+    void do_send() {
+        try_send();
+    }
+
   public:
     tx_recv_interactive(const std::string& url, const std::string& addr)
-        : conn_url_(url), addr_(addr) {}
+        : connection_url_(url), receiver_addr_(addr) {}
 
     void on_container_start(proton::container& c) override {
-        c.connect(conn_url_);
+        c.connect(connection_url_);
     }
 
     void on_connection_open(proton::connection& conn) override {
         connection_ = conn;
         work_queue_ = &conn.work_queue();
-        // credit_window(0) so we control flow via "fetch"
-        receiver_ = conn.open_receiver(addr_, proton::receiver_options().credit_window(0));
+        // credit_window(0) so we control flow via "fetch", explicit acknowledgement
+        receiver_ = conn.open_receiver(receiver_addr_, proton::receiver_options().credit_window(0).auto_accept(false));
         sender_ = conn.open_sender("", proton::sender_options{}.target(proton::target_options{}.anonymous(true)));
     }
 
@@ -166,13 +203,18 @@ class tx_recv_interactive : public proton::messaging_handler {
         session_ = s;
         {
             auto l = std::lock_guard(wait_mutex_);
-            ready_ = true;
+            session_ready_ = true;
         }
         wait_cv_.notify_all();
     }
 
     void on_session_transaction_declared(proton::session& s) override {
         std::cout << "transaction declared: " << s.transaction_id() << std::endl;
+        {
+            auto l = std::lock_guard(wait_mutex_);
+            declared_done_ = true;
+        }
+        wait_cv_.notify_all();
     }
 
     void on_session_transaction_committed(proton::session& s) override {
@@ -185,6 +227,11 @@ class tx_recv_interactive : public proton::messaging_handler {
 
     void on_session_transaction_error(proton::session& s) override {
         std::cout << "transaction error: " << s.transaction_error().what() << std::endl;
+        {
+            auto l = std::lock_guard(wait_mutex_);
+            declared_done_ = true;
+        }
+        wait_cv_.notify_all();
     }
 
     void on_sendable(proton::sender&) override {
@@ -221,7 +268,6 @@ class tx_recv_interactive : public proton::messaging_handler {
 
     void on_message(proton::delivery& d, proton::message& msg) override {
         std::cout << d.tag() << ": " << msg.body() << std::endl;
-        d.accept();
         {
             auto l = std::lock_guard(wait_mutex_);
             if (fetch_expected_ > 0) {
@@ -278,7 +324,7 @@ class tx_recv_interactive : public proton::messaging_handler {
     }
 
     void on_tracker_settle(proton::tracker& t) override {
-        std::cout << "disposition: settled: " << t.tag() << std::endl;
+        std::cout << "disposition: settled: " << t.tag() << ": " << t.state() << std::endl;
     }
 
     void on_session_error(proton::session& s) override {
@@ -315,7 +361,7 @@ class tx_recv_interactive : public proton::messaging_handler {
     void wait_ready() {
         auto l = std::unique_lock(wait_mutex_);
         interrupt_requested_ = false;
-        wait_cv_.wait(l, [this] { return ready_ || interrupt_requested_; });
+        wait_cv_.wait(l, [this] { return session_ready_ || interrupt_requested_; });
     }
 
     /// Wait until the connection thread has processed all work queued so far.
@@ -375,7 +421,7 @@ class tx_recv_interactive : public proton::messaging_handler {
         work_queue_->add([this, n]() { do_fetch(n); });
         if (timeout_seconds > 0) {
             auto ms = static_cast<proton::duration::numeric_type>(timeout_seconds * 1000);
-            work_queue_->schedule(proton::duration(ms), [this]() { timeout_fired(); });
+            work_queue_->schedule(proton::duration(ms), [this]() { do_timeout(); });
         }
         l.lock();
         wait_cv_.wait(l, [this] { return fetch_done_ || timed_out_ || interrupt_requested_; });
@@ -420,7 +466,7 @@ class tx_recv_interactive : public proton::messaging_handler {
             return;
         if (timeout_seconds > 0) {
             auto ms = static_cast<proton::duration::numeric_type>(timeout_seconds * 1000);
-            work_queue_->schedule(proton::duration(ms), [this]() { timeout_fired(); });
+            work_queue_->schedule(proton::duration(ms), [this]() { do_timeout(); });
         }
         l.lock();
         wait_cv_.wait(l, [this] { return settled_done_ || timed_out_ || interrupt_requested_; });
@@ -431,7 +477,28 @@ class tx_recv_interactive : public proton::messaging_handler {
         return settled_received_;
     }
 
-    // Thread-safe: schedule work on the container thread
+    /// Wait until a declare result (on_session_transaction_declared or
+    /// on_session_transaction_error) for the last do_declare() (only one in-flight is legal
+    /// until commit/abort), or timeout_seconds (0 = none), or SIGINT.
+    void wait_declared(double timeout_seconds) {
+        auto l = std::unique_lock(wait_mutex_);
+        interrupt_requested_ = false;
+        timed_out_ = false;
+        if (declared_done_) {
+            declared_done_ = false;
+            return;
+        }
+        l.unlock();
+        if (timeout_seconds > 0) {
+            auto ms = static_cast<proton::duration::numeric_type>(timeout_seconds * 1000);
+            work_queue_->schedule(proton::duration(ms), [this]() { do_timeout(); });
+        }
+        l.lock();
+        wait_cv_.wait(l, [this] { return declared_done_ || timed_out_ || interrupt_requested_; });
+        declared_done_ = false;
+    }
+
+    // Thread-safe: schedule on the connection thread; latch is reset in do_declare.
     void declare() {
         work_queue_->add([this]() { do_declare(); });
     }
@@ -444,17 +511,26 @@ class tx_recv_interactive : public proton::messaging_handler {
     void release() {
         work_queue_->add([this]() { do_release(); });
     }
+    void accept() {
+        work_queue_->add([this]() { do_accept(); });
+    }
+    void reject() {
+        work_queue_->add([this]() { do_reject(); });
+    }
+    void modify() {
+        work_queue_->add([this]() { do_modify(); });
+    }
     void send(int n, const std::string& to_addr) {
         auto l = std::unique_lock(wait_mutex_);
         interrupt_requested_ = false;
         send_pending_ = n;
-        send_to_addr_ = to_addr.empty() ? addr_ : to_addr;
+        send_to_addr_ = to_addr.empty() ? receiver_addr_ : to_addr;
         l.unlock();
-        work_queue_->add([this]() { try_send(); });
+        work_queue_->add([this]() { do_send(); });
         l.lock();
         wait_cv_.wait(l, [this] { return send_pending_ == 0 || interrupt_requested_; });
     }
-    void list_unsettled() {
+    void unsettled() {
         auto count = std::size_t(0);
         for (auto rcv : session_.receivers()) {
             for (auto d : rcv.unsettled_deliveries()) {
@@ -474,117 +550,133 @@ class tx_recv_interactive : public proton::messaging_handler {
     }
 };
 
-using command_fn = bool (*)(tx_recv_interactive& recv, const std::vector<std::string>& args);
+using command_fn = bool (*)(tx_recv_interactive& recv, const std::vector<std::string_view>& args);
 
-static bool cmd_declare(tx_recv_interactive& recv, const std::vector<std::string>&) {
+static std::optional<int> parse_int(std::string_view s) noexcept {
+    try {
+        return std::stoi(std::string(s));
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+static std::optional<double> parse_double(std::string_view s) noexcept {
+    try {
+        return std::stod(std::string(s));
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+static std::optional<std::string_view> arg(const std::vector<std::string_view>& a, size_t i) {
+    if (i >= a.size()) return std::nullopt;
+    return std::string_view(a[i]);
+}
+static bool expect_int(
+    const char* cmd, const char* name, std::optional<std::string_view> text, int& out, int if_absent, int at_least) {
+    if (!text) {
+        out = if_absent;
+        return true;
+    }
+    if (auto n = parse_int(*text)) {
+        out = std::max(at_least, *n);
+        return true;
+    }
+    std::cout << cmd << ": invalid " << name << " '" << *text << "'" << std::endl;
+    return false;
+}
+static bool expect_nonneg_double(
+    const char* cmd, const char* name, std::optional<std::string_view> text, double& out, double if_absent) {
+    if (!text) {
+        out = if_absent;
+        return true;
+    }
+    if (auto x = parse_double(*text)) {
+        out = std::max(0.0, *x);
+        return true;
+    }
+    std::cout << cmd << ": invalid " << name << " '" << *text << "'" << std::endl;
+    return false;
+}
+
+static bool cmd_abort(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
+    recv.abort();
+    return false;
+}
+static bool cmd_accept(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
+    recv.accept();
+    return false;
+}
+static bool cmd_commit(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
+    recv.commit();
+    return false;
+}
+static bool cmd_declare(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
     recv.declare();
     return false;
 }
-static bool cmd_fetch(tx_recv_interactive& recv, const std::vector<std::string>& args) {
-    auto n = 1;
-    auto timeout_seconds = 0.0;
-    if (!args.empty()) {
-        try {
-            n = std::stoi(args[0]);
-            if (n < 1) n = 1;
-        } catch (...) {
-            std::cout << "fetch: expected positive number, got '" << args[0] << "'" << std::endl;
-            return false;
-        }
-    }
-    if (args.size() >= 2) {
-        try {
-            timeout_seconds = std::stof(args[1]);
-            if (timeout_seconds < 0) timeout_seconds = 0;
-        } catch (...) {
-            std::cout << "fetch: expected timeout in seconds, got '" << args[1] << "'" << std::endl;
-            return false;
-        }
-    }
+static bool cmd_fetch(tx_recv_interactive& recv, const std::vector<std::string_view>& args) {
+    int n = 0;
+    double timeout_seconds = 0.0;
+    if (!expect_int("fetch", "message count (positive integer)", arg(args, 0), n, 1, 1)) return false;
+    if (!expect_nonneg_double("fetch", "timeout in seconds (non-negative)", arg(args, 1), timeout_seconds, 0.0)) return false;
     recv.fetch(n, timeout_seconds);
     std::cout << "fetch: received " << recv.fetch_received_count() << " message(s)" << std::endl;
     return false;
 }
-static bool cmd_commit(tx_recv_interactive& recv, const std::vector<std::string>&) {
-    recv.commit();
+static bool cmd_modify(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
+    recv.modify();
     return false;
 }
-static bool cmd_abort(tx_recv_interactive& recv, const std::vector<std::string>&) {
-    recv.abort();
+static bool cmd_quit(tx_recv_interactive&, const std::vector<std::string_view>&) {
+    return true;
+}
+static bool cmd_reject(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
+    recv.reject();
     return false;
 }
-static bool cmd_unsettled(tx_recv_interactive& recv, const std::vector<std::string>&) {
-    recv.list_unsettled();
-    return false;
-}
-static bool cmd_release(tx_recv_interactive& recv, const std::vector<std::string>&) {
+static bool cmd_release(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
     recv.release();
     return false;
 }
-static bool cmd_send(tx_recv_interactive& recv, const std::vector<std::string>& args) {
-    auto n = 1;
-    auto to_addr = std::string();
-    if (!args.empty()) {
-        try {
-            n = std::stoi(args[0]);
-            if (n < 1) n = 1;
-        } catch (...) {
-            std::cout << "send: expected positive number, got '" << args[0] << "'" << std::endl;
-            return false;
-        }
-    }
-    if (args.size() >= 2)
-        to_addr = args[1];
+static bool cmd_send(tx_recv_interactive& recv, const std::vector<std::string_view>& args) {
+    int n = 0;
+    if (!expect_int("send", "message count (positive integer)", arg(args, 0), n, 1, 1)) return false;
+    std::string to_addr;
+    if (args.size() >= 2) to_addr = std::string{args[1]};
     recv.send(n, to_addr);
     std::cout << "send: sent " << n << " message(s) to " << (to_addr.empty() ? "(default address)" : to_addr) << std::endl;
     return false;
 }
-static bool cmd_wait_settled(tx_recv_interactive& recv, const std::vector<std::string>& args) {
-    auto n = 1;
-    auto timeout_seconds = 0.0;
-    if (!args.empty()) {
-        try {
-            n = std::stoi(args[0]);
-            if (n < 0) n = 0;
-        } catch (...) {
-            std::cout << "wait_settled: expected non-negative count, got '" << args[0] << "'" << std::endl;
-            return false;
-        }
+static bool cmd_sleep(tx_recv_interactive& recv, const std::vector<std::string_view>& args) {
+    if (args.empty()) {
+        std::cout << "sleep: need a duration in seconds" << std::endl;
+        return false;
     }
-    if (args.size() >= 2) {
-        try {
-            timeout_seconds = std::stof(args[1]);
-            if (timeout_seconds < 0) timeout_seconds = 0;
-        } catch (...) {
-            std::cout << "wait_settled: expected timeout in seconds, got '" << args[1] << "'" << std::endl;
-            return false;
-        }
-    }
+    double seconds = 0.0;
+    if (!expect_nonneg_double("sleep", "duration in seconds (non-negative)", arg(args, 0), seconds, 0.0)) return false;
+    recv.sleep(seconds);
+    return false;
+}
+static bool cmd_unsettled(tx_recv_interactive& recv, const std::vector<std::string_view>&) {
+    recv.unsettled();
+    return false;
+}
+static bool cmd_wait_declared(tx_recv_interactive& recv, const std::vector<std::string_view>& args) {
+    double timeout_seconds = 0.0;
+    if (!expect_nonneg_double("wait_declare", "timeout in seconds (non-negative)", arg(args, 0), timeout_seconds, 0.0)) return false;
+    recv.wait_declared(timeout_seconds);
+    return false;
+}
+static bool cmd_wait_settled(tx_recv_interactive& recv, const std::vector<std::string_view>& args) {
+    int n = 0;
+    double timeout_seconds = 0.0;
+    if (!expect_int("wait_settled", "settlement count (non-negative integer)", arg(args, 0), n, 1, 0)) return false;
+    if (!expect_nonneg_double("wait_settled", "timeout in seconds (non-negative)", arg(args, 1), timeout_seconds, 0.0)) return false;
     recv.wait_settled(n, timeout_seconds);
     std::cout << "wait_settled: " << recv.settled_received_count() << " settlement(s)" << std::endl;
     return false;
 }
-static bool cmd_sleep(tx_recv_interactive& recv, const std::vector<std::string>& args) {
-    if (args.empty()) {
-        std::cout << "sleep: expected duration in seconds (e.g. sleep 1.5)" << std::endl;
-        return false;
-    }
-    float seconds;
-    try {
-        seconds = std::stof(args[0]);
-        if (seconds < 0) seconds = 0;
-    } catch (...) {
-        std::cout << "sleep: expected number of seconds, got '" << args[0] << "'" << std::endl;
-        return false;
-    }
-    recv.sleep(static_cast<double>(seconds));
-    return false;
-}
-static bool cmd_quit(tx_recv_interactive&, const std::vector<std::string>&) {
-    return true;
-}
 
-static bool cmd_help(tx_recv_interactive&, const std::vector<std::string>&);
+static bool cmd_help(tx_recv_interactive&, const std::vector<std::string_view>&);
 
 struct command_entry {
     const char* name;
@@ -595,47 +687,59 @@ struct command_entry {
 // Lexicographically sorted by name for std::lower_bound lookup
 static constexpr command_entry COMMAND_TABLE[] = {
     {"abort", "Abort the current transaction", cmd_abort},
+    {"accept", "Accept all unsettled deliveries", cmd_accept},
     {"commit", "Commit the current transaction", cmd_commit},
-    {"declare", "Start a transaction", cmd_declare},
+    {"declare", "Start a transaction (not again until commit or abort)", cmd_declare},
     {"fetch", "Receive n messages (optional timeout in seconds)", cmd_fetch},
     {"help", "Show this list of commands", cmd_help},
+    {"modify", "Modify all unsettled deliveries", cmd_modify},
     {"quit", "Exit the program", cmd_quit},
+    {"reject", "Reject all unsettled deliveries", cmd_reject},
     {"release", "Release all unsettled deliveries", cmd_release},
     {"send", "Send n messages to queue (optional to address; use <none> to omit)", cmd_send},
     {"sleep", "Sleep for given seconds", cmd_sleep},
     {"unsettled", "List unsettled deliveries", cmd_unsettled},
+    {"wait_declared", "Wait for declare to complete (optional timeout in seconds)", cmd_wait_declared},
     {"wait_settled", "Wait for n disposition updates (optional timeout)", cmd_wait_settled},
 };
 static constexpr std::size_t COMMAND_TABLE_SIZE = sizeof(COMMAND_TABLE) / sizeof(COMMAND_TABLE[0]);
 
-static bool cmd_help(tx_recv_interactive&, const std::vector<std::string>&) {
+static bool cmd_help(tx_recv_interactive&, const std::vector<std::string_view>&) {
     for (std::size_t i = 0; i < COMMAND_TABLE_SIZE; ++i) {
         std::cout << "  " << COMMAND_TABLE[i].name << " - " << COMMAND_TABLE[i].description << "\n";
     }
     return false;
 }
 
-/// Split a string into words (by whitespace).
-static std::vector<std::string> split_args(const std::string& line) {
-    std::vector<std::string> out;
-    std::istringstream is(line);
-    for (std::string word; is >> word;) out.push_back(word);
+/// Whitespace-delimited words; each result is a view into the same buffer as `segment`.
+static std::vector<std::string_view> split_words(std::string_view segment) {
+    std::vector<std::string_view> out;
+    const char* const base = segment.data();
+    for (std::size_t i = 0; i < segment.size();) {
+        while (i < segment.size() && std::isspace(static_cast<unsigned char>(segment[i]))) ++i;
+        if (i >= segment.size()) break;
+        auto j = i;
+        while (j < segment.size() && !std::isspace(static_cast<unsigned char>(segment[j]))) ++j;
+        out.emplace_back(base + i, j - i);
+        i = j;
+    }
     return out;
 }
 
-/// Parsed command: first element is command name, remaining elements are arguments.
-using parsed_command = std::vector<std::string>;
-
-/// Parse a line into zero or more commands separated by ';'. Each segment is
-/// split into words (command name + args). Empty segments are skipped.
-/// Returns a sequence that can be iterated to run each command.
-static std::vector<parsed_command> parse_command_line(const std::string& line) {
-    std::vector<parsed_command> commands;
-    std::istringstream is(line);
-    for (std::string segment; std::getline(is, segment, ';');) {
-        auto args = split_args(segment);
-        if (!args.empty())
-            commands.push_back(std::move(args));
+/// Word-split command segments for each `;`-separated part. All returned `string_view`s refer
+/// to the same storage as `line` — it must not be invalidated until all uses of the return value
+/// (and of anything derived from it) are finished.
+static std::vector<std::vector<std::string_view>> parse_command_line(std::string_view line) {
+    std::vector<std::vector<std::string_view>> commands;
+    const auto n = line.size();
+    std::size_t seg_start = 0;
+    for (std::size_t pos = 0; pos <= n; ++pos) {
+        if (pos < n && line[pos] != ';') continue;
+        if (pos > seg_start) {
+            auto words = split_words(line.substr(seg_start, pos - seg_start));
+            if (!words.empty()) commands.push_back(std::move(words));
+        }
+        seg_start = pos + 1;
     }
     return commands;
 }
@@ -650,9 +754,40 @@ static const command_entry* find_command(std::string_view name) {
     return nullptr;
 }
 
-static bool execute_command(tx_recv_interactive& recv, const command_entry& cmd, const std::vector<std::string>& args) {
-    auto cmd_args = std::vector<std::string>(args.begin() + 1, args.end());
-    return cmd.fn(recv, cmd_args);
+static bool execute_command(
+    tx_recv_interactive& recv, const command_entry& cmd, const std::vector<std::string_view>& all_words) {
+    if (all_words.size() < 1) return false;
+    return cmd.fn(
+        recv, std::vector<std::string_view>(all_words.begin() + 1, all_words.end()));
+}
+
+/// Runs `;`-separated commands from `line`. `line` must stay valid for the call.
+/// Returns true if the command loop should exit.
+static bool run_command_line(tx_recv_interactive& recv, std::string_view line) {
+    const auto commands = parse_command_line(line);
+    for (const auto& all_words : commands) {
+        const auto* cmd = find_command(all_words[0]);
+        if (cmd) {
+            if (execute_command(recv, *cmd, all_words)) {
+                return true;
+            }
+            if (recv.interrupted()) {
+                std::cout << "[interrupted]" << std::endl;
+                recv.clear_interrupt();
+            }
+            if (recv.timed_out()) {
+                std::cout << "[timed out]" << std::endl;
+                recv.clear_timed_out();
+            }
+            recv.sync_with_connection_thread();
+            if (std::string err; recv.take_last_error(err)) {
+                std::cout << "[error: " << err << "]" << std::endl;
+            }
+        } else {
+            std::cout << "Unknown command. Type 'help' for a list of commands." << std::endl;
+        }
+    }
+    return false;
 }
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -727,38 +862,15 @@ int main(int argc, char** argv) {
 
         recv.wait_ready();
 
-        auto line = initial_commands;
         bool quit_requested = false;
+        if (!initial_commands.empty()) {
+            quit_requested = run_command_line(recv, initial_commands);
+        }
         while (!quit_requested) {
-            if (line.empty()) {
-                std::cout << "> " << std::flush;
-                if (!std::getline(std::cin, line))
-                    break;
-            }
-            for (const auto& args : parse_command_line(line)) {
-                auto* cmd = find_command(args[0]);
-                if (cmd) {
-                    if (execute_command(recv, *cmd, args)) {
-                        quit_requested = true;
-                        break;
-                    }
-                    if (recv.interrupted()) {
-                        std::cout << "[interrupted]" << std::endl;
-                        recv.clear_interrupt();
-                    }
-                    if (recv.timed_out()) {
-                        std::cout << "[timed out]" << std::endl;
-                        recv.clear_timed_out();
-                    }
-                    recv.sync_with_connection_thread();
-                    if (std::string err; recv.take_last_error(err)) {
-                        std::cout << "[error: " << err << "]" <<std::endl;
-                    }
-                } else {
-                    std::cout << "Unknown command. Type 'help' for a list of commands." << std::endl;
-                }
-            }
-            line.clear();
+            std::cout << "> " << std::flush;
+            auto line = std::string();
+            if (!std::getline(std::cin, line)) break;
+            quit_requested = run_command_line(recv, line);
         }
 
         recv.quit();

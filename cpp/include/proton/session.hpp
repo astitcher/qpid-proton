@@ -108,6 +108,10 @@ PN_CPP_CLASS_EXTERN session : public internal::object<pn_session_t>, public endp
     /// **Unsettled API** - Declare a new local transaction on this session.
     PN_CPP_EXTERN void transaction_declare();
 
+    /// @copydoc transaction_declare
+    /// **Unsettled API** - Declare using transaction options (see proton::transaction_options).
+    PN_CPP_EXTERN void transaction_declare(const transaction_options& opts);
+
     /// **Unsettled API** - Commit the currently declared transaction.
     PN_CPP_EXTERN void transaction_commit();
 
