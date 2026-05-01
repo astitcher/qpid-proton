@@ -83,4 +83,11 @@ typedef internal::iter_range<tracker_iterator> tracker_range;
 
 } // proton
 
+/// Specialize std::hash so we can use proton::tracker as a key for unordered datastructures
+template <> struct std::hash<proton::tracker> {
+  std::size_t operator()(const proton::tracker& k) const {
+      return std::hash<proton::binary>{}(k.tag());
+  }
+};
+
 #endif // PROTON_TRACKER_HPP

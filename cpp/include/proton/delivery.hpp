@@ -98,4 +98,11 @@ typedef internal::iter_range<delivery_iterator> delivery_range;
 
 } // proton
 
+/// Specialize std::hash so we can use proton::delivery as a key for unordered datastructures
+template <> struct std::hash<proton::delivery> {
+  std::size_t operator()(const proton::delivery& k) const {
+      return std::hash<proton::binary>{}(k.tag());
+  }
+};
+
 #endif // PROTON_DELIVERY_HPP
