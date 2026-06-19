@@ -66,12 +66,17 @@ static inline void pn_bytes_free(pn_bytes_t in) {
   free((void*)in.start);
 }
 
-static inline void pni_switch_to_data(pn_bytes_t *bytes, pn_data_t **data) {
+static inline void pni_switch_to_data(pn_bytes_t *bytes, pn_data_t **data,
+                                       size_t max_nodes) {
   if (*data == NULL) {
     *data = pn_data(0);
   }
   if (bytes->start) {
     pn_data_clear(*data);
+    /* Intern buffer is capped at bytes->size: interned strings must originate
+     * from these bytes, so 1:1 is a tight bound that prevents amplification
+     * without imposing an artificial ceiling. */
+    pn_data_set_decode_limits(*data, max_nodes, bytes->size);
     pn_data_decode(*data, bytes->start, bytes->size);
     pn_data_rewind(*data);
 

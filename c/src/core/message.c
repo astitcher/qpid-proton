@@ -1058,28 +1058,37 @@ int pn_message_data(pn_message_t *msg, pn_data_t *data)
 pn_data_t *pn_message_instructions(pn_message_t *msg)
 {
   if (!msg) return NULL;
-  pni_switch_to_data(&msg->instructions_raw, &msg->instructions_deprecated);
+  pni_switch_to_data(&msg->instructions_raw, &msg->instructions_deprecated,
+                     PNI_DATA_DEFAULT_MAX_NODES);
   return msg->instructions_deprecated;
 }
 
 pn_data_t *pn_message_annotations(pn_message_t *msg)
 {
   if (!msg) return NULL;
-  pni_switch_to_data(&msg->annotations_raw, &msg->annotations_deprecated);
+  pni_switch_to_data(&msg->annotations_raw, &msg->annotations_deprecated,
+                     PNI_DATA_DEFAULT_MAX_NODES);
   return msg->annotations_deprecated;
 }
 
 pn_data_t *pn_message_properties(pn_message_t *msg)
 {
   if (!msg) return NULL;
-  pni_switch_to_data(&msg->properties_raw, &msg->properties_deprecated);
+  pni_switch_to_data(&msg->properties_raw, &msg->properties_deprecated,
+                     PNI_DATA_DEFAULT_MAX_NODES);
   return msg->properties_deprecated;
 }
 
 pn_data_t *pn_message_body(pn_message_t *msg)
 {
   if (!msg) return NULL;
-  pni_switch_to_data(&msg->body_raw, &msg->body_deprecated);
+  /* Limit the intern buffer to the raw byte size of the body: this prevents
+   * amplification attacks (a compact encoding expanding into a large intern
+   * buffer) while placing no artificial ceiling on legitimate large bodies,
+   * since the raw bytes are already in memory and bounded by the transport's
+   * max_buffered_delivery_bytes limit. */
+  pni_switch_to_data(&msg->body_raw, &msg->body_deprecated,
+                     PNI_DATA_BODY_MAX_NODES);
   return msg->body_deprecated;
 }
 

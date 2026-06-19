@@ -52,6 +52,8 @@ struct pn_data_t {
   pni_node_t *nodes;
   pn_buffer_t *buf;
   pn_error_t *error;
+  size_t max_buf_size; /* intern buffer limit during decode; 0 = unlimited */
+  pni_nid_t max_nid;   /* node count limit during decode; 0 = unlimited */
   pni_nid_t capacity;
   pni_nid_t size;
   pni_nid_t parent;
@@ -60,7 +62,30 @@ struct pn_data_t {
   pni_nid_t base_current;
 };
 
-static inline pni_node_t * pn_data_node(pn_data_t *data, pni_nid_t nd) 
+/* Node-count decode limits passed to pni_switch_to_data().
+ *
+ * The intern buffer limit is always bytes->size (handled inside
+ * pni_switch_to_data itself): interned strings must originate from the raw
+ * bytes being decoded, so 1:1 is a tight bound that prevents amplification
+ * without imposing an artificial ceiling on any field.
+ *
+ * The node count needs a separate constant because 0-width elements (e.g.
+ * PNE_NULL in an array) consume a node but no bytes, so bytes->size does not
+ * bound node count.
+ *
+ * PNI_DATA_DEFAULT_MAX_NODES (1024): performative fields — connection/terminus/
+ * link properties and capabilities, condition info, disposition data, message
+ * annotations and application-properties. These carry structured protocol
+ * metadata; values exceeding this limit indicate malformed or malicious input.
+ *
+ * PNI_DATA_BODY_MAX_NODES (0 = unlimited): message body — application data
+ * whose node count is bounded only by the uint16 hard ceiling of PNI_NID_MAX.
+ * The body bytes are already bounded by the transport's
+ * max_buffered_delivery_bytes limit. */
+#define PNI_DATA_DEFAULT_MAX_NODES 1024
+#define PNI_DATA_BODY_MAX_NODES    0
+
+static inline pni_node_t * pn_data_node(pn_data_t *data, pni_nid_t nd)
 {
   return nd ? (data->nodes + nd - 1) : NULL;
 }

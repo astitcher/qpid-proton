@@ -473,6 +473,8 @@ static void pn_transport_initialize(void *object)
 
   transport->bytes_input = 0;
   transport->bytes_output = 0;
+  transport->max_buffered_delivery_bytes = PN_DEFAULT_MAX_BUFFERED_DELIVERY_BYTES;
+  transport->buffered_delivery_bytes = 0;
 
   transport->input_pending = 0;
   transport->output_pending = 0;
@@ -1424,6 +1426,12 @@ int pn_do_transfer(pn_transport_t *transport, uint8_t frame_type, uint16_t chann
   }
 
   if (delivery) {
+    if (transport->max_buffered_delivery_bytes > 0 &&
+        transport->buffered_delivery_bytes + payload.size > transport->max_buffered_delivery_bytes) {
+      return pn_do_error(transport, "amqp:resource-limit-exceeded",
+                         "connection delivery buffer limit exceeded: %zu bytes buffered, limit %zu",
+                         transport->buffered_delivery_bytes, transport->max_buffered_delivery_bytes);
+    }
     pn_buffer_append(delivery->bytes, payload.start, payload.size);
     if (more) {
       if (!link->more_pending) {
@@ -1457,6 +1465,7 @@ int pn_do_transfer(pn_transport_t *transport, uint8_t frame_type, uint16_t chann
   }
 
   ssn->incoming_bytes += payload.size;
+  transport->buffered_delivery_bytes += payload.size;
   ssn->state.incoming_transfer_count++;
   ssn->state.incoming_window--;
 
@@ -2909,6 +2918,16 @@ void pn_transport_set_max_frame(pn_transport_t *transport, uint32_t size)
 uint32_t pn_transport_get_remote_max_frame(pn_transport_t *transport)
 {
   return transport->remote_max_frame;
+}
+
+size_t pn_transport_get_max_buffered_delivery_bytes(pn_transport_t *transport)
+{
+  return transport->max_buffered_delivery_bytes;
+}
+
+void pn_transport_set_max_buffered_delivery_bytes(pn_transport_t *transport, size_t limit)
+{
+  transport->max_buffered_delivery_bytes = limit;
 }
 
 pn_millis_t pn_transport_get_idle_timeout(pn_transport_t *transport)
