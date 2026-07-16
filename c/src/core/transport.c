@@ -1432,7 +1432,8 @@ int pn_do_transfer(pn_transport_t *transport, uint8_t frame_type, uint16_t chann
                          "connection delivery buffer limit exceeded: %zu bytes buffered, limit %zu",
                          transport->buffered_delivery_bytes, transport->max_buffered_delivery_bytes);
     }
-    pn_buffer_append(delivery->bytes, payload.start, payload.size);
+    int err = pn_buffer_append(delivery->bytes, payload.start, payload.size);
+    if (err) return pn_do_error(transport, "amqp:resource-limit-exceeded", "out of memory buffering incoming delivery");
     ssn->incoming_bytes += payload.size;
     transport->buffered_delivery_bytes += payload.size;
     if (more) {
