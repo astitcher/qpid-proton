@@ -31,21 +31,66 @@ typedef uint16_t pni_nid_t;
 #define PNI_NID_MAX ((pni_nid_t)-1)
 #define PNI_INTERN_MINSIZE 64
 
+/*
+ * Value payload for a pni_node_t.
+ *
+ * BINARY/STRING/SYMBOL/DECIMAL128/UUID nodes store their data in the intern
+ * buffer (data->buf); as_bytes.offset and as_bytes.size locate the bytes.
+ * DECIMAL128 and UUID always have as_bytes.size == 16.
+ *
+ * PN_ARRAY nodes store the element type in array_type.
+ *
+ * All other types (NULL, LIST, MAP, DESCRIBED) carry no payload; only the
+ * type tag on pni_node_t is meaningful.
+ */
+typedef union {
+  bool            as_bool;
+  uint8_t         as_ubyte;
+  int8_t          as_byte;
+  uint16_t        as_ushort;
+  int16_t         as_short;
+  uint32_t        as_uint;
+  int32_t         as_int;
+  uint32_t        as_char;        /* pn_char_t is typedef'd uint32_t */
+  uint64_t        as_ulong;
+  int64_t         as_long;
+  int64_t         as_timestamp;   /* pn_timestamp_t is typedef'd int64_t */
+  float           as_float;
+  double          as_double;
+  uint32_t        as_decimal32;
+  uint64_t        as_decimal64;
+  struct {
+    uint32_t      offset;         /* byte offset into data->buf */
+    uint32_t      size;           /* byte count (always 16 for decimal128/uuid) */
+  }               as_bytes;
+  pn_type_t       array_type;     /* PN_ARRAY element type */
+} pni_node_payload_t;
+
+/*
+ * Layout (64-bit): 32 bytes, no padding.
+ *
+ *  offset  0  type        (4)  value type tag
+ *  offset  4  described   (1)  PN_ARRAY: has descriptor child
+ *  offset  5  small       (1)  encoder scratch
+ *  offset  6  next        (2)  fills alignment gap before u
+ *  offset  8  u           (8)  value payload (8-byte aligned)
+ *  offset 16  start       (8)  encoder scratch (8-byte aligned)
+ *  offset 24  prev        (2)
+ *  offset 26  down        (2)
+ *  offset 28  parent      (2)
+ *  offset 30  children    (2)
+ */
 typedef struct {
-  size_t start;
-  size_t data_offset;
-  size_t data_size;
-  pn_atom_t atom;
-  pn_type_t type;
-  pni_nid_t next;
-  pni_nid_t prev;
-  pni_nid_t down;
-  pni_nid_t parent;
-  pni_nid_t children;
-  // for arrays
-  bool described;
-  bool data;
-  bool small;
+  pn_type_t           type;
+  bool                described;
+  bool                small;
+  pni_nid_t           next;
+  pni_node_payload_t  u;
+  size_t              start;
+  pni_nid_t           prev;
+  pni_nid_t           down;
+  pni_nid_t           parent;
+  pni_nid_t           children;
 } pni_node_t;
 
 struct pn_data_t {

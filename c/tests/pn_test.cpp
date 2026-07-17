@@ -29,6 +29,8 @@
 #include <proton/object.h>
 #include <proton/transport.h>
 
+#include "core/value_dump.h"
+
 #include <sstream>
 #include <utility>
 
@@ -64,6 +66,23 @@ std::string inspect(void *obj) {
   std::string r(s);
   free(s);
   return r;
+}
+
+std::string to_string(pn_bytes_t raw) {
+  std::string out_str;
+  uint32_t left = raw.size;
+  uint32_t item_size = 0;
+  for (;;) {
+    char out[1024];
+    raw.size  -= item_size;
+    raw.start += item_size;
+    item_size = pn_value_dump(raw, out, sizeof(out));
+    out_str += out;
+    left -= item_size;
+    if (left==0) break;
+    out_str += "; ";
+  }
+  return out_str;
 }
 
 std::ostream &operator<<(std::ostream &o, const etypes &et) {

@@ -62,9 +62,11 @@ static void decode_message(pn_rwbytes_t data) {
   int err = pn_message_decode(m, data.start, data.size);
   if (!err) {
     /* Print the decoded message */
-    char *s = pn_tostring(pn_message_body(m));
+    pn_amqp_value_t *value = pn_message_get_body_value(m);
+    char *s = pn_amqp_value_tostring(value);
     printf("%s\n", s);
     free(s);
+    pn_amqp_value_free(value);
     pn_message_free(m);
     free(data.start);
   } else {

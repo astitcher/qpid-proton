@@ -23,6 +23,7 @@
  */
 
 #include <proton/import_export.h>
+#include <proton/amqp_value.h>
 #include <proton/codec.h>
 #include <proton/condition.h>
 #include <proton/error.h>
@@ -430,6 +431,9 @@ PN_EXTERN const char *pn_connection_remote_hostname(pn_connection_t *connection)
  */
 PN_EXTERN pn_data_t *pn_connection_offered_capabilities(pn_connection_t *connection);
 
+PN_EXTERN pn_amqp_array_t *pn_connection_get_offered_capabilities(pn_connection_t *connection);
+PN_EXTERN void pn_connection_set_offered_capabilities(pn_connection_t *connection, pn_amqp_array_t *capabilies);
+
 /**
  * Access/modify the AMQP desired capabilities data for a connection
  * object.
@@ -447,6 +451,9 @@ PN_EXTERN pn_data_t *pn_connection_offered_capabilities(pn_connection_t *connect
  * @return a pointer to a pn_data_t representing the desired capabilities
  */
 PN_EXTERN pn_data_t *pn_connection_desired_capabilities(pn_connection_t *connection);
+
+PN_EXTERN pn_amqp_array_t *pn_connection_get_desired_capabilities(pn_connection_t *connection);
+PN_EXTERN void pn_connection_set_desired_capabilities(pn_connection_t *connection, pn_amqp_array_t *capabilies);
 
 /**
  * Access/modify the AMQP properties data for a connection object.
@@ -479,6 +486,8 @@ PN_EXTERN pn_data_t *pn_connection_properties(pn_connection_t *connection);
  */
 PN_EXTERN pn_data_t *pn_connection_remote_offered_capabilities(pn_connection_t *connection);
 
+PN_EXTERN pn_amqp_array_t *pn_connection_get_remote_offered_capabilities(pn_connection_t *connection);
+
 /**
  * Access the AMQP desired capabilities supplied by the remote
  * connection endpoint.
@@ -493,6 +502,8 @@ PN_EXTERN pn_data_t *pn_connection_remote_offered_capabilities(pn_connection_t *
  */
 PN_EXTERN pn_data_t *pn_connection_remote_desired_capabilities(pn_connection_t *connection);
 
+PN_EXTERN pn_amqp_array_t *pn_connection_get_remote_desired_capabilities(pn_connection_t *connection);
+
 /**
  * Access the AMQP connection properties supplied by the remote
  * connection endpoint.
@@ -506,6 +517,11 @@ PN_EXTERN pn_data_t *pn_connection_remote_desired_capabilities(pn_connection_t *
  * @return the remote connection properties
  */
 PN_EXTERN pn_data_t *pn_connection_remote_properties(pn_connection_t *connection);
+
+PN_EXTERN pn_amqp_map_t *pn_connection_get_properties(pn_connection_t *connection);
+PN_EXTERN void pn_connection_set_properties(pn_connection_t *connection, pn_amqp_map_t *properties);
+
+PN_EXTERN pn_amqp_map_t *pn_connection_get_remote_properties(pn_connection_t *connection);
 
 /**
  * Get the transport bound to a connection object.

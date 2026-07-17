@@ -24,6 +24,7 @@
 
 #include <proton/annotations.h>
 #include <proton/import_export.h>
+#include <proton/amqp_value.h>
 #include <proton/codec.h>
 #include <proton/type_compat.h>
 #include <stddef.h>
@@ -131,6 +132,9 @@ PN_EXTERN int pn_condition_set_description(pn_condition_t *condition, const char
  * @return a data object holding the additional information for the condition
  */
 PN_EXTERN pn_data_t *pn_condition_info(pn_condition_t *condition);
+
+PN_EXTERN pn_amqp_map_t *pn_condition_get_info(pn_condition_t *condition);
+PN_EXTERN void pn_condition_set_info(pn_condition_t *condition, pn_amqp_map_t *info);
 
 /**
  * Set the name and printf-style formatted description.
