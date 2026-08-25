@@ -171,6 +171,7 @@ typedef struct pconnection_t {
 
   uv_connect_t connect;         /* Outgoing connection only */
   int connected;      /* 0: not connected, <0: connecting after error, 1 = connected ok */
+  bool disconnecting; /* Close requested by pn_proactor_disconnect() */
 
   lsocket_t *lsocket;           /* Incoming connection only */
 
@@ -909,6 +910,15 @@ static void check_wake(pconnection_t *pc) {
 /* Process a pconnection, return true if it has events for a worker thread */
 static bool leader_process_pconnection(pconnection_t *pc) {
   /* Important to do the following steps in order */
+  if (pc->disconnecting) {
+    pc->disconnecting = false;
+    pn_condition_t *cond = pc->work.proactor->disconnect_cond;
+    if (cond) {
+      pn_condition_copy(pn_transport_condition(pc->driver.transport), cond);
+    }
+    pn_connection_driver_close(&pc->driver);
+  }
+
   if (!pc->connected) {
     return leader_connect(pc);
   }
@@ -983,11 +993,7 @@ static void on_proactor_disconnect(uv_handle_t* h, void* v) {
     switch (*(struct_type*)h->data) {
      case T_CONNECTION: {
        pconnection_t *pc = (pconnection_t*)h->data;
-       pn_condition_t *cond = pc->work.proactor->disconnect_cond;
-       if (cond) {
-         pn_condition_copy(pn_transport_condition(pc->driver.transport), cond);
-       }
-       pn_connection_driver_close(&pc->driver);
+       pc->disconnecting = true;
        work_notify(&pc->work);
        break;
      }
