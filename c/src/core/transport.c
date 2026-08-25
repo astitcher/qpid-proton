@@ -894,8 +894,15 @@ static int pni_post_amqp_transfer_frame(pn_transport_t *transport, uint16_t ch,
     // check if we need to break up the outbound frame
     size_t available = full_payload->size;
     if (transport->remote_max_frame) {
-      if ((available + performative.size) > transport->remote_max_frame - AMQP_HEADER_SIZE) {
-        available = transport->remote_max_frame - AMQP_HEADER_SIZE - performative.size;
+      size_t max_payload = transport->remote_max_frame - AMQP_HEADER_SIZE;
+      if (performative.size > max_payload) {
+        return pn_do_error(transport, "amqp:resource-limit-exceeded",
+                           "transfer performative exceeds remote max-frame: max payload %zu, performative %zu",
+                           max_payload, performative.size);
+      }
+
+      if ((available + performative.size) > max_payload) {
+        available = max_payload - performative.size;
         if (more_flag == false) {
           more_flag = true;
           goto compute_performatives;  // deal with flag change
