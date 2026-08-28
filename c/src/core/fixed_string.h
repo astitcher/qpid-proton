@@ -92,8 +92,12 @@ static inline void pn_fixed_string_quote(pn_fixed_string_t *str, const char *dat
   }
 }
 
+static inline bool pn_fixed_string_is_full(pn_fixed_string_t *str) {
+  return str->position==str->size;
+}
+
 static inline void pn_fixed_string_terminate(pn_fixed_string_t *str) {
-  if (str->position==str->size) str->position--;
+  if (pn_fixed_string_is_full(str) && str->position > 0) str->position--;
   str->bytes[str->position] = 0;
 }
 
