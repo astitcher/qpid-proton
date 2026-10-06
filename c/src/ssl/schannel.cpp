@@ -228,33 +228,63 @@ static CredHandle win_credential_cred_handle(win_credential_t *cred, const char 
     *status = SEC_E_OK;
     return cred->cred_handle;  // Server always reuses cached value
   }
+
   // TODO: if (is_client && session_id != NULL) create or use cached value based on
   // session_id+server_host_name (per domain? reclaimed after X hours?)
 
   CredHandle tmp_handle;
   SecInvalidateHandle(&tmp_handle);
   TimeStamp expiry;  // Not used
+
+# ifdef SCH_CREDENTIALS_VERSION   // present in modern Windows 10 SDKs
+  TLS_PARAMETERS tls_params = {0};
+  // leave grbitDisabledProtocols = 0 → let SChannel pick the strongest mutually-supported
+  // version, including TLS 1.3 when the peer offers it.
+
+  SCH_CREDENTIALS sch_creds = {0};
+  sch_creds.dwVersion        = SCH_CREDENTIALS_VERSION;
+  sch_creds.dwFlags          = SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
+  sch_creds.cTlsParameters   = 1;
+  sch_creds.pTlsParameters   = &tls_params;
+  if (cred->cert_context) {
+    sch_creds.paCred = &cred->cert_context;
+    sch_creds.cCreds = 1;
+  }
+  if (cred->mode == PN_SSL_MODE_SERVER) {
+    sch_creds.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER;
+    if (cred->server_CA_certs) {
+      sch_creds.hRootStore = cred->server_CA_certs;
+    }
+  }
+  ULONG direction = (cred->mode == PN_SSL_MODE_SERVER) ? SECPKG_CRED_INBOUND : SECPKG_CRED_OUTBOUND;
+
+  *status = AcquireCredentialsHandle(
+    NULL, UNISP_NAME, direction, NULL,
+    &sch_creds, NULL, NULL, &tmp_handle, &expiry);
+# else
   SCHANNEL_CRED descriptor;
   memset(&descriptor, 0, sizeof(descriptor));
 
   descriptor.dwVersion = SCHANNEL_CRED_VERSION;
   descriptor.dwFlags = SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
+
   if (cred->cert_context != NULL) {
     // assign the certificate into the credentials
     descriptor.paCred = &cred->cert_context;
     descriptor.cCreds = 1;
   }
-
   if (cred->mode == PN_SSL_MODE_SERVER) {
     descriptor.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER;
     if (cred->server_CA_certs) {
       descriptor.hRootStore = cred->server_CA_certs;
     }
   }
-
   ULONG direction = (cred->mode == PN_SSL_MODE_SERVER) ? SECPKG_CRED_INBOUND : SECPKG_CRED_OUTBOUND;
-  *status = AcquireCredentialsHandle(NULL, UNISP_NAME, direction, NULL,
-                                               &descriptor, NULL, NULL, &tmp_handle, &expiry);
+
+  *status = AcquireCredentialsHandle(
+    NULL, UNISP_NAME, direction, NULL,
+    &descriptor, NULL, NULL, &tmp_handle, &expiry);
+# endif
   if (cred->mode == PN_SSL_MODE_SERVER && *status == SEC_E_OK)
     cred->cred_handle = tmp_handle;
 
