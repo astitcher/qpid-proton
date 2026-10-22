@@ -40,6 +40,7 @@
 
 #include <iostream>
 #include <list>
+#include <new>
 #include <queue>
 #include <sstream>
 
@@ -1714,7 +1715,7 @@ struct pn_listener_t {
   psocket_t *psockets;          /* Array of listening sockets */
   size_t psockets_size;
   pcontext_t context;
-  std::queue<accept_result_t *> *pending_accepts;  // sockets awaiting a pn_listener_accept
+  std::queue<accept_result_t *> pending_accepts;  // sockets awaiting a pn_listener_accept
   int pending_events;          // number of PN_LISTENER_ACCEPT events to be delivered
   pn_condition_t *condition;
   pn_collector_t *collector;
@@ -2932,7 +2933,7 @@ static inline void listener_final_free(pn_listener_t *l) {
   pn_collector_free(l->collector);
   pn_condition_free(l->condition);
   pn_free(l->attachments);
-  free(l);
+  delete l;
 }
 
 /* Call with listener lock held by lg.*/
@@ -3002,7 +3003,7 @@ static pn_event_batch_t *listener_process(pn_listener_t *l, iocp_result_t *resul
     ps->iocpd->ops_in_progress--;
 
     // add even if closing to reuse cleanup code
-    l->pending_accepts->push(accept_result);
+    l->pending_accepts.push(accept_result);
     if (!ps->iocpd->ops_in_progress)
       begin_accept(ps->iocpd->acceptor, NULL);  // Start another, up to IOCP_MAX_ACCEPTS
     l->pending_events++;
@@ -3116,13 +3117,12 @@ static void listener_done(pn_listener_t *l) {
 }
 
 pn_listener_t *pn_listener() {
-  pn_listener_t *l = (pn_listener_t*)calloc(1, sizeof(pn_listener_t));
+  pn_listener_t *l = new (std::nothrow) pn_listener_t();
   if (l) {
     l->batch.next_event = listener_batch_next;
     l->collector = pn_collector();
     l->condition = pn_condition();
     l->attachments = pn_record();
-    l->pending_accepts = new std::queue<accept_result_t *>();
     if (!l->condition || !l->collector || !l->attachments) {
       pn_listener_free(l);
       return NULL;
@@ -3190,9 +3190,9 @@ pn_record_t *pn_listener_attachments(pn_listener_t *l) {
 
 static void release_pending_accepts(pn_listener_t *l) {
   // called with lock held or at shutdown
-  while (!l->pending_accepts->empty()) {
-    accept_result_t *accept_result = l->pending_accepts->front();
-    l->pending_accepts->pop();
+  while (!l->pending_accepts.empty()) {
+    accept_result_t *accept_result = l->pending_accepts.front();
+    l->pending_accepts.pop();
     psocket_t *ps = (psocket_t *) accept_result->base.iocpd->active_completer;
     accept_result->new_sock->ops_in_progress--;
     ps->iocpd->ops_in_progress--;
@@ -3239,11 +3239,11 @@ void pn_listener_accept2(pn_listener_t *l, pn_connection_t *c, pn_transport_t *t
 
     if (l->context.closing)
       err = WSAESHUTDOWN;
-    else if (l->pending_accepts->empty())
+    else if (l->pending_accepts.empty())
       err = WSAEWOULDBLOCK;
     else {
-      accept_result = l->pending_accepts->front();
-      l->pending_accepts->pop();
+      accept_result = l->pending_accepts.front();
+      l->pending_accepts.pop();
       ps = (psocket_t *) accept_result->base.iocpd->active_completer;
       l->context.completion_ops++; // for recycle_result
       iocpdesc_t *conn_iocpd = accept_result->new_sock;
