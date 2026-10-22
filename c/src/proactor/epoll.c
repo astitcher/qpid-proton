@@ -1719,9 +1719,9 @@ void pn_listener_free(pn_listener_t *l) {
   */
   if (l) {
     bool can_free = true;
-    if (l->collector) pn_collector_free(l->collector);
-    if (l->condition) pn_condition_free(l->condition);
-    if (l->attachments) pn_free(l->attachments);
+    pn_collector_free(l->collector);
+    pn_condition_free(l->condition);
+    pn_free(l->attachments);
     lock(&l->task.mutex);
     if (l->task.proactor) {
       can_free = proactor_remove(&l->task);
@@ -2100,6 +2100,7 @@ pn_proactor_t *pn_proactor(void) {
 }
 
 void pn_proactor_free(pn_proactor_t *p) {
+  if (!p) return;
   //  No competing threads, not even a pending timer
   p->shutting_down = true;
   close(p->epollfd);

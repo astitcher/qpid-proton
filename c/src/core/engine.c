@@ -165,6 +165,7 @@ void pn_connection_release(pn_connection_t *connection)
 }
 
 void pn_connection_free(pn_connection_t *connection) {
+  if (!connection) return;
   pn_connection_release(connection);
   pn_decref(connection);
 }
@@ -289,6 +290,7 @@ void pn_session_close(pn_session_t *session)
 
 void pn_session_free(pn_session_t *session)
 {
+  if (!session) return;
   assert(!session->endpoint.freed);
   while(pn_list_size(session->links)) {
     pn_link_t *link = (pn_link_t *)pn_list_get(session->links, 0);
@@ -376,6 +378,7 @@ static void pni_terminus_free(pn_terminus_t *terminus)
 
 void pn_link_free(pn_link_t *link)
 {
+  if (!link) return;
   assert(!link->endpoint.freed);
   pni_remove_link(link->session, link);
   pn_list_add(link->session->freed, link);

@@ -69,6 +69,12 @@ static void set_rbuf(pn_raw_buffer_t *rb, char * bytes, uint32_t capacity, uint3
   rb->offset = 0;
 }
 
+/* Both follow free(): a NULL argument does nothing. */
+TEST_CASE("tls_free_accepts_null") {
+  pn_tls_config_free(NULL);
+  pn_tls_free(NULL);
+}
+
 TEST_CASE("handshake and data") {
   static char cli_data[] = {"sample client data (request)"};
   static char srv_data[] = {"sample server data (response)"};

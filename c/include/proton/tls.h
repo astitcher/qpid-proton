@@ -121,7 +121,7 @@ PN_TLS_EXTERN pn_tls_config_t *pn_tls_config(pn_tls_mode_t mode);
  * Release an TLS configuration domain
  *
  * This method frees an TLS domain object allocated by ::pn_tls_config.
- * @param[in] domain the domain to destroy.
+ * @param[in] domain the domain to destroy (or NULL)
  */
 PN_TLS_EXTERN void pn_tls_config_free(pn_tls_config_t *domain);
 

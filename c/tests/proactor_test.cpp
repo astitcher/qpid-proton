@@ -194,6 +194,12 @@ TEST_CASE("proactor_connect_close_before_open") {
   REQUIRE(h.proactor_inactive_);
 }
 
+/* Both follow free(): a NULL argument does nothing. */
+TEST_CASE("proactor_free_accepts_null") {
+  pn_proactor_free(NULL);
+  pn_listener_free(NULL);
+}
+
 /* Close a listener that was never passed to pn_proactor_listen(). Thread safety
    is the only documented precondition, so this must not crash. */
 TEST_CASE("proactor_listener_close_before_listen") {

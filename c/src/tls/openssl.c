@@ -818,6 +818,7 @@ pn_tls_config_t *pn_tls_config( pn_tls_mode_t mode )
 
 void pn_tls_config_free( pn_tls_config_t *domain )
 {
+  if (!domain) return;
   if (--domain->ref_count == 0) {
 
     SSL_CTX_free(domain->ctx);

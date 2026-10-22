@@ -551,6 +551,7 @@ pn_ssl_domain_t *pn_ssl_domain( pn_ssl_mode_t mode )
 
 void pn_ssl_domain_free( pn_ssl_domain_t *domain )
 {
+  if (!domain) return;
   if (--domain->ref_count == 0) {
 
     SSL_CTX_free(domain->ctx);

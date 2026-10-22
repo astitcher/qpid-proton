@@ -2929,9 +2929,9 @@ static bool listener_can_free(pn_listener_t *l) {
 static inline void listener_final_free(pn_listener_t *l) {
   pcontext_finalize(&l->context);
   free(l->psockets);
-  if (l->collector) pn_collector_free(l->collector);
-  if (l->condition) pn_condition_free(l->condition);
-  if (l->attachments) pn_free(l->attachments);
+  pn_collector_free(l->collector);
+  pn_condition_free(l->condition);
+  pn_free(l->attachments);
   free(l);
 }
 
@@ -3065,7 +3065,7 @@ pn_proactor_t *pn_proactor() {
     }
   }
   fprintf(stderr, "%s\n", errno_str("Windows Proton proactor OS resource failure", false).c_str());
-  if (iocp) pn_free((void *) iocp);
+  pn_free((void *) iocp);
   if (wsa) WSACleanup();
   free(c);
   free(p);
@@ -3074,6 +3074,7 @@ pn_proactor_t *pn_proactor() {
 }
 
 void pn_proactor_free(pn_proactor_t *p) {
+  if (!p) return;
   DeleteTimerQueueEx(p->timer_queue, INVALID_HANDLE_VALUE);
   DeleteCriticalSection(&p->timer_lock);
   DeleteCriticalSection(&p->bind_lock);

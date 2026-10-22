@@ -125,7 +125,7 @@ PN_EXTERN pn_ssl_domain_t *pn_ssl_domain(pn_ssl_mode_t mode);
  * Release an SSL configuration domain
  *
  * This method frees an SSL domain object allocated by ::pn_ssl_domain.
- * @param[in] domain the domain to destroy.
+ * @param[in] domain the domain to destroy (or NULL)
  */
 PN_EXTERN void pn_ssl_domain_free(pn_ssl_domain_t *domain);
 

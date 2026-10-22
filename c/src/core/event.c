@@ -117,7 +117,7 @@ pn_collector_t *pn_collector(void)
 
 void pn_collector_free(pn_collector_t *collector)
 {
-  assert(collector);
+  if (!collector) return;
   pn_collector_release(collector);
   pn_decref(collector);
 }

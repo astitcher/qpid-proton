@@ -92,6 +92,8 @@ PNP_EXTERN pn_proactor_t *pn_proactor(void);
 
 /**
  * Free the proactor. Abort open connections/listeners, clean up all resources.
+ *
+ * @param[in] proactor the proactor to free (or NULL)
  */
 PNP_EXTERN void pn_proactor_free(pn_proactor_t *proactor);
 

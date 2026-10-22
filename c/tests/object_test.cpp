@@ -23,12 +23,38 @@
 
 #include "core/object_private.h"
 
+#include <proton/codec.h>
+#include <proton/condition.h>
+#include <proton/connection.h>
+#include <proton/error.h>
+#include <proton/event.h>
+#include <proton/link.h>
+#include <proton/message.h>
+#include <proton/session.h>
+#include <proton/ssl.h>
+#include <proton/transport.h>
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 using Catch::Matchers::Equals;
+
+/* Every public pn_*_free() follows free(): a NULL argument does nothing. */
+TEST_CASE("public_free_accepts_null") {
+  pn_free(NULL);
+  pn_collector_free(NULL);
+  pn_condition_free(NULL);
+  pn_connection_free(NULL);
+  pn_data_free(NULL);
+  pn_error_free(NULL);
+  pn_link_free(NULL);
+  pn_message_free(NULL);
+  pn_session_free(NULL);
+  pn_ssl_domain_free(NULL);
+  pn_transport_free(NULL);
+}
 
 static char mem;
 static void *END = &mem;

@@ -80,10 +80,9 @@ pn_connection_t *pn_connection_driver_release_connection(pn_connection_driver_t 
 }
 
 void pn_connection_driver_destroy(pn_connection_driver_t *d) {
-  pn_connection_t *c = pn_connection_driver_release_connection(d);
-  if (c) pn_connection_free(c);
-  if (d->transport) pn_transport_free(d->transport);
-  if (d->collector) pn_collector_free(d->collector);
+  pn_connection_free(pn_connection_driver_release_connection(d));
+  pn_transport_free(d->transport);
+  pn_collector_free(d->collector);
   memset(d, 0, sizeof(*d));
 }
 

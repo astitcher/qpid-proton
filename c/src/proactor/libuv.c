@@ -717,9 +717,9 @@ void pn_listener_free(pn_listener_t *l) {
     if (l->addr.getaddrinfo.addrinfo) { /* Interrupted after resolve */
       uv_freeaddrinfo(l->addr.getaddrinfo.addrinfo);
     }
-    if (l->collector) pn_collector_free(l->collector);
-    if (l->condition) pn_condition_free(l->condition);
-    if (l->attachments) pn_free(l->attachments);
+    pn_collector_free(l->collector);
+    pn_condition_free(l->condition);
+    pn_free(l->attachments);
     while (l->lsockets) {
       lsocket_t *ls = l->lsockets;
       l->lsockets = ls->next;
@@ -1297,6 +1297,7 @@ pn_proactor_t *pn_proactor(void) {
 }
 
 void pn_proactor_free(pn_proactor_t *p) {
+  if (!p) return;
   /* Close all open handles */
   uv_walk(&p->loop, on_proactor_free, NULL);
   while (uv_loop_alive(&p->loop)) {
