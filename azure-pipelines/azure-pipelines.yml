@@ -8,7 +8,7 @@
 #
 variables:
   Config: 'RelWithDebInfo'
-  PythonVersion: '3.9'
+  PythonVersion: '3.12'
   PythonArch: 'x64'
   CmakeConfigExtraArgs: ''
   CmakeGenerator: '-G "Unix Makefiles"'
@@ -45,6 +45,6 @@ jobs:
   steps:
   - script: |
       brew update
-      brew install libuv swig pkgconfig openssl@1.1 jsoncpp
+      brew install libuv pkgconfig jsoncpp openssl@3.6
     name: InstallExtraStuff
   - template: steps.yml
